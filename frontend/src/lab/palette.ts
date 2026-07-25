@@ -63,3 +63,20 @@ export function abreviar(v: number): string {
 }
 
 export const nfBR = new Intl.NumberFormat("pt-BR");
+
+/** Rampa sequencial contínua para heatmap — interpola os passos validados. */
+export function corSequencial(t: ChartTheme, f: number): string {
+  const p = t.sequencial;
+  const x = Math.min(0.999, Math.max(0, f)) * (p.length - 1);
+  const i = Math.floor(x);
+  const mix = (a: string, b: string, k: number) => {
+    const h = (c: string) => [1, 3, 5].map((o) => parseInt(c.slice(o, o + 2), 16));
+    const [r1, g1, b1] = h(a);
+    const [r2, g2, b2] = h(b);
+    const c = (u: number, v: number) => Math.round(u + (v - u) * k);
+    return `rgb(${c(r1, r2)},${c(g1, g2)},${c(b1, b2)})`;
+  };
+  return mix(p[i], p[Math.min(p.length - 1, i + 1)], x - i);
+}
+
+export const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"] as const;

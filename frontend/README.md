@@ -11,43 +11,49 @@ npm run build
 npm run typecheck
 ```
 
-## Estado atual: sem backend
+## Conectado ao agente real
 
-`src/mocks/api.ts` emite os mesmos eventos que o backend emitiria, na mesma
-ordem. **Os dados não são inventados**: `traces.json` e `schema.json` foram
-gerados rodando o agente Python contra o DuckDB de 144 milhões de linhas, então
-o SQL, os tempos, os resultados e o contexto montado são reais.
+Não há mock. O frontend fala com a API em `http://localhost:8000` — os números
+na tela saem do DuckDB de 144 milhões de linhas, consultados no momento.
 
-Trocar o mock por um cliente HTTP/SSE não deve tocar em nenhum componente — a UI
-consome o `AsyncGenerator<StreamEvent>` de `ask()` e nada além disso.
+Suba os dois processos:
 
-### O mock recusa o que não tem
+```bash
+# terminal 1 — o agente
+.venv/bin/uvicorn src.api:app --port 8000
 
-Se nenhuma resposta gravada corresponder à pergunta, o mock **para** e diz isso,
-com a lista do que está coberto no trace.
+# terminal 2 — a interface
+cd frontend && npm run dev
+```
 
-A primeira versão não fazia isso: escolhia sempre o trace "mais parecido". Para
-*"quantas pessoas morreram por algum tipo de câncer?"* ela respondeu
-*"5.639.716 internações de mulheres em 2019"* — as duas perguntas
-compartilhavam apenas `quantas` e `de`, duas palavras vazias, e isso bastou para
-uma similaridade de 0,76.
+Para apontar para outro endereço, defina `VITE_API_URL`.
 
-Agora a comparação usa só palavras de conteúdo, com índice de Jaccard e piso de
-0,34. Um mock que inventa correspondência é pior que um mock que admite não ter
-a resposta — o produto inteiro existe para não apresentar número substituído
-como se fosse o pedido.
+### Como os eventos chegam
 
-As 16 perguntas cobertas estão em `PERGUNTAS_COBERTAS` (`src/mocks/api.ts`).
-Para acrescentar outras, rode o agente Python e anexe o trace a `traces.json`.
+`GET /api/ask?q=…` responde em Server-Sent Events. `src/lib/api.ts` lê o corpo
+com `fetch` e devolve um `AsyncGenerator<StreamEvent>` — a mesma forma que a UI
+já consumia, então nenhum componente precisou mudar.
+
+`fetch` em vez de `EventSource` por dois motivos: `EventSource` não aceita
+`AbortSignal`, então não daria para o botão "parar geração" funcionar, e ele
+reconecta sozinho ao terminar — o que reiniciaria a consulta inteira no banco.
+
+O backend emite exatamente o tipo `StreamEvent` de `lib/types.ts`. Não há
+tradução de formato entre os dois lados; mudar um exige mudar o outro.
+
+Se o agente estiver fora do ar, a resposta mostra o estado `offline` com o
+comando para subir o servidor — nunca um número inventado.
 
 ## Organização
 
 ```
 src/
-├── lib/types.ts          contrato entre dados e UI
-├── mocks/                api mockada + traces e schema reais
+├── lib/
+│   ├── types.ts          contrato de eventos, compartilhado com o backend
+│   └── api.ts            cliente SSE do agente
 ├── hooks/
 │   ├── useChat.ts        máquina de estados da conversa
+│   ├── useSchema.ts      estrutura do banco, vinda da API
 │   ├── useTheme.ts       tema com persistência
 │   └── useAutoScroll.ts  rolagem grudada no fim
 └── components/
@@ -59,7 +65,7 @@ src/
 ```
 
 Nenhum componente de UI contém regra de negócio: tudo que decide **o que**
-acontece está em `hooks/` e `mocks/`; os componentes decidem apenas **como**
+acontece está em `lib/` e `hooks/`; os componentes decidem apenas **como**
 aquilo aparece.
 
 ## Modo de depuração
@@ -109,8 +115,8 @@ Duração de 150–250 ms, `ease-out`, só `transform` e `opacity`.
 ## Estados cobertos
 
 Tela vazia · streaming com cursor · etapas em progresso · etapa pulada · recusa
-(pergunta fora do alcance) · erro de rede · SQL que falhou · timeout · consulta
-sem resultados · resposta longa com "ver mais".
+(pergunta fora do alcance da base) · agente fora do ar · SQL que falhou depois
+das tentativas de auto-correção · consulta sem resultados · resposta longa com
+"ver mais".
 
-Para exercitar os erros, inclua na pergunta `erro de rede`, `erro de sql` ou
-`timeout`.
+Para ver o estado `offline`, pare o `uvicorn` e faça uma pergunta.

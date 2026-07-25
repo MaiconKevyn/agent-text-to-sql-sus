@@ -1,5 +1,5 @@
 import { ArrowUpRight, Activity } from "lucide-react";
-import { SUGGESTED_QUESTIONS } from "@/mocks/api";
+import { SUGGESTED_QUESTIONS } from "@/lib/api";
 import { nf } from "@/lib/utils";
 
 interface EmptyStateProps {

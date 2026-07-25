@@ -1,7 +1,17 @@
 import { useCallback, useRef, useState } from "react";
-import { ask } from "@/mocks/api";
-import { STEP_LABELS, type AgentMessage, type Feedback, type Message, type StepId } from "@/lib/types";
+import { ask, BackendOffline } from "@/lib/api";
+import {
+  STEP_LABELS,
+  type AgentMessage,
+  type Feedback,
+  type Message,
+  type StepId,
+  type Turn,
+} from "@/lib/types";
 import { uid } from "@/lib/utils";
+
+/** Quantas rodadas anteriores acompanham a pergunta. */
+const HISTORICO = 3;
 
 const ORDEM: StepId[] = ["interpretar", "vincular", "gerar-sql", "executar", "resumir"];
 
@@ -37,13 +47,19 @@ export function useChat() {
     setMessages((ms) => ms.map((m) => (m.id === id && m.role === "agent" ? fn(m) : m)));
   }, []);
 
+  /** Últimas rodadas com SQL, para o backend resolver "e em 2020?". */
+  const historico = useRef<Turn[]>([]);
+
   const consumir = useCallback(
     async (pergunta: string, respostaId: string) => {
       const ctrl = new AbortController();
       abort.current = ctrl;
       setBusy(true);
       try {
-        for await (const ev of ask(pergunta, { signal: ctrl.signal })) {
+        for await (const ev of ask(pergunta, {
+          signal: ctrl.signal,
+          history: historico.current,
+        })) {
           if (ctrl.signal.aborted) break;
           switch (ev.type) {
             case "step":
@@ -98,10 +114,37 @@ export function useChat() {
               }));
               break;
             case "done":
-              patch(respostaId, (m) => ({ ...m, status: "pronto" }));
+              patch(respostaId, (m) => {
+                // Só rodada com SQL executável serve de base para o próximo
+                // acompanhamento; uma recusa não deixa nada para reaproveitar.
+                if (m.payload?.sql) {
+                  historico.current = [
+                    ...historico.current,
+                    { question: pergunta, sql: m.payload.sql },
+                  ].slice(-HISTORICO);
+                }
+                return { ...m, status: "pronto" };
+              });
               break;
           }
         }
+      } catch (erro) {
+        if (ctrl.signal.aborted) return;
+        const offline = erro instanceof BackendOffline;
+        patch(respostaId, (m) => ({
+          ...m,
+          status: "erro",
+          failure: {
+            kind: offline ? "offline" : "rede",
+            message: offline
+              ? `Não foi possível falar com o agente em ${import.meta.env.VITE_API_URL ?? "http://localhost:8000"}. ` +
+                `Confira se o servidor está no ar: uvicorn src.api:app --port 8000 (${erro.causa})`
+              : erro instanceof Error
+                ? erro.message
+                : "Erro inesperado.",
+          },
+          steps: m.steps.map((s) => (s.state === "ativo" ? { ...s, state: "falhou" } : s)),
+        }));
       } finally {
         setBusy(false);
         abort.current = null;
@@ -156,6 +199,7 @@ export function useChat() {
 
   const clear = useCallback(() => {
     abort.current?.abort();
+    historico.current = [];
     setMessages([]);
   }, []);
 

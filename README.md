@@ -54,6 +54,41 @@ SQL direto, sem passar pelo LLM (útil para depurar):
 .venv/bin/python -m src.cli --sql "SELECT COUNT(*) FROM internacoes"
 ```
 
+### Interface web
+
+Dois processos: a API do agente e o Vite.
+
+```bash
+.venv/bin/uvicorn src.api:app --port 8000
+```
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+A interface abre em `http://localhost:5173` e fala com o agente de verdade —
+não há dados mockados. Detalhes em [frontend/README.md](frontend/README.md).
+
+### API
+
+| Rota | O que devolve |
+|---|---|
+| `GET /api/health` | estado do banco e modelo em uso |
+| `GET /api/schema` | estrutura do banco para o explorador |
+| `GET /api/ask?q=…` | eventos do agente em Server-Sent Events |
+
+`/api/ask` transmite conforme acontece: as etapas, o contexto montado, o plano
+do modelo, o SQL, o resultado e a resposta token a token. Aceita `history` com
+as rodadas anteriores, o que faz "e em 2020?" funcionar.
+
+```bash
+curl -N -G localhost:8000/api/ask --data-urlencode "q=quantas internações em 2020?"
+```
+
+O formato dos eventos é o tipo `StreamEvent` em
+[frontend/src/lib/types.ts](frontend/src/lib/types.ts) — o mesmo dos dois lados,
+sem camada de tradução.
+
 ## Arquitetura
 
 ```
@@ -74,7 +109,7 @@ pergunta
    ├─ 4. execução ............. DuckDB read-only, timeout de 120s
    │                            erro → auto-correção (até 2 tentativas)
    │
-   └─ 5. síntese .............. LLM redige a resposta a partir do resultado,
+   └─ 5. síntese .............. LLM redige a resposta token a token,
                                obrigado a incluir as ressalvas aplicáveis
                                (SP/TO, raça/cor, 2007, valores nominais)
 ```
@@ -99,7 +134,9 @@ caso seja independente.
 | `src/agent.py` | orquestra o pipeline |
 | `src/db.py` | conexão read-only e validação de SQL |
 | `src/cli.py` | interface de linha de comando |
-| `eval/ground_truth.yaml` | 57 pares pergunta / SQL de referência |
+| `src/api.py` | API HTTP com streaming por SSE |
+| `frontend/` | interface web (React + Vite), ligada à API |
+| `eval/ground_truth.yaml` | 272 pares pergunta / SQL de referência |
 | `eval/build_gold.py` | executa e snapshota os resultados de referência |
 | `eval/run_eval.py` | mede execution accuracy |
 | `docs/PROFILING.md` | perfilagem completa que embasa o dicionário |

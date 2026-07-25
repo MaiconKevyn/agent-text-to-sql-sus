@@ -1,13 +1,11 @@
-import { AlertTriangle, ChevronRight, Search, Table2, X } from "lucide-react";
+import { AlertTriangle, ChevronRight, Loader2, PlugZap, Search, Table2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
-import schemaJson from "@/mocks/schema.json";
-import type { DatabaseSchema, SchemaTable } from "@/lib/types";
+import { useSchema } from "@/hooks/useSchema";
+import type { SchemaTable } from "@/lib/types";
 import { cn, fold, nf } from "@/lib/utils";
-
-const SCHEMA = schemaJson as unknown as DatabaseSchema;
 
 interface SchemaExplorerProps {
   /** Insere uma referência à tabela no campo de pergunta. */
@@ -128,17 +126,20 @@ function LinhaTabela({
 
 export function SchemaExplorer({ onPickTable, onClose }: SchemaExplorerProps) {
   const [busca, setBusca] = useState("");
+  const estado = useSchema();
+  const schema = estado.status === "pronto" ? estado.schema : null;
 
   const tabelas = useMemo(() => {
+    if (!schema) return [];
     const q = fold(busca.trim());
-    if (!q) return SCHEMA.tables;
-    return SCHEMA.tables.filter(
+    if (!q) return schema.tables;
+    return schema.tables.filter(
       (t) =>
         fold(t.name).includes(q) ||
         fold(t.description).includes(q) ||
         t.columns.some((c) => fold(c.name).includes(q) || fold(c.desc).includes(q)),
     );
-  }, [busca]);
+  }, [busca, schema]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface">
@@ -168,13 +169,32 @@ export function SchemaExplorer({ onPickTable, onClose }: SchemaExplorerProps) {
             className="w-full rounded-lg border border-line bg-canvas py-1.5 pl-8 pr-2.5 text-[12.5px] text-ink outline-none transition-colors duration-150 placeholder:text-ink-subtle focus:border-line-strong"
           />
         </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-ink-subtle">
-          {SCHEMA.period.split("\n")[0]}
-        </p>
+        {schema && (
+          <p className="mt-2 text-[11px] leading-relaxed text-ink-subtle">
+            {schema.period.split("\n")[0]}
+          </p>
+        )}
       </div>
 
+      {estado.status === "carregando" && (
+        <p className="flex items-center justify-center gap-2 px-3.5 py-8 text-[12px] text-ink-subtle">
+          <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin" />
+          Carregando a estrutura…
+        </p>
+      )}
+
+      {estado.status === "erro" && (
+        <div className="flex items-start gap-2 px-3.5 py-6 text-[12px] leading-relaxed text-ink-muted">
+          <PlugZap aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-critical" />
+          <span>
+            Não foi possível carregar a estrutura do banco. Confira se o agente está no
+            ar. <span className="text-ink-subtle">({estado.message})</span>
+          </span>
+        </div>
+      )}
+
       <ul className="scroll-thin min-h-0 flex-1 overflow-y-auto">
-        {tabelas.length === 0 ? (
+        {schema && tabelas.length === 0 ? (
           <li className="px-3.5 py-6 text-center text-[12px] text-ink-subtle">
             Nada encontrado para “{busca}”.
           </li>

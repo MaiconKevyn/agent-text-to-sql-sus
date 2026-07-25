@@ -51,12 +51,13 @@ export interface QueryResult {
   truncated?: boolean;
 }
 
-/**
- * `sem-trace` é uma falha do MOCK, não do agente: significa que nenhuma
- * resposta gravada corresponde à pergunta. Existe para que o mock nunca
- * devolva a resposta de outra pergunta como se fosse a certa.
- */
-export type FailureKind = "rede" | "sql" | "timeout" | "sem-trace";
+export type FailureKind = "rede" | "sql" | "timeout" | "offline";
+
+/** Uma rodada anterior, enviada ao backend para resolver acompanhamentos. */
+export interface Turn {
+  question: string;
+  sql: string | null;
+}
 
 export interface AgentPayload {
   /** Texto da resposta em linguagem natural. */

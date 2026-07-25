@@ -1,26 +1,24 @@
-import { AlertTriangle, Activity, Info, Ban, WifiOff, Timer, FlaskConical } from "lucide-react";
+import { AlertTriangle, Activity, Info, Ban, WifiOff, Timer, PlugZap } from "lucide-react";
 import { DebugTrace } from "@/components/debug/DebugTrace";
 import { ResultTable } from "@/components/result/ResultTable";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AgentMessage as AgentMsg, Feedback } from "@/lib/types";
+import type { AgentMessage as AgentMsg, FailureKind, Feedback } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MessageActions } from "./MessageActions";
 import { StreamedText } from "./StreamedText";
 import { ThinkingSteps } from "./ThinkingSteps";
 
-const FALHAS = {
+const FALHAS: Record<
+  FailureKind,
+  { icon: typeof WifiOff; titulo: string; tom: "critical" | "caution" }
+> = {
   rede: { icon: WifiOff, titulo: "Sem conexão com o agente", tom: "critical" },
   sql: { icon: Ban, titulo: "A consulta não pôde ser executada", tom: "critical" },
   timeout: { icon: Timer, titulo: "A consulta demorou demais", tom: "critical" },
-  // Limitação da demonstração, não erro do agente — por isso âmbar, não vermelho.
-  "sem-trace": {
-    icon: FlaskConical,
-    titulo: "Pergunta fora da demonstração",
-    tom: "caution",
-  },
-} as const;
+  offline: { icon: PlugZap, titulo: "O agente não está respondendo", tom: "critical" },
+};
 
 interface AgentMessageProps {
   message: AgentMsg;
@@ -81,17 +79,17 @@ export function AgentMessageBubble({
               <p className="mt-0.5 text-[13px] leading-relaxed text-ink-muted">
                 {failure.message}
               </p>
-              {failure.kind !== "sem-trace" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="mt-2.5"
-                  disabled={busy}
-                  onClick={() => onRegenerate(message.id)}
-                >
-                  Tentar de novo
-                </Button>
-              )}
+              {/* Vale para todas as falhas: rede volta, timeout pode passar
+                  num recorte menor, e o servidor pode ter subido nesse meio. */}
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2.5"
+                disabled={busy}
+                onClick={() => onRegenerate(message.id)}
+              >
+                Tentar de novo
+              </Button>
             </div>
           </div>
         )}

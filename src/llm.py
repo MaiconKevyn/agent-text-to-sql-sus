@@ -6,6 +6,7 @@ resto do pipeline.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from typing import Any
 
 from openai import OpenAI
@@ -49,6 +50,35 @@ def complete(
     resp = client().chat.completions.create(**kwargs)
     content = resp.choices[0].message.content or ""
     return json.loads(content) if schema is not None else content
+
+
+def complete_streaming(
+    *,
+    model: str,
+    system: str,
+    messages: list[dict[str, str]],
+    reasoning_effort: str | None = None,
+) -> Iterator[str]:
+    """Igual a `complete`, mas devolve o texto em pedaços conforme chega.
+
+    Usado só na redação da resposta final — é a única etapa cujo resultado o
+    usuário lê enquanto é produzido. A geração de SQL continua não-streaming
+    porque o JSON só serve completo.
+    """
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "system", "content": system}, *messages],
+        "stream": True,
+    }
+    if reasoning_effort and model.startswith(("gpt-5", "o3", "o4")):
+        kwargs["reasoning_effort"] = reasoning_effort
+
+    for chunk in client().chat.completions.create(**kwargs):
+        if not chunk.choices:
+            continue
+        pedaco = chunk.choices[0].delta.content
+        if pedaco:
+            yield pedaco
 
 
 # JSON Schema da etapa de geração de SQL.

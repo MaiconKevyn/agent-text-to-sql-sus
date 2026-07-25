@@ -9,13 +9,19 @@
 """
 from __future__ import annotations
 
+import json
 import re
+import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
+from datetime import date, datetime
+from decimal import Decimal
 
 from .config import settings
 from .db import Database, QueryResult, validate_sql
-from .llm import SQL_SCHEMA, complete
+from .llm import SQL_SCHEMA, complete, complete_streaming
 from .schema_context import build_schema_prompt, capability_notes
+from .value_linker import _terms as _termos_da_pergunta
 from .value_linker import link_values
 
 SQL_SYSTEM_PROMPT = """\
@@ -148,6 +154,7 @@ class TextToSQLAgent:
         self._system = SQL_SYSTEM_PROMPT.format(
             schema=build_schema_prompt(), capabilities=capability_notes()
         )
+        self._trace_seq = 0
 
     # -- etapa 1: gerar SQL -------------------------------------------------
     @staticmethod
@@ -232,9 +239,10 @@ class TextToSQLAgent:
         return None, sql, settings.max_repair_attempts + 1, errors
 
     # -- etapa 3: sintetizar resposta ---------------------------------------
-    def synthesize(
+    def _payload_resposta(
         self, question: str, res: QueryResult, assumptions: list[str]
     ) -> str:
+        """Monta o que o modelo lê para redigir. Compartilhado com o streaming."""
         payload = (
             f"Pergunta do usuário: {question}\n\n"
             f"Query executada:\n{res.sql}\n\n"
@@ -252,6 +260,12 @@ class TextToSQLAgent:
                 "pode haver mais linhas. Diga isso ao usuário e não apresente o "
                 "conjunto como completo."
             )
+        return payload
+
+    def synthesize(
+        self, question: str, res: QueryResult, assumptions: list[str]
+    ) -> str:
+        payload = self._payload_resposta(question, res, assumptions)
         out = complete(
             model=settings.answer_model,
             system=ANSWER_SYSTEM_PROMPT,
@@ -313,6 +327,218 @@ class TextToSQLAgent:
             errors=errors,
             value_hints=hints,
         )
+
+
+    # -- streaming de eventos ------------------------------------------------
+    def ask_stream(
+        self, question: str, history: list[Turn] | None = None
+    ) -> Iterator[dict]:
+        """Mesma orquestração de `ask`, emitindo cada evento quando acontece.
+
+        É o que a API HTTP serve. O formato dos dicionários é o contrato com o
+        frontend (`StreamEvent` em lib/types.ts) — mudar um lado exige mudar o
+        outro.
+        """
+        def passo(id_: str, estado: str, **extra):
+            return {"type": "step", "id": id_, "state": estado, **extra}
+
+        def rastro(etapa: str, titulo: str, corpo: str, fmt: str = "text", **extra):
+            self._trace_seq += 1
+            return {
+                "type": "trace",
+                "entry": {
+                    "id": f"t{self._trace_seq}",
+                    "step": etapa,
+                    "title": titulo,
+                    "body": corpo,
+                    "format": fmt,
+                    "at": int(time.time() * 1000),
+                    **extra,
+                },
+            }
+
+        # ---- 1. Interpretar -------------------------------------------------
+        t0 = time.perf_counter()
+        yield passo("interpretar", "ativo")
+        yield rastro("interpretar", "Pergunta recebida", question)
+        yield rastro(
+            "interpretar",
+            "Instruções do sistema (schema + regras críticas)",
+            self._system,
+        )
+        yield passo(
+            "interpretar",
+            "concluido",
+            elapsed=round(time.perf_counter() - t0, 3),
+            detail=f"{len(self._system):,} caracteres de contexto".replace(",", "."),
+        )
+
+        # ---- 2. Value linking -----------------------------------------------
+        yield passo("vincular", "ativo")
+        t1 = time.perf_counter()
+        hints = ""
+        try:
+            hints = link_values(self.db, question)
+        except Exception:  # auxiliar: nunca derruba o fluxo
+            pass
+        dt_link = round(time.perf_counter() - t1, 3)
+        termos = _termos_da_pergunta(question)
+        if hints:
+            yield rastro(
+                "vincular", "Códigos encontrados nas dimensões", hints, elapsed=dt_link
+            )
+            yield passo(
+                "vincular",
+                "concluido",
+                elapsed=dt_link,
+                detail=f"{len(termos)} termo(s): {', '.join(termos[:3])}",
+            )
+        else:
+            yield rastro(
+                "vincular",
+                "Nenhum código para vincular",
+                f"Termos extraídos: {', '.join(termos) if termos else '(nenhum)'}\n\n"
+                "Nenhum termo da pergunta nomeia entidade clínica, então não há "
+                "códigos a sugerir. É o esperado em perguntas puramente analíticas.",
+                elapsed=dt_link,
+            )
+            yield passo(
+                "vincular",
+                "pulado",
+                elapsed=dt_link,
+                detail="nenhuma entidade clínica na pergunta",
+            )
+
+        # ---- 3. Gerar SQL ---------------------------------------------------
+        yield passo("gerar-sql", "ativo")
+        t2 = time.perf_counter()
+        try:
+            plan = self.generate_sql(question, hints, history)
+        except Exception as exc:  # noqa: BLE001
+            yield passo("gerar-sql", "falhou")
+            yield {
+                "type": "failure",
+                "kind": "rede",
+                "message": f"Falha ao falar com o modelo: {exc}",
+            }
+            return
+        dt_gen = round(time.perf_counter() - t2, 3)
+        yield rastro(
+            "gerar-sql",
+            "Plano devolvido pelo modelo",
+            json.dumps(plan, ensure_ascii=False, indent=2),
+            "json",
+            elapsed=dt_gen,
+        )
+
+        # ---- Recusa ---------------------------------------------------------
+        if not plan.get("answerable", True):
+            yield passo(
+                "gerar-sql", "concluido", elapsed=dt_gen, detail="a base não tem o dado pedido"
+            )
+            yield passo("executar", "pulado")
+            yield passo("resumir", "ativo")
+            yield {"type": "refused"}
+            texto = plan.get("refusal") or "Essa pergunta não pode ser respondida com os dados disponíveis."
+            for pedaco in _fatiar(texto):
+                yield {"type": "token", "text": pedaco}
+            yield passo("resumir", "concluido")
+            yield {"type": "done"}
+            return
+
+        sql_gerado = _clean_sql(plan.get("sql", ""))
+        yield passo(
+            "gerar-sql",
+            "concluido",
+            elapsed=dt_gen,
+            detail=f"{len(sql_gerado.splitlines())} linhas de SQL",
+        )
+        yield {"type": "sql", "sql": sql_gerado}
+        if plan.get("assumptions"):
+            yield {"type": "assumptions", "assumptions": plan["assumptions"]}
+
+        # ---- 4. Executar ----------------------------------------------------
+        yield passo("executar", "ativo")
+        res, sql_final, tentativas, erros = self._execute_with_repair(question, plan, hints)
+        if res is None:
+            yield passo("executar", "falhou")
+            if erros:
+                yield rastro("executar", "Erro do DuckDB", "\n\n".join(erros[-2:]))
+            yield {
+                "type": "failure",
+                "kind": "sql",
+                "message": (
+                    f"A consulta não pôde ser executada após {tentativas} tentativa(s). "
+                    f"Último erro: {erros[-1] if erros else 'desconhecido'}"
+                ),
+            }
+            return
+
+        if tentativas > 1:
+            yield rastro(
+                "executar",
+                f"Auto-correção: {tentativas - 1} tentativa(s) antes de funcionar",
+                "\n\n".join(erros),
+            )
+            yield {"type": "sql", "sql": sql_final}
+        yield rastro("executar", "SQL enviado ao DuckDB (com LIMIT de segurança)", res.sql, "sql")
+        yield passo(
+            "executar",
+            "concluido",
+            elapsed=round(res.elapsed_s, 3),
+            detail=f"{len(res.rows):,} linha(s) em {res.elapsed_s:.2f}s".replace(",", "."),
+        )
+        yield {
+            "type": "result",
+            "result": {
+                "columns": res.columns,
+                "rows": [[_json_safe(v) for v in linha] for linha in res.rows[:500]],
+                "nRows": len(res.rows),
+                "elapsed": round(res.elapsed_s, 3),
+                "truncated": len(res.rows) > 500 or bool(res.extra.get("hit_injected_limit")),
+            },
+        }
+
+        # ---- 5. Resumir -----------------------------------------------------
+        yield passo("resumir", "ativo")
+        yield rastro("resumir", "Instruções de redação da resposta", ANSWER_SYSTEM_PROMPT)
+        t3 = time.perf_counter()
+        try:
+            for pedaco in self.synthesize_streaming(question, res, plan.get("assumptions", [])):
+                yield {"type": "token", "text": pedaco}
+        except Exception as exc:  # noqa: BLE001
+            yield passo("resumir", "falhou")
+            yield {"type": "failure", "kind": "rede", "message": f"Falha ao redigir: {exc}"}
+            return
+        yield passo("resumir", "concluido", elapsed=round(time.perf_counter() - t3, 3))
+        yield {"type": "done"}
+
+    def synthesize_streaming(
+        self, question: str, res: QueryResult, assumptions: list[str]
+    ) -> Iterator[str]:
+        """Versão em streaming de `synthesize`, com o mesmo prompt."""
+        return complete_streaming(
+            model=settings.answer_model,
+            system=ANSWER_SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": self._payload_resposta(question, res, assumptions)}],
+            reasoning_effort="low",
+        )
+
+
+def _json_safe(v):
+    """Converte tipos do DuckDB que o JSON não conhece."""
+    if isinstance(v, (date, datetime)):
+        return v.isoformat()
+    if isinstance(v, Decimal):
+        return float(v)
+    return v
+
+
+def _fatiar(texto: str, por: int = 2) -> Iterator[str]:
+    """Quebra um texto pronto em pedaços, para a recusa também chegar fluindo."""
+    partes = re.findall(r"\s*\S+", texto)
+    for i in range(0, len(partes), por):
+        yield "".join(partes[i : i + por])
 
 
 class ChatSession:

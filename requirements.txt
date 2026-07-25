@@ -1,5 +1,10 @@
+# Agente e avaliação
 duckdb>=1.1
 python-dotenv>=1.0
 pyyaml>=6.0
 openai>=1.40
 rich>=13.7
+
+# API HTTP (src/api.py)
+fastapi>=0.115
+uvicorn[standard]>=0.32

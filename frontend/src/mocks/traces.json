@@ -345,6 +345,840 @@
     "refusal": "Não é possível fornecer uma previsão para 2026 usando apenas uma consulta SQL sobre a base SIH/SUS. A geração de previsões requer modelagem estatística ou de aprendizado de máquina (treino, validação e escolha de hipótese de sazonalidade/tendência) e possivelmente variáveis externas ausentes nesta base. Posso, se você desejar: (1) entregar a série histórica anual ou mensal de internações (DT_SAIDA) para 2007–2023 e destacar que 2007 é parcial; (2) orientar ou gerar um script externo (em Python/R) para treinar um modelo de série temporal e produzir a previsão de 2026, explicando as suposições e métricas de validação. Qual opção prefere?"
    },
    "answer": "Não é possível fornecer uma previsão para 2026 usando apenas uma consulta SQL sobre a base SIH/SUS. A geração de previsões requer modelagem estatística ou de aprendizado de máquina (treino, validação e escolha de hipótese de sazonalidade/tendência) e possivelmente variáveis externas ausentes nesta base. Posso, se você desejar: (1) entregar a série histórica anual ou mensal de internações (DT_SAIDA) para 2007–2023 e destacar que 2007 é parcial; (2) orientar ou gerar um script externo (em Python/R) para treinar um modelo de série temporal e produzir a previsão de 2026, explicando as suposições e métricas de validação. Qual opção prefere?"
+  },
+  {
+   "question": "Quantas pessoas morreram por algum tipo de câncer?",
+   "termos": [
+    "pesso",
+    "morreram",
+    "algum",
+    "cancer"
+   ],
+   "valueHints": "Candidatos encontrados nas dimensões a partir das palavras da pergunta.\nSão SUGESTÕES, não instruções: use apenas os que correspondem de fato ao\nque o usuário perguntou e IGNORE o resto. Se nenhum fizer sentido para a\npergunta, não filtre por nenhum deles.\n\nCategorias CID:\n  T79 = Algumas complic precoces dos traum NCOP\n  W04 = Queda enquanto carreg apoiado p/outr pessoas\n  W51 = Colis entre duas pessoas\n  Y74 = Disp gerais uso hosp pessoal assoc incid adv\n  Z53 = Pessoas cont serv saude proced esp n realiz\n  Z64 = Problemas relac algumas outr circ psicossoc\n  Z76 = Pessoas cont serv saude em outr circunst\n  Z85 = Historia pessoal de neopl malig\n\nProcedimentos:\n  0101020112 = ACAO COLETIVA DE PREVENCAO DE CANCER BUCAL\n  0102010331 = CADASTRO DE SERVICOS DE DIAGNOSTICO E TRATAMENTO DO CANCER DE COLO DE UTERO E MAMA\n  0102010340 = INSPECAO SANITARIA DE SERVICOS DE DIAGNOSTICO E TRATAMENTO DO CANCER DE COLO DE UTERO E MAMA.\n  0102010358 = LICENCIAMENTO SANITARIO DE SERVICOS DE DIAGNOSTICO E TRATAMENTO DO CANCER DE COLO DE UTERO E MAM\n  0301040052 = ATENDIMENTO MULTIPROFISSIONAL PARA ATENCAO AS PESSOAS EM SITUACAO DE VIOLENCIA SEXUAL\n  0301070083 = ATENDIMENTO EM OFICINA TERAPEUTICA I EM GRUPO PARA PESSOAS COM DEFICIENCIA (POR OFICINA TERAPEUTIC\n  0301070091 = ATENDIMENTO EM OFICINA TERAPEUTICA II EM GRUPO PARA PESSOAS COM DEFICIENCIA (POR OFICINA TERAPEUTI\n  0301080364 = ACOMPANHAMENTO DE PESSOAS COM NECESSIDADES DECORRENTES DO USO DE ALCOOL, CRACK E OUTRAS DROGAS EM SE\n\nMunicípios:\n  240290 = Coronel João Pessoa / RN\n  250750 = João Pessoa / PB\n  257507 = 250750 Joao Pessoa / 25",
+   "durations": {
+    "valueLinking": 0.017,
+    "sqlGeneration": 15.482,
+    "execution": 0.171,
+    "synthesis": 4.275
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Contagem de óbitos ocorridos durante internações (MORTE = TRUE) cuja causa de óbito (CID_MORTE) corresponde a neoplasia maligna (C00-C97). Usei CID_MORTE <> '0' para excluir placeholder; a base não tem identificador de paciente confiável para contar pessoas únicas, portanto conto internações com óbito por câncer (AIH-level). Atenção: 2007 está parcial (ago-dez); o resultado cobre 2007-08-01 a 2023-12-31 conforme a base.",
+    "sql": "SELECT COUNT(*) AS total_obitos_por_cancer\nFROM internacoes\nWHERE MORTE\n  AND CID_MORTE <> '0'\n  AND CID_MORTE LIKE 'C%';",
+    "assumptions": [
+     "Por 'câncer' entendi neoplasias malignas (CID-10 C00-C97). Não incluí neoplasias in situ (D00-D09) nem história pessoal de neoplasia (Z85).",
+     "A contagem é por internações (AIH). A base não permite deduplicar por pessoa, portanto não é possível garantir que cada óbito seja um indivíduo distinto."
+    ],
+    "refusal": ""
+   },
+   "execution": {
+    "columns": [
+     "total_obitos_por_cancer"
+    ],
+    "rows": [
+     [
+      182765
+     ]
+    ],
+    "nRows": 1,
+    "elapsed": 0.171,
+    "sqlExecuted": "SELECT COUNT(*) AS total_obitos_por_cancer\nFROM internacoes\nWHERE MORTE\n  AND CID_MORTE <> '0'\n  AND CID_MORTE LIKE 'C%'"
+   },
+   "answer": "Foram registradas 182.765 mortes por neoplasias malignas (CID-10 C00-C97) em internações. \n\nA contagem é por internações (AIH) e a base não permite deduplicar por pessoa, portanto não é possível garantir que cada óbito corresponda a um indivíduo distinto; além disso considerei apenas CID-MORTE iniciando por \"C\" (neoplasias malignas)."
+  },
+  {
+   "question": "Quais os diagnósticos mais frequentes?",
+   "termos": [],
+   "valueHints": "",
+   "durations": {
+    "valueLinking": 0.02,
+    "sqlGeneration": 12.061,
+    "synthesis": 4.02,
+    "execution": 0.652
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Contagem simples de internações por diagnóstico principal (DIAG_PRINC). Uso LEFT JOIN com a dimensão cid para rótulo; agrupo pelo código (não apenas pela descrição) para evitar fusão de códigos com mesma descrição. Limito a 20 resultados para evitar uma lista gigantesca. Não aplico filtro temporal (toda a base, DT_SAIDA 2007-08-01 a 2023-12-31).",
+    "sql": "SELECT\n  i.DIAG_PRINC AS codigo_cid,\n  c.DESCRICAO AS descricao,\n  COUNT(*) AS internacoes\nFROM internacoes i\nLEFT JOIN cid c\n  ON i.DIAG_PRINC = c.CID\nGROUP BY i.DIAG_PRINC, c.DESCRICAO\nORDER BY internacoes DESC\nLIMIT 20",
+    "assumptions": [
+     "\"Diagnósticos\" refere-se ao diagnóstico principal (DIAG_PRINC).",
+     "O recorte temporal é todo o período disponível na base (DT_SAIDA entre 2007-08-01 e 2023-12-31).",
+     "Retorno apenas os 20 diagnósticos mais frequentes por padrão; se quiser todos, peça sem LIMIT ou peça um N diferente."
+    ],
+    "refusal": ""
+   },
+   "answer": "O diagnóstico mais frequente é O800 (Parto espontaneo cefalico) com 10.289.544 internações.  \nOutros destaques: J189 Pneumonia NE — 3.293.713; O809 Parto unico espontaneo NE — 2.459.872; A09 Diarreia e gastroenterite — 2.109.464; N390 Infecção do trato urinário — 1.886.373; I64 Acidente vascular cerebrovascular — 1.806.376; I500 Insuficiência cardíaca congestiva — 1.459.476.  \nListei os 20 diagnósticos com maior número de internações no período consultado; se quiser todos os CID ou outro recorte, peça.  \nSuposição: \"diagnósticos\" refere-se a DIAG_PRINC e o recorte temporal é todo o período disponível (2007-08-01 a 2023-12-31).",
+   "tentativas": 1,
+   "execution": {
+    "columns": [
+     "codigo_cid",
+     "descricao",
+     "internacoes"
+    ],
+    "rows": [
+     [
+      "O800",
+      "Parto espontaneo cefalico",
+      10289544
+     ],
+     [
+      "J189",
+      "Pneumonia NE",
+      3293713
+     ],
+     [
+      "O809",
+      "Parto unico espontaneo NE",
+      2459872
+     ],
+     [
+      "A09",
+      "Diarreia e gastroenterite orig infecc presum",
+      2109464
+     ],
+     [
+      "N390",
+      "Infecc do trato urinario de localiz NE",
+      1886373
+     ],
+     [
+      "I64",
+      "Acid vasc cerebr NE como hemorrag isquemico",
+      1806376
+     ],
+     [
+      "I500",
+      "Insuf cardiaca congestiva",
+      1459476
+     ],
+     [
+      "B342",
+      "Infecc p/coronavirus NE",
+      1435980
+     ],
+     [
+      "O821",
+      "Parto p/cesariana de emergencia",
+      1426340
+     ],
+     [
+      "J459",
+      "Asma NE",
+      1402128
+     ],
+     [
+      "I509",
+      "Insuf cardiaca NE",
+      1349673
+     ],
+     [
+      "O829",
+      "Parto p/cesariana NE",
+      1261989
+     ],
+     [
+      "K409",
+      "Hernia inguinal unilat NE s/obstr gangrena",
+      1173713
+     ],
+     [
+      "Z302",
+      "Esterilizacao",
+      1042580
+     ],
+     [
+      "O808",
+      "Outr tipos de parto unico espontaneo",
+      1031991
+     ],
+     [
+      "K359",
+      "Apendicite aguda SOE",
+      1014859
+     ],
+     [
+      "I200",
+      "Angina instavel",
+      1006320
+     ],
+     [
+      "O034",
+      "Incompleto s/complic",
+      999328
+     ],
+     [
+      "J158",
+      "Outr pneumonias bacter",
+      982129
+     ],
+     [
+      "J180",
+      "Broncopneumonia NE",
+      933431
+     ]
+    ],
+    "nRows": 20,
+    "elapsed": 0.652,
+    "sqlExecuted": "SELECT\n  i.DIAG_PRINC AS codigo_cid,\n  c.DESCRICAO AS descricao,\n  COUNT(*) AS internacoes\nFROM internacoes i\nLEFT JOIN cid c\n  ON i.DIAG_PRINC = c.CID\nGROUP BY i.DIAG_PRINC, c.DESCRICAO\nORDER BY internacoes DESC\nLIMIT 20"
+   }
+  },
+  {
+   "question": "Qual a taxa de mortalidade por UF?",
+   "termos": [],
+   "valueHints": "",
+   "durations": {
+    "valueLinking": 0.0,
+    "sqlGeneration": 15.566,
+    "execution": 0.395,
+    "synthesis": 8.581
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Calculei a taxa de mortalidade (óbitos durante a internação) por UF da residência do paciente, usando DT_SAIDA implícito para todo o período disponível (2007-08-01 a 2023-12-31). Juntei internacoes com municipios para obter a sigla da UF (RESIDÊNCIA). Usei AVG(MORTE::INT) para obter a taxa e retornei também número de internações e número de óbitos por UF. Apliquei regras críticas: tratei UF como município de residência (não do hospital), respeitei a codificação de sexo/CID/etc. Aviso que 2007 é um ano parcial (ago-dez) e que São Paulo e Tocantins estão subrepresentados na extração desta base — evitar interpretar baixas contagens como real ausência de demanda.",
+    "sql": "SELECT\n  m.SG_UF AS uf,\n  COUNT(*) AS internacoes,\n  COUNT(*) FILTER (WHERE i.MORTE) AS obitos,\n  ROUND(100.0 * AVG(i.MORTE::INT), 2) AS taxa_obito_pct\nFROM internacoes i\nJOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D\nGROUP BY m.SG_UF\nORDER BY taxa_obito_pct DESC;",
+    "assumptions": [
+     "Usar todo o período disponível na base (DT_SAIDA entre 2007-08-01 e 2023-12-31).",
+     "UF refere-se à sigla da unidade federativa do MUNIC_RES (residência do paciente), pois a tabela hospital está vazia.",
+     "A taxa de mortalidade é definida como proporção de internações com MORTE = TRUE (AVG(MORTE::INT)) e é expressa em porcentagem com duas casas decimais."
+    ],
+    "refusal": ""
+   },
+   "execution": {
+    "columns": [
+     "uf",
+     "internacoes",
+     "obitos",
+     "taxa_obito_pct"
+    ],
+    "rows": [
+     [
+      "RJ",
+      10926128,
+      718492,
+      6.58
+     ],
+     [
+      "RS",
+      11831809,
+      611909,
+      5.17
+     ],
+     [
+      "SP",
+      88884,
+      4204,
+      4.73
+     ],
+     [
+      "MG",
+      19276203,
+      906120,
+      4.7
+     ],
+     [
+      "PB",
+      3220803,
+      142076,
+      4.41
+     ],
+     [
+      "SE",
+      1480990,
+      64805,
+      4.38
+     ],
+     [
+      "PE",
+      8529411,
+      365517,
+      4.29
+     ],
+     [
+      "SC",
+      7215418,
+      309171,
+      4.28
+     ],
+     [
+      "PR",
+      12680323,
+      522330,
+      4.12
+     ],
+     [
+      "MS",
+      2679471,
+      106726,
+      3.98
+     ],
+     [
+      "ES",
+      3649682,
+      141657,
+      3.88
+     ],
+     [
+      "AL",
+      2721965,
+      103744,
+      3.81
+     ],
+     [
+      "RN",
+      2706882,
+      101384,
+      3.75
+     ],
+     [
+      "CE",
+      7807633,
+      292710,
+      3.75
+     ],
+     [
+      "MT",
+      3007235,
+      106936,
+      3.56
+     ],
+     [
+      "BA",
+      13272355,
+      458980,
+      3.46
+     ],
+     [
+      "DF",
+      2529580,
+      84667,
+      3.35
+     ],
+     [
+      "GO",
+      6115242,
+      203624,
+      3.33
+     ],
+     [
+      "TO",
+      38425,
+      1211,
+      3.15
+     ],
+     [
+      "AM",
+      2870550,
+      87917,
+      3.06
+     ],
+     [
+      "AC",
+      769095,
+      23185,
+      3.01
+     ],
+     [
+      "AP",
+      584648,
+      16814,
+      2.88
+     ],
+     [
+      "RR",
+      598101,
+      17012,
+      2.84
+     ],
+     [
+      "RO",
+      1725340,
+      48919,
+      2.84
+     ],
+     [
+      "PI",
+      3335303,
+      92866,
+      2.78
+     ],
+     [
+      "MA",
+      6790650,
+      160648,
+      2.37
+     ],
+     [
+      "PA",
+      7934646,
+      183912,
+      2.32
+     ]
+    ],
+    "nRows": 27,
+    "elapsed": 0.395,
+    "sqlExecuted": "SELECT\n  m.SG_UF AS uf,\n  COUNT(*) AS internacoes,\n  COUNT(*) FILTER (WHERE i.MORTE) AS obitos,\n  ROUND(100.0 * AVG(i.MORTE::INT), 2) AS taxa_obito_pct\nFROM internacoes i\nJOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D\nGROUP BY m.SG_UF\nORDER BY taxa_obito_pct DESC\nLIMIT 10000"
+   },
+   "answer": "A taxa de mortalidade por UF (proporção de internações com óbito) varia de 6,58% no RJ a 2,32% no PA. Destaques: maiores taxas — RJ 6,58% (10.926.128 internações; 718.492 óbitos), RS 5,17% (11.831.809; 611.909) e SP 4,73% (88.884; 4.204); menores taxas — PA 2,32% (7.934.646; 183.912), MA 2,37% (6.790.650; 160.648) e PI 2,78% (3.335.303; 92.866). Atenção: São Paulo e Tocantins estão subrepresentados na base por falha de extração (SP tem 88.884 internações em 17 anos, menos que Roraima), portanto não apresente SP ou TO como tendo pouca demanda real — o dado está incompleto. Suposição: usei todo o período disponível (DT_SAIDA 2007-08-01 a 2023-12-31) e calculei taxa como AVG(MORTE::INT) em %, por município de residência."
+  },
+  {
+   "question": "Quantas internações por infarto ocorreram?",
+   "termos": [
+    "infarto",
+    "ocorreram"
+   ],
+   "valueHints": "Candidatos encontrados nas dimensões a partir das palavras da pergunta.\nSão SUGESTÕES, não instruções: use apenas os que correspondem de fato ao\nque o usuário perguntou e IGNORE o resto. Se nenhum fizer sentido para a\npergunta, não filtre por nenhum deles.\n\nCategorias CID:\n  I21 = Infarto agudo do miocardio\n  I22 = Infarto do miocardio recorrente\n  I23 = Alg complic atuais subs infarto agud miocard\n  I63 = Infarto cerebral\n\nProcedimentos:\n  0303060190 = TRATAMENTO DE INFARTO AGUDO DO MIOCARDIO",
+   "durations": {
+    "valueLinking": 0.017,
+    "sqlGeneration": 15.662,
+    "execution": 0.433,
+    "synthesis": 3.944
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Métrica: contagem de internações (linhas da tabela internacoes) cujo diagnóstico principal é infarto do miocárdio. Interpretação: usei os códigos CID-10 sem ponto das categorias I21 (infarto agudo do miocárdio), I22 (infarto recorrente) e I23 (complicações consequentes do infarto). Regras aplicadas: CIDs na base não têm ponto -> use LIKE 'I21%'/ 'I22%'/ 'I23%'; use DT_SAIDA como critério de competência (consulta sem filtro temporal retorna todo o período 2007-08-01 a 2023-12-31); 2007 é parcial (ago-dez) — isso não foi excluído da contagem mas o usuário deve saber; DIAG_PRINC nunca é NULL. Não agrupe nem quebre porque foi pedido um único número.",
+    "sql": "SELECT COUNT(*) AS internacoes_por_infarto\nFROM internacoes i\nWHERE i.DIAG_PRINC LIKE 'I21%'\n   OR i.DIAG_PRINC LIKE 'I22%'\n   OR i.DIAG_PRINC LIKE 'I23%';",
+    "assumptions": [
+     "Por 'infarto' o usuário quis dizer infarto do miocárdio (I21, I22, I23) e não infarto cerebral (I63).",
+     "Contagem sobre todo o período disponível na base (DT_SAIDA entre 2007-08-01 e 2023-12-31). Note que 2007 é um ano parcial (aguarde interpretação se desejar excluir 2007)."
+    ],
+    "refusal": ""
+   },
+   "execution": {
+    "columns": [
+     "internacoes_por_infarto"
+    ],
+    "rows": [
+     [
+      1245084
+     ]
+    ],
+    "nRows": 1,
+    "elapsed": 0.433,
+    "sqlExecuted": "SELECT COUNT(*) AS internacoes_por_infarto\nFROM internacoes i\nWHERE i.DIAG_PRINC LIKE 'I21%'\n   OR i.DIAG_PRINC LIKE 'I22%'\n   OR i.DIAG_PRINC LIKE 'I23%'"
+   },
+   "answer": "Foram 1.245.084 internações por infarto (códigos I21–I23).  \nAviso: a série inclui 2007, que é ano parcial (apenas agosto a dezembro).  \nSuposição: a contagem considera \"infarto\" como infarto do miocárdio (I21, I22, I23) e abrange o período disponível (DT_SAIDA entre 2007-08-01 e 2023-12-31)."
+  },
+  {
+   "question": "Qual o custo total das internações por ano?",
+   "termos": [],
+   "valueHints": "",
+   "durations": {
+    "valueLinking": 0.0,
+    "sqlGeneration": 12.561,
+    "execution": 0.441,
+    "synthesis": 7.034
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Métrica: soma dos VAL_TOT por ano de alta (DT_SAIDA). Usei year(DT_SAIDA) em vez da dimensão tempo para não descartar 2007 (2007 está presente parcialmente: ago-dez). Avisos aplicados: VAL_TOT é em valores nominais (não deflacionados); 2007 é um ano parcial e deve ser tratado com cuidado em comparações; não juntei com `tempo` para evitar perda de 2007.",
+    "sql": "SELECT year(DT_SAIDA) AS ano,\n       ROUND(SUM(VAL_TOT), 2) AS custo_total_reais\nFROM internacoes\nGROUP BY 1\nORDER BY ano;",
+    "assumptions": [
+     "Somar VAL_TOT por year(DT_SAIDA) é o pedido do usuário (ano refere-se à data de alta).",
+     "Incluir 2007 no resultado; observar que 2007 contém apenas internações de agosto a dezembro (ano parcial).",
+     "VAL_TOT está em reais nominais e não foi corrigido por inflação."
+    ],
+    "refusal": ""
+   },
+   "execution": {
+    "columns": [
+     "ano",
+     "custo_total_reais"
+    ],
+    "rows": [
+     [
+      2007,
+      379241243.05
+     ],
+     [
+      2008,
+      7233498063.94
+     ],
+     [
+      2009,
+      8981899549.24
+     ],
+     [
+      2010,
+      9324575229.09
+     ],
+     [
+      2011,
+      9888447210.4
+     ],
+     [
+      2012,
+      10228942903.2
+     ],
+     [
+      2013,
+      11179757231.75
+     ],
+     [
+      2014,
+      11758596250.47
+     ],
+     [
+      2015,
+      12270567286.18
+     ],
+     [
+      2016,
+      12572611548.66
+     ],
+     [
+      2017,
+      13264555532.8
+     ],
+     [
+      2018,
+      13806818958.67
+     ],
+     [
+      2019,
+      14412316051.91
+     ],
+     [
+      2020,
+      16182277572.3
+     ],
+     [
+      2021,
+      23730457322.76
+     ],
+     [
+      2022,
+      18664654691.59
+     ],
+     [
+      2023,
+      18701619635.09
+     ]
+    ],
+    "nRows": 17,
+    "elapsed": 0.441,
+    "sqlExecuted": "SELECT year(DT_SAIDA) AS ano,\n       ROUND(SUM(VAL_TOT), 2) AS custo_total_reais\nFROM internacoes\nGROUP BY 1\nORDER BY ano\nLIMIT 10000"
+   },
+   "answer": "O custo total anual das internações (pela data de alta) varia de R$ 379.241.243,05 em 2007 a R$ 23.730.457.322,76 em 2021; houve aumento contínuo na série com picos em 2020 (R$ 16.182.277.572,30) e 2021. Destaques: 2007 é o menor valor (R$ 379.241.243,05) e 2021 o maior (R$ 23.730.457.322,76), com 2019→2020 e 2020→2021 mostrando os maiores saltos. Avisos: 2007 é ano parcial (agosto–dezembro) e os valores estão em reais nominais, sem ajuste por inflação. Suposição relevante: somei VAL_TOT por year(DT_SAIDA) conforme solicitado (ano = data de alta)."
+  },
+  {
+   "question": "Quantas internações usaram UTI?",
+   "termos": [
+    "usaram"
+   ],
+   "valueHints": "",
+   "durations": {
+    "valueLinking": 0.019,
+    "sqlGeneration": 12.557,
+    "execution": 0.53,
+    "synthesis": 4.25
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Métrica: contagem de internações que usaram UTI. Regra crítica aplicada: usar MARCA_UTI > 0 como indicador de 'usou UTI' (não usar UTI_INT_TO, e não confundir com VAL_UTI que é somente o valor faturado). Retorno para todo o período disponível na base (DT_SAIDA entre 2007-08-01 e 2023-12-31) porque o usuário não pediu recorte temporal. Nenhuma junção necessária para esta métrica agregada.",
+    "sql": "SELECT COUNT(*) AS internacoes_com_uti\nFROM internacoes\nWHERE MARCA_UTI > 0;",
+    "assumptions": [
+     "O usuário quer o total acumulado em toda a base (DT_SAIDA 2007-08-01 a 2023-12-31).",
+     "Definição de 'usaram UTI' = MARCA_UTI > 0 (conforme regra da base)."
+    ],
+    "refusal": ""
+   },
+   "execution": {
+    "columns": [
+     "internacoes_com_uti"
+    ],
+    "rows": [
+     [
+      9107197
+     ]
+    ],
+    "nRows": 1,
+    "elapsed": 0.53,
+    "sqlExecuted": "SELECT COUNT(*) AS internacoes_com_uti\nFROM internacoes\nWHERE MARCA_UTI > 0"
+   },
+   "answer": "9.107.197 internações usaram UTI. \n\nSuposição: total acumulado em toda a base (saídas de 2007-08-01 a 2023-12-31) e definição de \"usaram UTI\" = MARCA_UTI > 0."
+  },
+  {
+   "question": "Qual a distribuição de internações por sexo?",
+   "termos": [],
+   "valueHints": "",
+   "durations": {
+    "valueLinking": 0.0,
+    "sqlGeneration": 27.463,
+    "execution": 0.626,
+    "synthesis": 6.288
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Métrica: contagem de internações por sexo + percentual do total. Recortes: toda a base (nenhum filtro temporal). Quebra: sexo. Regras aplicadas: (1) juntei com a dimensão `sexo` para obter rótulos legíveis; (2) evitei filtrar por SEXO = 2 (a base usa 2 e 3 para 'Feminino') ao agrupar via dimensão; (3) incluí todas as categorias da dimensão (LEFT JOIN) — dimensão de baixa cardinalidade; (4) calculei o % sobre o total de internações contando todas as linhas do fato; (5) usei COUNT(i.N_AIH) para agregar e uma CTE para o denominador, sem usar a dimensão `tempo` (2007 é parcial).",
+    "sql": "WITH total AS (SELECT COUNT(*) AS tot FROM internacoes)\nSELECT\n  s.DESCRICAO AS sexo,\n  COUNT(i.N_AIH) AS internacoes,\n  ROUND(100.0 * COUNT(i.N_AIH) / t.tot, 2) AS pct_total\nFROM sexo s\nLEFT JOIN internacoes i ON i.SEXO = s.SEXO\nCROSS JOIN total t\nGROUP BY s.DESCRICAO, t.tot\nORDER BY internacoes DESC;",
+    "assumptions": [
+     "O usuário quer a distribuição sobre toda a base (DT_SAIDA 2007-08-01 a 2023-12-31).",
+     "Deseja rótulos legíveis (usei a dimensão `sexo`)."
+    ],
+    "refusal": ""
+   },
+   "execution": {
+    "columns": [
+     "sexo",
+     "internacoes",
+     "pct_total"
+    ],
+    "rows": [
+     [
+      "Feminino",
+      85419029,
+      59.16
+     ],
+     [
+      "Masculino",
+      58967743,
+      40.84
+     ],
+     [
+      "Ignorado",
+      0,
+      0.0
+     ]
+    ],
+    "nRows": 3,
+    "elapsed": 0.626,
+    "sqlExecuted": "WITH total AS (SELECT COUNT(*) AS tot FROM internacoes)\nSELECT\n  s.DESCRICAO AS sexo,\n  COUNT(i.N_AIH) AS internacoes,\n  ROUND(100.0 * COUNT(i.N_AIH) / t.tot, 2) AS pct_total\nFROM sexo s\nLEFT JOIN internacoes i ON i.SEXO = s.SEXO\nCROSS JOIN total t\nGROUP BY s.DESCRICAO, t.tot\nORDER BY internacoes DESC\nLIMIT 10000"
+   },
+   "answer": "Distribuição de internações por sexo: Feminino — 85.419.029 internações (59,16%); Masculino — 58.967.743 internações (40,84%); Ignorado — 0 internações (0,00%). Nota: a série inclui 2007 parcial (agosto a dezembro). Suposição: calculei a distribuição sobre toda a base (DT_SAIDA 2007-08-01 a 2023-12-31) usando os rótulos da dimensão \"sexo\"."
+  },
+  {
+   "question": "Quantos partos foram realizados?",
+   "termos": [
+    "parto",
+    "realizado"
+   ],
+   "valueHints": "Candidatos encontrados nas dimensões a partir das palavras da pergunta.\nSão SUGESTÕES, não instruções: use apenas os que correspondem de fato ao\nque o usuário perguntou e IGNORE o resto. Se nenhum fizer sentido para a\npergunta, não filtre por nenhum deles.\n\nCategorias CID:\n  O10 = Hipertens pre-exist complic grav parto puerp\n  O47 = Falso trabalho de parto\n  O60 = Parto pre-termo\n  O600 = Trabalho de parto pré-termo sem parto\n  O601 = Trabalho de parto pré-termo com parto pré-termo\n  O602 = Trabalho de parto pré-termo com parto a termo\n  O61 = Falha na inducao do trabalho de parto\n  O63 = Trabalho de parto prolongado\n\nProcedimentos:\n  0102010366 = CADASTRO DE SERVICOS HOSPITALARES DE ATENCAO AO PARTO E A CRIANCA\n  0102010374 = INSPECAO SANITARIA DE SERVICOS HOSPITALARES DE ATENCAO AO PARTO E A CRIANCA\n  0102010382 = LICENCIAMENTO SANITARIO DE SERVICOS HOSPITALARES DE ATENCAO AO PARTO E A CRIANCA\n  0211040061 = TOCOCARDIOGRAFIA ANTE-PARTO\n  0301030030 = ATENDIMENTO PRE-HOSPITALAR MOVEL - SAMU 192: SUPORTE AVANCADO DE VIDA REALIZADO POR AVIAO (AMBULA\n  0301030049 = SAMU 192:ATENDIMENTO PRE-HOSPITALAR MOVEL REALIZADO POR AEROMEDICO\n  0301030057 = SAMU 192: ATENDIMENTO PRE-HOSPITALAR MOVEL REALIZADO POR EMBARCACAO\n  0301030090 = SAMU 192: ATENDIMENTO PRE-HOSPITALAR MOVEL REALIZADO PELA EQUIPE DA UNIDADE DE SUPORTE AVANCADO DE",
+   "durations": {
+    "valueLinking": 0.02,
+    "sqlGeneration": 31.561,
+    "execution": 0.167,
+    "synthesis": 4.86
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Contagem de internações (AIHs) que têm no procedimento um registro de parto/cesariana. Usei internacoes + procedimentos (NOME_PROC em MAIÚSCULAS e sem acento) e filtrei por textos que tipicamente identificam parto. Apliquei o filtro de sexo seguindo a regra crítica (SEXO IN (2,3)). Usei LEFT JOIN para procedimentos (há ~370 códigos sem correspondência) e considerei todo o período disponível (DT_SAIDA 2007-08-01 a 2023-12-31). Avisos: este método conta apenas AIHs com procedimento identificado como parto/cesárea; partos sem procedimento registrado ou com nome diferente podem ficar de fora; 2007 é parcial.",
+    "sql": "SELECT COUNT(*) AS total_partos\nFROM internacoes i\nLEFT JOIN procedimentos p ON i.PROC_REA = p.PROC_REA\nWHERE i.SEXO IN (2, 3)\n  AND (\n    p.NOME_PROC ILIKE '%PARTO%'\n    OR p.NOME_PROC ILIKE '%CESAR%'\n  );",
+    "assumptions": [
+     "Defini 'parto' como internação com procedimento cujo NOME_PROC contenha 'PARTO' ou 'CESAR' (procedimentos.NOME_PROC está em MAIÚSCULAS e sem acento).",
+     "Contagem cobre todo o período disponível na base (DT_SAIDA entre 2007-08-01 e 2023-12-31).",
+     "Filtrei por sexo feminino usando SEXO IN (2,3) conforme regra crítica; o fato contém na prática o código 3 para feminino.",
+     "Partos sem procedimento ou com nome não padronizado em procedimentos.NOME_PROC não serão contados."
+    ],
+    "refusal": ""
+   },
+   "execution": {
+    "columns": [
+     "total_partos"
+    ],
+    "rows": [
+     [
+      25101968
+     ]
+    ],
+    "nRows": 1,
+    "elapsed": 0.167,
+    "sqlExecuted": "SELECT COUNT(*) AS total_partos\nFROM internacoes i\nLEFT JOIN procedimentos p ON i.PROC_REA = p.PROC_REA\nWHERE i.SEXO IN (2, 3)\n  AND (\n    p.NOME_PROC ILIKE '%PARTO%'\n    OR p.NOME_PROC ILIKE '%CESAR%'\n  )"
+   },
+   "answer": "Foram realizados 25.101.968 partos registrados na consulta.  \nEsse total conta apenas internações com procedimento cujo NOME_PROC contém \"PARTO\" ou \"CESAR\" e limita-se a registros com sexo feminino (SEXO IN (2,3)); partos sem procedimento registrado ou com nome não padronizado não foram contabilizados."
+  },
+  {
+   "question": "Qual a média de dias de permanência?",
+   "termos": [],
+   "valueHints": "",
+   "durations": {
+    "valueLinking": 0.0,
+    "sqlGeneration": 9.536,
+    "execution": 0.137,
+    "synthesis": 5.918
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Métrica: média de DIAS_PERM na tabela de internações. Não há filtro temporal ou por subgrupos pedido, então a consulta usa todas as internações da base (AIHs encerradas). Regras aplicadas: usar DIAS_PERM diretamente (coluna válida, sem valores negativos), devolver uma única linha/coluna com alias em português; não juntar dimensões pois não pediram rótulo; manter precisão com arredondamento a 2 decimais. Assumi que o usuário quer a média em toda a base (2007-08-01 a 2023-12-31) e não por ano ou outro recorte.",
+    "sql": "SELECT ROUND(AVG(DIAS_PERM), 2) AS media_dias_permanencia\nFROM internacoes;",
+    "assumptions": [
+     "Calcular a média sobre todas as internações disponíveis na base (toda a série 2007-08-01 a 2023-12-31), sem filtro temporal.",
+     "O usuário quer a média aritmética simples de DIAS_PERM."
+    ],
+    "refusal": ""
+   },
+   "execution": {
+    "columns": [
+     "media_dias_permanencia"
+    ],
+    "rows": [
+     [
+      5.06
+     ]
+    ],
+    "nRows": 1,
+    "elapsed": 0.137,
+    "sqlExecuted": "SELECT ROUND(AVG(DIAS_PERM), 2) AS media_dias_permanencia\nFROM internacoes"
+   },
+   "answer": "A média de dias de permanência é 5,06 dias.\n\nAviso: a série inclui 2007 que é ano parcial (só agosto a dezembro). Suponho que a média foi calculada sobre todas as internações disponíveis na base (série completa 2007-08-01 a 2023-12-31) usando a média aritmética simples de DIAS_PERM."
+  },
+  {
+   "question": "Quais as principais causas de morte?",
+   "termos": [
+    "principai"
+   ],
+   "valueHints": "",
+   "durations": {
+    "valueLinking": 0.02,
+    "sqlGeneration": 16.851,
+    "synthesis": 5.617,
+    "execution": 0.25
+   },
+   "plan": {
+    "answerable": true,
+    "reasoning": "Contar óbitos registrados (MORTE = TRUE) por CID de óbito (CID_MORTE), excluindo o placeholder '0' usado para 'sem informação'. Juntar LEFT com a dimensão cid para devolver a descrição. Calculei percentual sobre o total de óbitos que têm CID registrado (MORTE = TRUE AND CID_MORTE <> '0'). Não limite temporal (uso todo o período 2007-2023 coberto pela base). Observações aplicadas: uso de CID sem ponto, tratamento do placeholder '0', LEFT JOIN em cid, e não uso da dimensão tempo (evita descarte de 2007). Retorno limitado aos 20 principais.",
+    "sql": "SELECT\n  i.CID_MORTE AS causa_codigo,\n  c.DESCRICAO AS descricao_cid,\n  COUNT(*) AS obitos,\n  ROUND(100.0 * COUNT(*) / (\n    SELECT COUNT(*) FROM internacoes WHERE MORTE = TRUE AND CID_MORTE <> '0'\n  ), 2) AS pct_obitos\nFROM internacoes i\nLEFT JOIN cid c ON i.CID_MORTE = c.CID\nWHERE i.MORTE = TRUE\n  AND i.CID_MORTE <> '0'\nGROUP BY 1, 2\nORDER BY obitos DESC\nLIMIT 20",
+    "assumptions": [
+     "Usuário quer as principais causas de óbito em termos de número absoluto de óbitos (top N); escolhi N = 20 como \"principais\".",
+     "Cobertura temporal: todo o período disponível na base (DT_SAIDA 2007-08-01 a 2023-12-31).",
+     "Percentual calculado sobre o total de óbitos que têm CID de óbito informado (MORTE = TRUE AND CID_MORTE <> '0')."
+    ],
+    "refusal": ""
+   },
+   "answer": "As principais causas de morte (top 20): J960 Insuf respirat aguda — 183.398 óbitos (8,78%); I469 Parada cardiaca NE — 135.073 óbitos (6,47%); A419 Septicemia NE — 133.172 óbitos (6,38%); I64 Acid vasc cerebr NE como hemorrag isquemico — 86.455 óbitos (4,14%); R092 Parada respirat — 80.050 óbitos (3,83%). Destaques adicionais: J189 Pneumonia NE — 67.096 óbitos (3,21%); I509 Insuf cardiaca NE — 51.853 óbitos (2,48%); I500 Insuf cardiaca congestiva — 43.497 óbitos (2,08%).\n\nPercentuais foram calculados sobre o total de óbitos com CID de óbito informado. Suponho que o usuário queria o top N por número absoluto (N=20) e cobertura temporal de toda a base (DT_SAIDA 2007-08-01 a 2023-12-31).",
+   "tentativas": 1,
+   "execution": {
+    "columns": [
+     "causa_codigo",
+     "descricao_cid",
+     "obitos",
+     "pct_obitos"
+    ],
+    "rows": [
+     [
+      "J960",
+      "Insuf respirat aguda",
+      183398,
+      8.78
+     ],
+     [
+      "I469",
+      "Parada cardiaca NE",
+      135073,
+      6.47
+     ],
+     [
+      "A419",
+      "Septicemia NE",
+      133172,
+      6.38
+     ],
+     [
+      "I64",
+      "Acid vasc cerebr NE como hemorrag isquemico",
+      86455,
+      4.14
+     ],
+     [
+      "R092",
+      "Parada respirat",
+      80050,
+      3.83
+     ],
+     [
+      "J189",
+      "Pneumonia NE",
+      67096,
+      3.21
+     ],
+     [
+      "I509",
+      "Insuf cardiaca NE",
+      51853,
+      2.48
+     ],
+     [
+      "I500",
+      "Insuf cardiaca congestiva",
+      43497,
+      2.08
+     ],
+     [
+      "R570",
+      "Choque cardiogenico",
+      36936,
+      1.77
+     ],
+     [
+      "J969",
+      "Insuf respirat NE",
+      34890,
+      1.67
+     ],
+     [
+      "I219",
+      "Infarto agudo do miocardio NE",
+      28621,
+      1.37
+     ],
+     [
+      "J449",
+      "Doenc pulmonar obstrutiva cronica NE",
+      20234,
+      0.97
+     ],
+     [
+      "R579",
+      "Choque NE",
+      18202,
+      0.87
+     ],
+     [
+      "J188",
+      "Outr pneumonias dev microorg NE",
+      17380,
+      0.83
+     ],
+     [
+      "A499",
+      "Infecc bacter NE",
+      17327,
+      0.83
+     ],
+     [
+      "A418",
+      "Outr septicemias espec",
+      17254,
+      0.83
+     ],
+     [
+      "N179",
+      "Insuf renal aguda NE",
+      17208,
+      0.82
+     ],
+     [
+      "R688",
+      "Outr sint e sinais gerais espec",
+      16591,
+      0.79
+     ],
+     [
+      "N189",
+      "Insuf renal cronica NE",
+      16096,
+      0.77
+     ],
+     [
+      "J180",
+      "Broncopneumonia NE",
+      15367,
+      0.74
+     ]
+    ],
+    "nRows": 20,
+    "elapsed": 0.25,
+    "sqlExecuted": "SELECT\n  i.CID_MORTE AS causa_codigo,\n  c.DESCRICAO AS descricao_cid,\n  COUNT(*) AS obitos,\n  ROUND(100.0 * COUNT(*) / (\n    SELECT COUNT(*) FROM internacoes WHERE MORTE = TRUE AND CID_MORTE <> '0'\n  ), 2) AS pct_obitos\nFROM internacoes i\nLEFT JOIN cid c ON i.CID_MORTE = c.CID\nWHERE i.MORTE = TRUE\n  AND i.CID_MORTE <> '0'\nGROUP BY 1, 2\nORDER BY obitos DESC\nLIMIT 20"
+   }
   }
  ]
 }

@@ -21,6 +21,25 @@ o SQL, os tempos, os resultados e o contexto montado são reais.
 Trocar o mock por um cliente HTTP/SSE não deve tocar em nenhum componente — a UI
 consome o `AsyncGenerator<StreamEvent>` de `ask()` e nada além disso.
 
+### O mock recusa o que não tem
+
+Se nenhuma resposta gravada corresponder à pergunta, o mock **para** e diz isso,
+com a lista do que está coberto no trace.
+
+A primeira versão não fazia isso: escolhia sempre o trace "mais parecido". Para
+*"quantas pessoas morreram por algum tipo de câncer?"* ela respondeu
+*"5.639.716 internações de mulheres em 2019"* — as duas perguntas
+compartilhavam apenas `quantas` e `de`, duas palavras vazias, e isso bastou para
+uma similaridade de 0,76.
+
+Agora a comparação usa só palavras de conteúdo, com índice de Jaccard e piso de
+0,34. Um mock que inventa correspondência é pior que um mock que admite não ter
+a resposta — o produto inteiro existe para não apresentar número substituído
+como se fosse o pedido.
+
+As 16 perguntas cobertas estão em `PERGUNTAS_COBERTAS` (`src/mocks/api.ts`).
+Para acrescentar outras, rode o agente Python e anexe o trace a `traces.json`.
+
 ## Organização
 
 ```

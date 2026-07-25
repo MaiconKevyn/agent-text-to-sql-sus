@@ -58,23 +58,56 @@ function normalize(s: string): string {
     .join(" ");
 }
 
-/** Escolhe o trace gravado mais parecido com a pergunta, por sobreposição de termos. */
-function pickTrace(question: string): RawTrace {
-  const q = new Set(normalize(question).split(" "));
-  let best = TRACES[0];
-  let bestScore = -1;
+/**
+ * Palavras que não distinguem uma pergunta da outra. Sem removê-las, "quantas"
+ * e "de" bastavam para casar duas perguntas sem nada em comum.
+ */
+const VAZIAS = new Set(
+  ("a as ao aos com como da das de do dos e em entre foi foram ha isso mais " +
+    "menos na nas no nos o os ou para pela pelo por qual quais quando quantas " +
+    "quantos que quem se sem ser sobre um uma uns umas toda todas todo todos " +
+    "cada apenas so somente tambem ainda durante ate seu sua qtd total tem " +
+    "houve existe existem realizados registradas registrados").split(" "),
+);
+
+function conteudo(s: string): Set<string> {
+  return new Set(normalize(s).split(" ").filter((w) => w.length > 2 && !VAZIAS.has(w)));
+}
+
+/** Sobreposição mínima de palavras de conteúdo para aceitar um trace gravado. */
+const LIMIAR = 0.34;
+
+/**
+ * Escolhe o trace gravado que corresponde à pergunta, ou `null`.
+ *
+ * Devolver `null` é o ponto central: sem isto o mock respondia "internações de
+ * mulheres em 2019" para uma pergunta sobre mortes por câncer, porque as duas
+ * compartilhavam "quantas" e "de". Um mock que inventa correspondência é pior
+ * que um mock que admite não ter a resposta — e o produto inteiro existe para
+ * não apresentar número substituído como se fosse o pedido.
+ */
+function pickTrace(question: string): RawTrace | null {
+  const q = conteudo(question);
+  if (q.size === 0) return null;
+
+  let best: RawTrace | null = null;
+  let bestScore = 0;
   for (const t of TRACES) {
-    const words = new Set(normalize(t.question).split(" "));
+    const w = conteudo(t.question);
     let hits = 0;
-    for (const w of q) if (words.has(w)) hits++;
-    const score = hits / Math.max(1, Math.sqrt(words.size));
+    for (const x of q) if (w.has(x)) hits++;
+    // Jaccard: penaliza tanto o que falta quanto o que sobra.
+    const score = hits / (q.size + w.size - hits);
     if (score > bestScore) {
       bestScore = score;
       best = t;
     }
   }
-  return best;
+  return bestScore >= LIMIAR ? best : null;
 }
+
+/** Perguntas com resposta gravada, para orientar quem estiver desenvolvendo. */
+export const PERGUNTAS_COBERTAS = TRACES.map((t) => t.question);
 
 /** Falhas injetadas por palavra-chave, para exercitar os estados de erro. */
 function injectedFailure(question: string): FailureKind | null {
@@ -157,6 +190,37 @@ export async function* ask(
 
   const failure = injectedFailure(question);
   const t = pickTrace(question);
+
+  // Sem trace correspondente o mock PARA. Responder com a resposta de outra
+  // pergunta seria o pior desfecho possível — um número plausível e errado.
+  if (!t) {
+    yield { type: "step", id: "interpretar", state: "ativo" };
+    await pause(300);
+    yield { type: "step", id: "interpretar", state: "falhou" };
+    yield {
+      type: "trace",
+      entry: trace(
+        "interpretar",
+        "Nenhuma resposta gravada corresponde a esta pergunta",
+        `Pergunta: ${question}\n\n` +
+          "Esta é uma limitação do MOCK, não do agente. O backend real responderia " +
+          "normalmente; aqui só existem respostas pré-gravadas.\n\n" +
+          "Perguntas com resposta gravada:\n" +
+          PERGUNTAS_COBERTAS.map((p) => `  · ${p}`).join("\n"),
+        "text",
+      ),
+    };
+    yield {
+      type: "failure",
+      kind: "sem-trace",
+      message:
+        "Esta é uma versão de demonstração, com respostas pré-gravadas. Não há " +
+        "resposta gravada para esta pergunta — e devolver a de outra pergunta " +
+        "daria um número errado com cara de certo. Ligue o modo de depuração " +
+        "para ver a lista do que está coberto.",
+    };
+    return;
+  }
 
   // ---- 1. Interpretar -----------------------------------------------------
   yield { type: "step", id: "interpretar", state: "ativo" };

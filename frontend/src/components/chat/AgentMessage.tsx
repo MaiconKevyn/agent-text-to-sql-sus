@@ -1,18 +1,25 @@
-import { AlertTriangle, Activity, Info, Ban, WifiOff, Timer } from "lucide-react";
+import { AlertTriangle, Activity, Info, Ban, WifiOff, Timer, FlaskConical } from "lucide-react";
 import { DebugTrace } from "@/components/debug/DebugTrace";
 import { ResultTable } from "@/components/result/ResultTable";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AgentMessage as AgentMsg, Feedback } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { MessageActions } from "./MessageActions";
 import { StreamedText } from "./StreamedText";
 import { ThinkingSteps } from "./ThinkingSteps";
 
 const FALHAS = {
-  rede: { icon: WifiOff, titulo: "Sem conexão com o agente" },
-  sql: { icon: Ban, titulo: "A consulta não pôde ser executada" },
-  timeout: { icon: Timer, titulo: "A consulta demorou demais" },
+  rede: { icon: WifiOff, titulo: "Sem conexão com o agente", tom: "critical" },
+  sql: { icon: Ban, titulo: "A consulta não pôde ser executada", tom: "critical" },
+  timeout: { icon: Timer, titulo: "A consulta demorou demais", tom: "critical" },
+  // Limitação da demonstração, não erro do agente — por isso âmbar, não vermelho.
+  "sem-trace": {
+    icon: FlaskConical,
+    titulo: "Pergunta fora da demonstração",
+    tom: "caution",
+  },
 } as const;
 
 interface AgentMessageProps {
@@ -54,22 +61,37 @@ export function AgentMessageBubble({
         )}
 
         {failure && Falha && (
-          <div className="flex items-start gap-2.5 rounded-xl border border-critical/25 bg-critical-soft px-3.5 py-3">
-            <Falha.icon aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-critical" />
+          <div
+            className={cn(
+              "flex items-start gap-2.5 rounded-xl border px-3.5 py-3",
+              Falha.tom === "caution"
+                ? "border-caution/25 bg-caution-soft"
+                : "border-critical/25 bg-critical-soft",
+            )}
+          >
+            <Falha.icon
+              aria-hidden
+              className={cn(
+                "mt-0.5 h-4 w-4 shrink-0",
+                Falha.tom === "caution" ? "text-caution" : "text-critical",
+              )}
+            />
             <div className="min-w-0 flex-1">
               <p className="text-[13px] font-medium text-ink">{Falha.titulo}</p>
               <p className="mt-0.5 text-[13px] leading-relaxed text-ink-muted">
                 {failure.message}
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-2.5"
-                disabled={busy}
-                onClick={() => onRegenerate(message.id)}
-              >
-                Tentar de novo
-              </Button>
+              {failure.kind !== "sem-trace" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-2.5"
+                  disabled={busy}
+                  onClick={() => onRegenerate(message.id)}
+                >
+                  Tentar de novo
+                </Button>
+              )}
             </div>
           </div>
         )}

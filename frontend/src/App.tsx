@@ -1,0 +1,176 @@
+import { MotionConfig, useReducedMotion } from "framer-motion";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { AppHeader } from "@/components/AppHeader";
+import { Composer, type ComposerHandle } from "@/components/chat/Composer";
+import { MessageList } from "@/components/chat/MessageList";
+import { SchemaExplorer } from "@/components/schema/SchemaExplorer";
+import { useChat } from "@/hooks/useChat";
+import { cn } from "@/lib/utils";
+import { useTheme } from "@/hooks/useTheme";
+
+const DEBUG_KEY = "sih-debug";
+const PAINEL_KEY = "sih-schema-aberto";
+
+function lerFlag(chave: string, padrao: boolean): boolean {
+  try {
+    const v = localStorage.getItem(chave);
+    return v === null ? padrao : v === "1";
+  } catch {
+    return padrao;
+  }
+}
+
+export default function App() {
+  const { theme, toggle } = useTheme();
+  const { messages, busy, send, regenerate, setFeedback, stop, clear } = useChat();
+  const composer = useRef<ComposerHandle>(null);
+
+  const [debug, setDebug] = useState(() => lerFlag(DEBUG_KEY, false));
+  const [schemaOpen, setSchemaOpen] = useState(() => lerFlag(PAINEL_KEY, false));
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches,
+  );
+  const reduzirMovimento = useReducedMotion();
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const on = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(DEBUG_KEY, debug ? "1" : "0");
+    } catch {
+      /* ignora */
+    }
+  }, [debug]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(PAINEL_KEY, schemaOpen ? "1" : "0");
+    } catch {
+      /* ignora */
+    }
+  }, [schemaOpen]);
+
+  // Esc fecha o painel de schema quando ele está sobreposto (mobile).
+  useEffect(() => {
+    if (!schemaOpen || !isMobile) return;
+    const on = (e: KeyboardEvent) => e.key === "Escape" && setSchemaOpen(false);
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, [schemaOpen, isMobile]);
+
+  const perguntar = useCallback(
+    (q: string) => {
+      send(q);
+      if (isMobile) setSchemaOpen(false);
+    },
+    [send, isMobile],
+  );
+
+  const usarTabela = useCallback(
+    (nome: string) => {
+      composer.current?.append(`na tabela ${nome},`);
+      if (isMobile) setSchemaOpen(false);
+    },
+    [isMobile],
+  );
+
+  const painel = (
+    <SchemaExplorer
+      onPickTable={usarTabela}
+      onClose={isMobile ? () => setSchemaOpen(false) : undefined}
+    />
+  );
+
+  return (
+    <MotionConfig reducedMotion={reduzirMovimento ? "always" : "never"}>
+      <div className="flex h-full flex-col bg-canvas">
+        <AppHeader
+          theme={theme}
+          onToggleTheme={toggle}
+          debug={debug}
+          onDebugChange={setDebug}
+          schemaOpen={schemaOpen}
+          onToggleSchema={() => setSchemaOpen((v) => !v)}
+          hasMessages={messages.length > 0}
+          onClear={clear}
+        />
+
+        <div className="mx-auto flex w-full min-h-0 max-w-[1400px] flex-1">
+          <main className="flex min-w-0 min-h-0 flex-1 flex-col">
+            <MessageList
+              messages={messages}
+              debug={debug}
+              busy={busy}
+              onPick={perguntar}
+              onRegenerate={regenerate}
+              onFeedback={setFeedback}
+            />
+            <div className="border-t border-line bg-canvas/85 px-3 py-3 backdrop-blur-md sm:px-5">
+              <div className="mx-auto max-w-3xl">
+                <Composer ref={composer} busy={busy} onSend={perguntar} onStop={stop} />
+                <p className="mt-2 px-1 text-center text-[11px] leading-relaxed text-ink-subtle">
+                  Dados agregados de internações do SUS. Nenhuma informação individual de
+                  paciente é acessada.
+                </p>
+              </div>
+            </div>
+          </main>
+
+          {/* Desktop: painel lateral que empurra o conteúdo.
+              A largura é animada por CSS, não por JS: se o quadro de animação
+              não rodar, o painel ainda assim chega à largura final em vez de
+              ficar parado no meio, cortando o conteúdo. */}
+          <aside
+            aria-label="Estrutura do banco"
+            aria-hidden={!schemaOpen || isMobile}
+            className={cn(
+              "hidden min-h-0 shrink-0 overflow-hidden border-l border-line lg:block",
+              "transition-[width] duration-200 ease-out",
+              schemaOpen ? "w-80" : "w-0 border-l-0",
+            )}
+          >
+            <div className="h-full w-80">{painel}</div>
+          </aside>
+        </div>
+
+        {/* Mobile: bottom sheet, também em CSS. */}
+        {isMobile && (
+          <>
+            <div
+              onClick={() => setSchemaOpen(false)}
+              aria-hidden
+              className={cn(
+                "fixed inset-0 z-30 bg-ink/25 backdrop-blur-[2px] lg:hidden",
+                "transition-opacity duration-200 ease-out",
+                schemaOpen ? "opacity-100" : "pointer-events-none opacity-0",
+              )}
+            />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Estrutura do banco"
+              aria-hidden={!schemaOpen}
+              className={cn(
+                "fixed inset-x-0 bottom-0 z-40 h-[72vh] overflow-hidden rounded-t-2xl",
+                "border-t border-line shadow-panel lg:hidden",
+                "transition-transform duration-200 ease-out",
+                schemaOpen ? "translate-y-0" : "pointer-events-none translate-y-full",
+              )}
+            >
+              <span
+                aria-hidden
+                className="absolute left-1/2 top-2 h-1 w-9 -translate-x-1/2 rounded-full bg-line-strong"
+              />
+              <div className="h-full pt-3">{painel}</div>
+            </div>
+          </>
+        )}
+      </div>
+    </MotionConfig>
+  );
+}

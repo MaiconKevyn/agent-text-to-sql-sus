@@ -1,0 +1,122 @@
+import { AlertTriangle, Activity, Info, Ban, WifiOff, Timer } from "lucide-react";
+import { DebugTrace } from "@/components/debug/DebugTrace";
+import { ResultTable } from "@/components/result/ResultTable";
+import { SqlBlock } from "@/components/result/SqlBlock";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type { AgentMessage as AgentMsg, Feedback } from "@/lib/types";
+import { MessageActions } from "./MessageActions";
+import { StreamedText } from "./StreamedText";
+import { ThinkingSteps } from "./ThinkingSteps";
+
+const FALHAS = {
+  rede: { icon: WifiOff, titulo: "Sem conexão com o agente" },
+  sql: { icon: Ban, titulo: "A consulta não pôde ser executada" },
+  timeout: { icon: Timer, titulo: "A consulta demorou demais" },
+} as const;
+
+interface AgentMessageProps {
+  message: AgentMsg;
+  debug: boolean;
+  busy: boolean;
+  onRegenerate: (id: string) => void;
+  onFeedback: (id: string, v: Feedback) => void;
+}
+
+export function AgentMessageBubble({
+  message,
+  debug,
+  busy,
+  onRegenerate,
+  onFeedback,
+}: AgentMessageProps) {
+  const { status, payload, failure } = message;
+  const pensando = status === "pensando";
+  const streaming = status === "streaming";
+  const pronto = status === "pronto";
+  const Falha = failure ? FALHAS[failure.kind] : null;
+
+  return (
+    <article className="group/msg flex animate-fade-up gap-3" aria-label="Resposta do agente">
+      <span
+        aria-hidden
+        className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-line bg-surface shadow-subtle"
+      >
+        <Activity className="h-3.5 w-3.5 text-accent" />
+      </span>
+
+      <div className="min-w-0 flex-1 space-y-3">
+        {/* Etapas: expandidas enquanto trabalha, resumidas depois. */}
+        {(pensando || streaming || failure) && (
+          <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
+            <ThinkingSteps steps={message.steps} />
+          </div>
+        )}
+
+        {failure && Falha && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-critical/25 bg-critical-soft px-3.5 py-3">
+            <Falha.icon aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-critical" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-medium text-ink">{Falha.titulo}</p>
+              <p className="mt-0.5 text-[13px] leading-relaxed text-ink-muted">
+                {failure.message}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2.5"
+                disabled={busy}
+                onClick={() => onRegenerate(message.id)}
+              >
+                Tentar de novo
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {payload?.refused && (
+          <div className="flex items-start gap-2.5 rounded-xl border border-caution/25 bg-caution-soft px-3.5 py-3">
+            <AlertTriangle aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-caution" />
+            <p className="text-[13px] font-medium text-ink">
+              Esta pergunta está fora do alcance da base
+            </p>
+          </div>
+        )}
+
+        {message.text && <StreamedText text={message.text} streaming={streaming} />}
+
+        {payload?.assumptions && payload.assumptions.length > 0 && pronto && (
+          <div className="flex items-start gap-2 rounded-lg bg-raised px-3 py-2">
+            <Info aria-hidden className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-subtle" />
+            <div className="min-w-0 text-[12px] leading-relaxed text-ink-muted">
+              <span className="font-medium">Suposições:</span>{" "}
+              {payload.assumptions.join(" · ")}
+            </div>
+          </div>
+        )}
+
+        {payload?.sql && <SqlBlock sql={payload.sql} />}
+        {payload?.result && <ResultTable result={payload.result} />}
+
+        {debug && message.trace.length > 0 && <DebugTrace entries={message.trace} />}
+
+        {(pronto || failure) && message.text && (
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <MessageActions
+              text={message.text}
+              feedback={message.feedback}
+              disabled={busy}
+              onRegenerate={() => onRegenerate(message.id)}
+              onFeedback={(v) => onFeedback(message.id, v)}
+            />
+            {debug && (
+              <Badge tone="neutral" className="shrink-0">
+                {message.trace.length} eventos no trace
+              </Badge>
+            )}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+}

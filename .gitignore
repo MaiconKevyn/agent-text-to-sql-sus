@@ -41,3 +41,11 @@ eval/eval_report.json
 eval/*.log
 eval/ground_truth_*_backup.yaml
 eval/ground_truth_merged.yaml
+
+# ---------------------------------------------------------------------------
+# Frontend
+# ---------------------------------------------------------------------------
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.local

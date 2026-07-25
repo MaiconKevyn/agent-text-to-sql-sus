@@ -1,0 +1,1133 @@
+{
+ "tables": [
+  {
+   "name": "internacoes",
+   "role": "fato",
+   "rows": 144386772,
+   "description": "Internações hospitalares do SUS (AIH reduzida). 144.386.772 linhas.",
+   "caveat": null,
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "N_AIH",
+     "type": "VARCHAR",
+     "desc": "Número da AIH. Quase-único (599 números aparecem em >1 linha). NÃO use como chave primária confiável."
+    },
+    {
+     "name": "CNES",
+     "type": "INTEGER",
+     "desc": "Código CNES do estabelecimento executante. 5.922 distintos. ATENÇÃO: a tabela `hospital` está VAZIA, então não há nome nem município do hospital."
+    },
+    {
+     "name": "DT_INTER",
+     "type": "DATE",
+     "desc": "Data de internação (entrada)."
+    },
+    {
+     "name": "DT_SAIDA",
+     "type": "DATE",
+     "desc": "Data de saída/alta. É a data que define o período da base — use-a para recortes temporais salvo pedido explícito do contrário."
+    },
+    {
+     "name": "DIAS_PERM",
+     "type": "SMALLINT",
+     "desc": "Dias de permanência. 0 a 5.476, média 5,06. Sem valores negativos."
+    },
+    {
+     "name": "DIAR_ACOM",
+     "type": "SMALLINT",
+     "desc": "Diárias de acompanhante."
+    },
+    {
+     "name": "PROC_REA",
+     "type": "VARCHAR",
+     "desc": "Procedimento realizado (SIGTAP, 10 dígitos com zeros à esquerda). Junte com `procedimentos`."
+    },
+    {
+     "name": "CAR_INT",
+     "type": "TINYINT",
+     "desc": "Caráter da internação (eletivo/urgência/acidente). Junte com `car_int`."
+    },
+    {
+     "name": "ESPEC",
+     "type": "TINYINT",
+     "desc": "Especialidade do leito. Junte com `especialidade`."
+    },
+    {
+     "name": "COMPLEX",
+     "type": "VARCHAR",
+     "desc": "Complexidade ('00','02','03'). Junte com `complexidade`."
+    },
+    {
+     "name": "MARCA_UTI",
+     "type": "TINYINT",
+     "desc": "Tipo de UTI utilizada. 0 = não utilizou UTI. >0 = utilizou. Junte com `marca_uti`."
+    },
+    {
+     "name": "UTI_INT_TO",
+     "type": "TINYINT",
+     "desc": "INUTILIZÁVEL. Deveria ser o total de diárias de UTI, mas 9.107.168 das 9.107.197 internações com UTI têm valor 0 — só 29 linhas em toda a base são não-nulas. NUNCA use esta coluna; para intensidade de UTI use VAL_UTI."
+    },
+    {
+     "name": "IND_VDRL",
+     "type": "BOOLEAN",
+     "desc": "Exame VDRL realizado. TRUE em 22.840.654 (15,8%)."
+    },
+    {
+     "name": "MORTE",
+     "type": "BOOLEAN",
+     "desc": "Óbito durante a internação. TRUE = óbito. Total: 5.877.536 (4,07%)."
+    },
+    {
+     "name": "GESTRISCO",
+     "type": "BOOLEAN",
+     "desc": "INUTILIZÁVEL. Nominalmente 'gestação de risco', mas está TRUE em 143.764.198 linhas (99,6%), incluindo 58,8 milhões de pacientes do sexo masculino. O campo está corrompido — NUNCA o use e avise o usuário se ele pedir gestação de risco."
+    },
+    {
+     "name": "DIAG_PRINC",
+     "type": "VARCHAR",
+     "desc": "CID-10 do diagnóstico principal, SEM PONTO (ex.: 'J189', 'A09'). Nunca nulo."
+    },
+    {
+     "name": "DIAG_SECUN",
+     "type": "VARCHAR",
+     "desc": "CID-10 do diagnóstico secundário. NUNCA É NULL: usa a string '0' para 'nenhum', em 137.854.822 linhas (95,5%). Para contar as que têm diagnóstico secundário use DIAG_SECUN <> '0' (6.531.950), NÃO `IS NOT NULL`."
+    },
+    {
+     "name": "CID_MORTE",
+     "type": "VARCHAR",
+     "desc": "CID-10 da causa do óbito. Mesmo placeholder: '0' em 142.298.060 linhas (98,6%). Use CID_MORTE <> '0' (2.088.712)."
+    },
+    {
+     "name": "CID_NOTIF",
+     "type": "VARCHAR",
+     "desc": "CID-10 de notificação compulsória. Placeholder '0' em 143.188.394 linhas (99,2%)."
+    },
+    {
+     "name": "DIAGSEC1..9",
+     "type": "VARCHAR",
+     "desc": "Nove colunas DIAGSEC1 … DIAGSEC9 com diagnósticos secundários adicionais. Estas SIM usam NULL (DIAGSEC1 tem 132.070.818 nulos)."
+    },
+    {
+     "name": "VAL_SH",
+     "type": "DOUBLE",
+     "desc": "Valor de serviços hospitalares (R$)."
+    },
+    {
+     "name": "VAL_SP",
+     "type": "DOUBLE",
+     "desc": "Valor de serviços profissionais (R$)."
+    },
+    {
+     "name": "VAL_UTI",
+     "type": "DOUBLE",
+     "desc": "Valor de UTI (R$)."
+    },
+    {
+     "name": "VAL_TOT",
+     "type": "DOUBLE",
+     "desc": "Valor total da AIH (R$). Média R$ 1.472,30; soma da base R$ 212,6 bilhões. Valores NOMINAIS, não deflacionados."
+    },
+    {
+     "name": "NASC",
+     "type": "DATE",
+     "desc": "Data de nascimento do paciente."
+    },
+    {
+     "name": "IDADE",
+     "type": "SMALLINT",
+     "desc": "Idade em ANOS COMPLETOS (0 a 130). Verificado: consistente com NASC/DT_INTER."
+    },
+    {
+     "name": "SEXO",
+     "type": "TINYINT",
+     "desc": "Sexo. VEJA A REGRA CRÍTICA — no fato só existem os valores 1 e 3."
+    },
+    {
+     "name": "RACA_COR",
+     "type": "VARCHAR",
+     "desc": "Raça/cor como string de 2 dígitos ('01'..'05','99'). Junte com `raca_cor`."
+    },
+    {
+     "name": "ETNIA",
+     "type": "SMALLINT",
+     "desc": "Etnia indígena. QUASE VAZIA: 99,75% são 0 (não informado)."
+    },
+    {
+     "name": "NACIONAL",
+     "type": "SMALLINT",
+     "desc": "Nacionalidade. 99,76% são 10 (Brasil) — sem variabilidade útil."
+    },
+    {
+     "name": "INSTRU",
+     "type": "TINYINT",
+     "desc": "Grau de instrução. QUASE VAZIA: 99,17% são 0 (não informado). Use LEFT JOIN: o fato contém 5, 6 e 8, ausentes da dimensão."
+    },
+    {
+     "name": "VINCPREV",
+     "type": "TINYINT",
+     "desc": "Vínculo previdenciário. QUASE VAZIA: 99,99% são 0 — só 17.533 linhas em 144 milhões têm valor."
+    },
+    {
+     "name": "CBOR",
+     "type": "VARCHAR",
+     "desc": "Ocupação (CBO). QUASE VAZIA: '000000' em 144.369.239 linhas (99,99%). NUNCA É NULL, então `CBOR IS NOT NULL` casa tudo — use CBOR <> '000000'."
+    },
+    {
+     "name": "MUNIC_RES",
+     "type": "INTEGER",
+     "desc": "Município de RESIDÊNCIA do paciente (código IBGE 6 dígitos). Junte com municipios.CO_MUNICIPIO_6D. NÃO é o município do hospital."
+    },
+    {
+     "name": "CEP",
+     "type": "VARCHAR",
+     "desc": "CEP de residência."
+    },
+    {
+     "name": "NUM_FILHOS",
+     "type": "TINYINT",
+     "desc": "Número de filhos."
+    },
+    {
+     "name": "CONTRACEP1",
+     "type": "TINYINT",
+     "desc": "Método contraceptivo 1. Junte com `contraceptivos`."
+    },
+    {
+     "name": "CONTRACEP2",
+     "type": "TINYINT",
+     "desc": "Método contraceptivo 2."
+    },
+    {
+     "name": "INSC_PN",
+     "type": "VARCHAR",
+     "desc": "Inscrição no pré-natal."
+    }
+   ],
+   "domain": null
+  },
+  {
+   "name": "_staging_internacoes",
+   "role": "indisponivel",
+   "rows": 39622048,
+   "description": "Tabela de carga intermediária (39.622.048 linhas, subconjunto parcial). NUNCA consulte.",
+   "caveat": null,
+   "empty": false,
+   "forbidden": true,
+   "columns": [
+    {
+     "name": "N_AIH",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "CNES",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "DT_INTER",
+     "type": "DATE",
+     "desc": ""
+    },
+    {
+     "name": "DT_SAIDA",
+     "type": "DATE",
+     "desc": ""
+    },
+    {
+     "name": "DIAS_PERM",
+     "type": "SMALLINT",
+     "desc": ""
+    },
+    {
+     "name": "DIAR_ACOM",
+     "type": "SMALLINT",
+     "desc": ""
+    },
+    {
+     "name": "PROC_REA",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "CAR_INT",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "ESPEC",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "COMPLEX",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "MARCA_UTI",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "UTI_INT_TO",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "IND_VDRL",
+     "type": "BOOLEAN",
+     "desc": ""
+    },
+    {
+     "name": "MORTE",
+     "type": "BOOLEAN",
+     "desc": ""
+    },
+    {
+     "name": "GESTRISCO",
+     "type": "BOOLEAN",
+     "desc": ""
+    },
+    {
+     "name": "DIAG_PRINC",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAG_SECUN",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "CID_MORTE",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "CID_NOTIF",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC1",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC2",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC3",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC4",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC5",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC6",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC7",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC8",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DIAGSEC9",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "VAL_SH",
+     "type": "DOUBLE",
+     "desc": ""
+    },
+    {
+     "name": "VAL_SP",
+     "type": "DOUBLE",
+     "desc": ""
+    },
+    {
+     "name": "VAL_UTI",
+     "type": "DOUBLE",
+     "desc": ""
+    },
+    {
+     "name": "VAL_TOT",
+     "type": "DOUBLE",
+     "desc": ""
+    },
+    {
+     "name": "NASC",
+     "type": "DATE",
+     "desc": ""
+    },
+    {
+     "name": "IDADE",
+     "type": "SMALLINT",
+     "desc": ""
+    },
+    {
+     "name": "SEXO",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "RACA_COR",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "ETNIA",
+     "type": "SMALLINT",
+     "desc": ""
+    },
+    {
+     "name": "NACIONAL",
+     "type": "SMALLINT",
+     "desc": ""
+    },
+    {
+     "name": "INSTRU",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "VINCPREV",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "CBOR",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "MUNIC_RES",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "CEP",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "NUM_FILHOS",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "CONTRACEP1",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "CONTRACEP2",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "INSC_PN",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": null
+  },
+  {
+   "name": "cid",
+   "role": "dimensao",
+   "rows": 14253,
+   "description": "CID-10 com hierarquia capítulo > grupo > categoria.",
+   "caveat": "777 linhas do fato (0,001%) têm DIAG_PRINC sem correspondência aqui — sobretudo códigos U04, U09, U10 (COVID/emergência) e N182-N185. Prefira LEFT JOIN quando a contagem total importar.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "CID",
+     "type": "VARCHAR",
+     "desc": "Código CID-10 SEM PONTO. Categorias têm 3 caracteres ('A09'), subcategorias 4 ('A090')."
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": "Descrição abreviada, SEM acento (ex.: 'Colera dev Vibrio cholerae 01 biot cholerae')."
+    },
+    {
+     "name": "TP_NIVEL",
+     "type": "VARCHAR",
+     "desc": "'CAT' (2.094 categorias) ou 'SUBCAT' (12.159 subcategorias)."
+    },
+    {
+     "name": "RESTRSEXO",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DS_CATEGORIA",
+     "type": "VARCHAR",
+     "desc": "Nome da categoria de 3 dígitos."
+    },
+    {
+     "name": "DS_GRUPO",
+     "type": "VARCHAR",
+     "desc": "Grupo, prefixado pela faixa (ex.: 'A00-A09 Doenças infecciosas intestinais'). 226 grupos."
+    },
+    {
+     "name": "DS_CAPITULO",
+     "type": "VARCHAR",
+     "desc": "Capítulo, prefixado por numeral romano (ex.: 'I. Algumas doenças infecciosas e parasitárias'). 22 capítulos."
+    }
+   ],
+   "domain": null
+  },
+  {
+   "name": "tempo",
+   "role": "dimensao",
+   "rows": 5844,
+   "description": "Dimensão de calendário.",
+   "caveat": "COBRE APENAS 2008-01-01 a 2023-12-31. Um INNER JOIN entre DT_SAIDA e tempo.data DESCARTA SILENCIOSAMENTE as 431.437 internações de 2007. Prefira year(DT_SAIDA) / month(DT_SAIDA) diretamente.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "data",
+     "type": "DATE",
+     "desc": ""
+    },
+    {
+     "name": "ano",
+     "type": "SMALLINT",
+     "desc": ""
+    },
+    {
+     "name": "mes",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "trimestre",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "dia_semana",
+     "type": "TINYINT",
+     "desc": ""
+    }
+   ],
+   "domain": null
+  },
+  {
+   "name": "municipios",
+   "role": "dimensao",
+   "rows": 5590,
+   "description": "Municípios brasileiros com UF, região de saúde e coordenadas.",
+   "caveat": "19 linhas são lixo (SG_UF numérica como '13','25' ou 'NA', com NO_MUNICIPIO corrompido). NENHUMA é alcançável pelo fato, então agregações por UF a partir de `internacoes` são seguras. Mas contagens feitas SOBRE a dimensão (ex.: 'quantos municípios existem') devem filtrar essas linhas.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "CO_MUNICIPIO_6D",
+     "type": "INTEGER",
+     "desc": "Código IBGE 6 dígitos. CHAVE de junção com internacoes.MUNIC_RES."
+    },
+    {
+     "name": "CO_MUNICIPIO_7D",
+     "type": "INTEGER",
+     "desc": "Código IBGE 7 dígitos (com dígito verificador). NÃO use para juntar com o fato."
+    },
+    {
+     "name": "NO_MUNICIPIO",
+     "type": "VARCHAR",
+     "desc": "Nome do município COM acento, em Title Case (ex.: 'São Paulo', 'Ribeirão Preto', 'Guajará-Mirim'). 2.387 dos 5.590 nomes têm acento. Para filtrar com segurança use strip_accents() dos DOIS lados."
+    },
+    {
+     "name": "SG_UF",
+     "type": "VARCHAR",
+     "desc": "Sigla da UF. 27 siglas válidas aparecem no fato."
+    },
+    {
+     "name": "NO_REGIAO_SAUDE",
+     "type": "VARCHAR",
+     "desc": "Região de saúde. 19 municípios têm NULL."
+    },
+    {
+     "name": "latitude",
+     "type": "FLOAT",
+     "desc": ""
+    },
+    {
+     "name": "longitude",
+     "type": "FLOAT",
+     "desc": ""
+    }
+   ],
+   "domain": null
+  },
+  {
+   "name": "procedimentos",
+   "role": "dimensao",
+   "rows": 5394,
+   "description": "Procedimentos SIGTAP.",
+   "caveat": "370 linhas do fato não casam. 1.928 procedimentos distintos aparecem no fato.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "PROC_REA",
+     "type": "VARCHAR",
+     "desc": "Código de 10 dígitos com zeros à esquerda (ex.: '0310010039')."
+    },
+    {
+     "name": "NOME_PROC",
+     "type": "VARCHAR",
+     "desc": "Nome em MAIÚSCULAS, sem acento (ex.: 'PARTO NORMAL')."
+    }
+   ],
+   "domain": null
+  },
+  {
+   "name": "cbor",
+   "role": "dimensao",
+   "rows": 2813,
+   "description": "Ocupações CBO. Colunas: CBOR, DESCRICAO.",
+   "caveat": null,
+   "empty": false,
+   "forbidden": false,
+   "columns": [],
+   "domain": null
+  },
+  {
+   "name": "nacionalidade",
+   "role": "dimensao",
+   "rows": 333,
+   "description": "Nacionalidades. Colunas: NACIONAL, DESCRICAO.",
+   "caveat": null,
+   "empty": false,
+   "forbidden": false,
+   "columns": [],
+   "domain": null
+  },
+  {
+   "name": "etnia",
+   "role": "dimensao",
+   "rows": 265,
+   "description": "Etnias indígenas. Colunas: ETNIA, DESCRICAO.",
+   "caveat": null,
+   "empty": false,
+   "forbidden": false,
+   "columns": [],
+   "domain": null
+  },
+  {
+   "name": "especialidade",
+   "role": "dimensao",
+   "rows": 39,
+   "description": "",
+   "caveat": "No fato só aparecem 1-14, 17 e 87. Os códigos de UTI (74-95) NÃO aparecem em ESPEC — para UTI use MARCA_UTI.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "ESPEC",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": {
+    "0": "Não informado",
+    "1": "Cirúrgico",
+    "2": "Obstétrico",
+    "3": "Clínico",
+    "4": "Crônicos",
+    "5": "Psiquiatria",
+    "6": "Pneumologia Sanitária",
+    "7": "Pediátrico",
+    "8": "Reabilitação",
+    "9": "Leito Dia / Cirúrgico",
+    "10": "Leito Dia / AIDS",
+    "11": "Leito Dia / Fibrose Cística",
+    "12": "Leito Dia / Intercorrência Pós-Transplante",
+    "13": "Leito Dia / Geriatria",
+    "14": "Leito Dia / Saúde Mental",
+    "17": "Não Documentado",
+    "64": "Unidade Intermediária",
+    "65": "Unidade Intermediária Neonatal",
+    "74": "UTI Adulto - Tipo I",
+    "75": "UTI Adulto - Tipo II",
+    "76": "UTI Adulto - Tipo III",
+    "77": "UTI Infantil - Tipo I",
+    "78": "UTI Infantil - Tipo II",
+    "79": "UTI Infantil - Tipo III",
+    "80": "UTI Neonatal - Tipo I",
+    "81": "UTI Neonatal - Tipo II",
+    "82": "UTI Neonatal - Tipo III",
+    "83": "UTI de Queimados",
+    "85": "UTI Coronariana tipo II - UCO tipo II",
+    "86": "UTI Coronariana tipo III - UCO tipo III",
+    "87": "Saúde Mental - Longa Permanência",
+    "88": "Queimado Clínico Adulto",
+    "89": "Queimado Clínico Pediátrico",
+    "90": "Queimado Cirúrgico Adulto",
+    "91": "Queimado Cirúrgico Pediátrico",
+    "92": "UCI Neonatal Convencional",
+    "93": "UCI Neonatal Canguru",
+    "94": "UCI Pediátrica",
+    "95": "UCI Adulto"
+   }
+  },
+  {
+   "name": "marca_uti",
+   "role": "dimensao",
+   "rows": 17,
+   "description": "",
+   "caveat": "'Usou UTI' = MARCA_UTI > 0 (9.107.197 internações, 6,3%).",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "MARCA_UTI",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": {
+    "0": "Não utilizou UTI",
+    "1": "Utilizou mais de um tipo de UTI",
+    "51": "UTI adulto - tipo II COVID 19",
+    "52": "UTI pediátrica - tipo II COVID 19",
+    "74": "UTI adulto - tipo I",
+    "75": "UTI adulto - tipo II",
+    "76": "UTI adulto - tipo III",
+    "77": "UTI infantil - tipo I",
+    "78": "UTI infantil - tipo II",
+    "79": "UTI infantil - tipo III",
+    "80": "UTI neonatal - tipo I",
+    "81": "UTI neonatal - tipo II",
+    "82": "UTI neonatal - tipo III",
+    "83": "UTI de queimados",
+    "85": "UTI coronariana tipo II - UCO tipo II",
+    "86": "UTI coronariana tipo III - UCO tipo III",
+    "99": "UTI Doador"
+   }
+  },
+  {
+   "name": "contraceptivos",
+   "role": "dimensao",
+   "rows": 13,
+   "description": "Métodos contraceptivos. Colunas: CONTRACEPTIVO, DESCRICAO.",
+   "caveat": null,
+   "empty": false,
+   "forbidden": false,
+   "columns": [],
+   "domain": null
+  },
+  {
+   "name": "raca_cor",
+   "role": "dimensao",
+   "rows": 7,
+   "description": "",
+   "caveat": "No fato aparecem apenas '01'..'05' e '99'. O código de desconhecido usado é '99', não '00'. SUBNOTIFICAÇÃO ALTA: 42.177.427 internações (29,2%) estão como 'Sem informação' — a segunda categoria mais frequente, à frente de 'Branca'. Ao analisar por raça/cor, sempre mostre essa categoria e avise que quase um terço dos registros não tem a informação.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "RACA_COR",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": {
+    "00": "Não informado",
+    "01": "Branca",
+    "02": "Preta",
+    "03": "Parda",
+    "04": "Amarela",
+    "05": "Indígena",
+    "99": "Sem informação"
+   }
+  },
+  {
+   "name": "car_int",
+   "role": "dimensao",
+   "rows": 7,
+   "description": "",
+   "caveat": "No fato aparecem 1..6 (o 0 não ocorre).",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "CAR_INT",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": {
+    "0": "Não informado",
+    "1": "Eletivo",
+    "2": "Urgência",
+    "3": "Acidente no local trabalho ou a serv da empresa",
+    "4": "Acidente no trajeto para o trabalho",
+    "5": "Outros tipo de acidente de trânsito",
+    "6": "Out tp lesões e envenen por agent quím físicos"
+   }
+  },
+  {
+   "name": "vincprev",
+   "role": "dimensao",
+   "rows": 7,
+   "description": "",
+   "caveat": null,
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "VINCPREV",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": {
+    "0": "Não informado",
+    "1": "Autônomo",
+    "2": "Desempregado",
+    "3": "Aposentado",
+    "4": "Não segurado",
+    "5": "Empregado",
+    "6": "Empregador"
+   }
+  },
+  {
+   "name": "instrucao",
+   "role": "dimensao",
+   "rows": 6,
+   "description": "",
+   "caveat": "O fato contém também 5, 6 e 8, ausentes desta dimensão. Use LEFT JOIN.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "INSTRU",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": {
+    "0": "Não informado",
+    "1": "Analfabeto",
+    "2": "1º grau",
+    "3": "2º grau",
+    "4": "3º grau",
+    "9": "Ignorado"
+   }
+  },
+  {
+   "name": "sexo",
+   "role": "dimensao",
+   "rows": 4,
+   "description": "",
+   "caveat": "DOIS códigos mapeiam para 'Feminino' (2 e 3), mas o FATO SÓ CONTÉM 1 e 3.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "SEXO",
+     "type": "TINYINT",
+     "desc": ""
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": {
+    "0": "Ignorado",
+    "1": "Masculino",
+    "2": "Feminino",
+    "3": "Feminino"
+   }
+  },
+  {
+   "name": "complexidade",
+   "role": "dimensao",
+   "rows": 4,
+   "description": "",
+   "caveat": "No fato aparecem apenas '00', '02' e '03'.",
+   "empty": false,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "COMPLEX",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "DESCRICAO",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": {
+    "00": "Não informado",
+    "01": "Atenção Básica",
+    "02": "Média complexidade",
+    "03": "Alta complexidade"
+   }
+  },
+  {
+   "name": "hospital",
+   "role": "indisponivel",
+   "rows": 0,
+   "description": "VAZIA (0 linhas). Não há nome de hospital, natureza, gestão nem município do estabelecimento.",
+   "caveat": null,
+   "empty": true,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "CNES",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "NO_HOSPITAL",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "MUNIC_MOV",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "NATUREZA",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "GESTAO",
+     "type": "VARCHAR",
+     "desc": ""
+    },
+    {
+     "name": "NAT_JUR",
+     "type": "VARCHAR",
+     "desc": ""
+    }
+   ],
+   "domain": null
+  },
+  {
+   "name": "socioeconomico",
+   "role": "indisponivel",
+   "rows": 0,
+   "description": "VAZIA (0 linhas). Não há população, PIB per capita, leitos SUS, médicos nem mortalidade infantil.",
+   "caveat": null,
+   "empty": true,
+   "forbidden": false,
+   "columns": [
+    {
+     "name": "CO_MUNICIPIO_6D",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "NU_ANO",
+     "type": "SMALLINT",
+     "desc": ""
+    },
+    {
+     "name": "QT_POPULACAO",
+     "type": "BIGINT",
+     "desc": ""
+    },
+    {
+     "name": "VL_PIB_PERCAPITA",
+     "type": "DOUBLE",
+     "desc": ""
+    },
+    {
+     "name": "QT_OBITOS_INFANTIS",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "QT_NASCIDOS_VIVOS",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "VL_MORT_INFANTIL",
+     "type": "DOUBLE",
+     "desc": ""
+    },
+    {
+     "name": "QT_LEITOS_SUS",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "VL_LEITOS_SUS_1000",
+     "type": "DOUBLE",
+     "desc": ""
+    },
+    {
+     "name": "QT_MEDICOS",
+     "type": "INTEGER",
+     "desc": ""
+    },
+    {
+     "name": "VL_MEDICOS_1000",
+     "type": "DOUBLE",
+     "desc": ""
+    }
+   ],
+   "domain": null
+  }
+ ],
+ "rules": [
+  {
+   "id": "sexo_feminino",
+   "severity": "critica",
+   "text": "NUNCA escreva `SEXO = 2` para \"mulheres/feminino\": o valor 2 NÃO EXISTE no\nfato e a query retorna ZERO linhas. No fato, feminino = 3 e masculino = 1.\nForma correta: `SEXO IN (2, 3)` ou junte com a dimensão `sexo` e filtre por\n`DESCRICAO = 'Feminino'`. Distribuição real: masculino 58.967.743,\nfeminino 85.419.029 (a maioria por causa de partos)."
+  },
+  {
+   "id": "cid_sem_ponto",
+   "severity": "critica",
+   "text": "Códigos CID no banco NÃO TÊM PONTO. O usuário costuma escrever \"J18.9\" ou\n\"I21\"; converta para 'J189' / 'I21' antes de filtrar. Para pegar uma\ncategoria inteira (todas as subcategorias de J18), use\n`DIAG_PRINC LIKE 'J18%'`, não `= 'J18'`."
+  },
+  {
+   "id": "periodo_2007_parcial",
+   "severity": "alta",
+   "text": "2007 tem apenas ago-dez (431.437 internações) — é um ano PARCIAL. Nunca o\ninclua em comparações \"qual ano teve mais/menos\" nem em séries anuais sem\navisar. Anos completos: 2008 a 2023."
+  },
+  {
+   "id": "nao_inner_join_tempo",
+   "severity": "alta",
+   "text": "A dimensão `tempo` só cobre 2008-2023. INNER JOIN com ela descarta 2007\nsilenciosamente. Use `year(DT_SAIDA)` / `month(DT_SAIDA)` diretamente."
+  },
+  {
+   "id": "geografia_e_residencia",
+   "severity": "alta",
+   "text": "A única geografia disponível é a RESIDÊNCIA DO PACIENTE (MUNIC_RES). Como\na tabela `hospital` está vazia, é IMPOSSÍVEL saber onde o atendimento\nocorreu. Se a pergunta for sobre o local do hospital (\"internações NOS\nhospitais de SP\"), responda que a base só permite recorte por residência\ne entregue esse recorte, deixando a limitação explícita."
+  },
+  {
+   "id": "recorte_temporal_por_saida",
+   "severity": "media",
+   "text": "\"Internações em 2020\" = `year(DT_SAIDA) = 2020` (critério de competência\nda base). Só use DT_INTER se o usuário pedir explicitamente pela data de\nentrada; nesse caso avise que o resultado difere."
+  },
+  {
+   "id": "valores_nominais",
+   "severity": "media",
+   "text": "VAL_TOT é nominal (sem correção inflacionária). Ao comparar valores entre\nanos distantes, avise que não estão deflacionados."
+  },
+  {
+   "id": "taxa_mortalidade",
+   "severity": "media",
+   "text": "Taxa de mortalidade = `AVG(MORTE::INT)` ou\n`COUNT(*) FILTER (WHERE MORTE) * 1.0 / COUNT(*)`. Expresse em % e, em\nrankings por grupo, imponha um mínimo de casos (ex.: HAVING COUNT(*) >=\n1000) para não trazer grupos minúsculos com 100%."
+  },
+  {
+   "id": "acentuacao_por_tabela",
+   "severity": "alta",
+   "text": "A acentuação varia POR TABELA — não generalize:\n- municipios.NO_MUNICIPIO TEM acento ('São Paulo', 'Ribeirão Preto').\n  Filtrar por 'Sao Paulo' devolve ZERO. Forma robusta:\n  `strip_accents(NO_MUNICIPIO) = strip_accents('São Paulo')`.\n- cid.DESCRICAO é praticamente SEM acento (só 41 de 14.253 têm).\n- procedimentos.NOME_PROC é MAIÚSCULO e sem acento, com 109 nomes\n  contendo lixo de codificação.\nNomes de município se repetem entre UFs — sempre desempate com SG_UF."
+  },
+  {
+   "id": "sp_e_to_ausentes",
+   "severity": "critica",
+   "text": "COBERTURA INCOMPLETA: São Paulo (88.884 internações) e Tocantins (38.425)\nestão praticamente AUSENTES desta base, em todos os anos. Para comparação,\nMinas Gerais tem 19.276.203 e Roraima — a menor UF do país — tem 598.101.\nIsso NÃO é um achado epidemiológico, é uma falha de extração.\nPortanto: em qualquer ranking, comparação ou mapa por UF, avise\nexplicitamente que SP e TO estão subrepresentados e não devem ser\ninterpretados. Nunca afirme que \"SP tem poucas internações\"."
+  },
+  {
+   "id": "placeholder_zero_nao_null",
+   "severity": "critica",
+   "text": "TRÊS COLUNAS USAM A STRING '0' NO LUGAR DE NULL, e nunca são nulas:\nDIAG_SECUN ('0' em 95,5%), CID_MORTE ('0' em 98,6%) e CID_NOTIF ('0' em\n99,2%). O mesmo vale para CBOR, que usa '000000' em 99,99%.\nConsequência: `WHERE DIAG_SECUN IS NOT NULL` casa TODAS as 144.386.772\nlinhas e devolve uma resposta absurda sem dar erro. O correto é\n`WHERE DIAG_SECUN <> '0'` (6.531.950 linhas).\nAs colunas DIAGSEC1..DIAGSEC9 são a exceção: essas usam NULL de verdade."
+  },
+  {
+   "id": "colunas_sociodemograficas_vazias",
+   "severity": "alta",
+   "text": "Cinco campos sociodemográficos estão praticamente não preenchidos e não\nsustentam análise:\n  VINCPREV   99,99% \"não informado\" (só 17.533 linhas preenchidas)\n  CBOR       99,99% '000000'\n  ETNIA      99,75% \"não informado\"\n  NUM_FILHOS 100,00% zero\n  INSTRU     99,17% \"não informado\"\n  NACIONAL   99,76% Brasil\nPode-se responder \"quantos têm X informado\", mas qualquer quebra de\nmétrica POR escolaridade, ocupação, etnia ou vínculo é enganosa. Nesses\ncasos devolva o resultado e avise que a cobertura é inferior a 1%."
+  },
+  {
+   "id": "ind_vdrl_nao_e_positivo",
+   "severity": "alta",
+   "text": "IND_VDRL indica que o exame VDRL foi REGISTRADO, não que deu positivo.\nSão 22.840.654 linhas TRUE (15,8%) — tratá-las como \"casos de sífilis\"\nseria clinicamente absurdo. Se o usuário pedir \"VDRL positivo\", explique\nque a base só informa a realização do exame."
+  },
+  {
+   "id": "agrupar_por_codigo_nao_por_rotulo",
+   "severity": "critica",
+   "text": "Ao agrupar por diagnóstico ou procedimento, agrupe pelo CÓDIGO e use a\ndescrição apenas como rótulo:\n  GROUP BY i.DIAG_PRINC, c.DESCRICAO     -- correto\n  GROUP BY c.DESCRICAO                   -- errado\nMotivo: 293 descrições da tabela `cid` são compartilhadas por mais de um\ncódigo. \"Fazenda\" cobre 217 códigos (W007, W017, W027, …), porque é o\nLOCAL da causa externa, não um diagnóstico. Agrupar pelo texto funde\ncódigos distintos, infla as contagens e muda quem entra num top-N."
+  },
+  {
+   "id": "uti_indicador_vs_valor",
+   "severity": "alta",
+   "text": "Duas colunas descrevem UTI e não são intercambiáveis:\n  MARCA_UTI > 0  -> USOU UTI. 9.107.197 internações. É o indicador.\n  VAL_UTI   > 0  -> teve VALOR de UTI faturado. 9.193.933 internações.\nA diferença são 86.736 internações com valor lançado sem marcação de UTI.\nRegra: para CONTAR internações em UTI use MARCA_UTI > 0; para somar ou\ntirar média de dinheiro use VAL_UTI, filtrando por MARCA_UTI > 0 quando a\npergunta for sobre quem passou pela UTI."
+  },
+  {
+   "id": "razao_ou_percentual",
+   "severity": "media",
+   "text": "Quando a pergunta pedir \"razão\" ou \"proporção\" entre dois grupos sem\ndizer a unidade, devolva a RAZÃO simples (homens/mulheres = 1,43) e diga\nno texto o que ela significa. Só multiplique por 100 se a pergunta usar\nas palavras \"percentual\", \"porcentagem\" ou \"%\".\nEm percentuais sobre subconjunto, deixe explícito qual é o denominador —\n\"18% das internações respiratórias\" e \"9,8% de todas as internações do\ntrimestre\" são respostas diferentes para a mesma frase ambígua."
+  },
+  {
+   "id": "colunas_inutilizaveis",
+   "severity": "critica",
+   "text": "Duas colunas do fato estão corrompidas e NÃO devem ser usadas:\n- GESTRISCO: TRUE em 99,6% das linhas, inclusive em 58,8 milhões de\n  pacientes masculinos.\n- UTI_INT_TO: zero em 9.107.168 das 9.107.197 internações com UTI.\nSe a pergunta depender de uma delas, responda que o dado é inconsistente\nna base e ofereça a alternativa mais próxima (para UTI, use MARCA_UTI > 0\nou VAL_UTI)."
+  },
+  {
+   "id": "sem_limit_gigante",
+   "severity": "media",
+   "text": "O fato tem 144M linhas. Nunca faça SELECT sem agregação ou sem LIMIT.\nToda query exploratória deve terminar com LIMIT."
+  }
+ ],
+ "period": "Período coberto por DT_SAIDA (data de alta/saída): 2007-08-01 a 2023-12-31.\nDT_INTER (data de entrada) pode ser bem anterior (mínimo 1995-03-03) porque\ninternações longas iniciadas antes entram na base quando recebem alta.",
+ "grain": "Uma linha = uma AIH (Autorização de Internação Hospitalar) do tipo RD\n(reduzida) já encerrada. Ou seja: uma internação faturada no SUS."
+}

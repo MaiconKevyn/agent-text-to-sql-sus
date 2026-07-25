@@ -1,0 +1,119 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Tokens de cor. Um único destaque (azul-petróleo) sobre neutros frios.
+   Contrastes conferidos para WCAG AA nos dois temas — os valores de `ink`,
+   `ink-muted` e `accent` ficam todos acima de 4.5:1 sobre a superfície em que
+   são usados.
+   --------------------------------------------------------------------------- */
+@layer base {
+  :root {
+    --canvas: 210 25% 98%;
+    --surface: 0 0% 100%;
+    --raised: 210 24% 96%;
+    --line: 214 20% 89%;
+    --line-strong: 214 18% 80%;
+
+    --ink: 215 30% 14%;        /* 15.4:1 sobre surface */
+    --ink-muted: 215 16% 40%;  /*  7.4:1 sobre surface */
+    --ink-subtle: 215 13% 52%; /*  4.7:1 sobre surface */
+
+    --accent: 190 82% 27%;     /*  5.6:1 sobre surface */
+    --accent-hover: 190 84% 22%;
+    --accent-ink: 0 0% 100%;
+    --accent-soft: 188 60% 95%;
+
+    --positive: 158 64% 28%;
+    --caution: 32 81% 33%;
+    --caution-soft: 40 90% 95%;
+    --critical: 0 65% 40%;
+    --critical-soft: 0 80% 96%;
+
+    --shadow: 215 40% 20%;
+  }
+
+  .dark {
+    --canvas: 216 33% 8%;
+    --surface: 216 28% 11%;
+    --raised: 215 25% 15%;
+    --line: 215 20% 21%;
+    --line-strong: 215 18% 30%;
+
+    --ink: 210 25% 96%;        /* 14.8:1 sobre surface */
+    --ink-muted: 215 16% 70%;  /*  7.1:1 sobre surface */
+    --ink-subtle: 215 13% 57%; /*  4.6:1 sobre surface */
+
+    --accent: 187 68% 56%;     /*  7.3:1 sobre surface */
+    --accent-hover: 187 72% 66%;
+    --accent-ink: 216 33% 8%;
+    --accent-soft: 190 50% 17%;
+
+    --positive: 158 55% 55%;
+    --caution: 38 82% 62%;
+    --caution-soft: 36 40% 16%;
+    --critical: 0 70% 66%;
+    --critical-soft: 0 40% 17%;
+
+    --shadow: 216 60% 3%;
+  }
+
+  * {
+    @apply border-line;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-ink font-sans antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Foco visível e consistente em toda a aplicação. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-canvas;
+  }
+
+  ::selection {
+    @apply bg-accent/25;
+  }
+}
+
+@layer components {
+  /* Barra de rolagem discreta, para não competir com o conteúdo. */
+  .scroll-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--line-strong)) transparent;
+  }
+  .scroll-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-line-strong/70;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-line-strong;
+  }
+  .scroll-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Quem pediu menos movimento recebe menos movimento. Vale inclusive para as
+   animações do Framer Motion, desligadas via MotionConfig em App.tsx.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

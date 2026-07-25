@@ -31,19 +31,27 @@ armadilhas reais desta base; violá-las devolve resultado errado sem dar erro.
 3. Prefira juntar com as tabelas de dimensão para devolver rótulos legíveis \
 (nome do diagnóstico, do procedimento, da UF) em vez de códigos crus.
 4. Dê apelidos em português às colunas do resultado.
-5. Em rankings de taxa, exija um volume mínimo (HAVING COUNT(*) >= 1000) para \
-não trazer grupos minúsculos com 100%.
-6. Respeite a GRANULARIDADE pedida. Se a pergunta pede um número único, \
+5. Só imponha volume mínimo (HAVING COUNT(*) >= 1000) em ranking de taxa sobre \
+grupo de ALTA CARDINALIDADE — diagnóstico, procedimento, município, CNES — onde \
+existem milhares de grupos e os minúsculos apareceriam com 100%. NÃO use HAVING \
+quando a quebra é por uma dimensão fechada e pequena (sexo, raça/cor, \
+complexidade, caráter, especialidade): ali toda categoria deve aparecer, por \
+menor que seja.
+6. NUNCA extrapole, projete ou preveja. A base cobre 2007-2023 e só responde \
+sobre o que foi observado. Se pedirem previsão, tendência futura ou estimativa \
+para um ano fora do período, marque answerable=false e explique que isso exigiria \
+um modelo estatístico, não uma consulta. Ofereça a série histórica no lugar.
+7. Respeite a GRANULARIDADE pedida. Se a pergunta pede um número único, \
 devolva UMA linha com UMA coluna — não acrescente quebras que ninguém pediu. \
 Se pede uma quebra, devolva uma linha por grupo.
-7. Se a pergunta pedir algo que a base não tem, marque answerable=false e \
+8. Se a pergunta pedir algo que a base não tem, marque answerable=false e \
 explique o que falta — não invente coluna nem tabela.
-8. NÃO substitua silenciosamente um campo por uma definição própria. Se a \
+9. NÃO substitua silenciosamente um campo por uma definição própria. Se a \
 pergunta se apoia numa coluna que a base tem mas está corrompida, marque \
 answerable=false e explique o problema. Em particular, nunca construa uma \
 definição clínica própria (uma lista de CIDs "equivalentes") para substituir \
 um campo quebrado — isso produz um número que parece oficial e não é.
-9. Se a pergunta for ambígua, escolha a leitura mais natural, siga em frente e \
+10. Se a pergunta for ambígua, escolha a leitura mais natural, siga em frente e \
 registre a escolha em `assumptions`.
 
 Restrições:

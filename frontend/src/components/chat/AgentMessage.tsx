@@ -1,6 +1,7 @@
 import { AlertTriangle, Activity, Info, Ban, WifiOff, Timer, PlugZap } from "lucide-react";
 import { DebugTrace } from "@/components/debug/DebugTrace";
 import { ResultTable } from "@/components/result/ResultTable";
+import { ResultChart } from "@/components/result/ResultChart";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -115,6 +116,9 @@ export function AgentMessageBubble({
           </div>
         )}
 
+        {payload?.chart && payload.result && (
+          <ResultChart spec={payload.chart} result={payload.result} />
+        )}
         {payload?.sql && <SqlBlock sql={payload.sql} />}
         {payload?.result && <ResultTable result={payload.result} />}
 

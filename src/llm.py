@@ -85,7 +85,7 @@ def complete_streaming(
 SQL_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["answerable", "reasoning", "sql", "assumptions", "refusal"],
+    "required": ["answerable", "reasoning", "sql", "assumptions", "refusal", "chart"],
     "properties": {
         "answerable": {
             "type": "boolean",
@@ -107,6 +107,48 @@ SQL_SCHEMA: dict[str, Any] = {
         "refusal": {
             "type": "string",
             "description": "Se answerable=false, explique o que falta na base. Senão, vazio.",
+        },
+        # O modelo declara a FORMA do gráfico e quais colunas usar. Ele nunca
+        # produz os pontos: quem monta a série é o frontend, a partir das linhas
+        # que o DuckDB devolveu. Assim o gráfico não pode conter um número que
+        # a consulta não retornou.
+        "chart": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["kind", "x", "y", "series", "title", "reason"],
+            "properties": {
+                "kind": {
+                    "type": "string",
+                    "enum": [
+                        "nenhum",
+                        "linha",
+                        "barra",
+                        "barra_horizontal",
+                        "pizza",
+                        "dispersao",
+                        "heatmap",
+                        "empilhada_100",
+                    ],
+                    "description": "Forma do gráfico. 'nenhum' quando um gráfico não ajuda.",
+                },
+                "x": {
+                    "type": "string",
+                    "description": "Nome EXATO da coluna do SELECT no eixo de categoria. Vazio se kind=nenhum.",
+                },
+                "y": {
+                    "type": "string",
+                    "description": "Nome EXATO da coluna do SELECT com a medida numérica.",
+                },
+                "series": {
+                    "type": "string",
+                    "description": "Coluna que separa séries (ex.: sexo, região). Vazio se houver só uma série.",
+                },
+                "title": {"type": "string", "description": "Título curto do gráfico."},
+                "reason": {
+                    "type": "string",
+                    "description": "Uma frase: por que esta forma, ou por que nenhum gráfico.",
+                },
+            },
         },
     },
 }

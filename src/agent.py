@@ -65,6 +65,43 @@ Restrições:
 - Nunca consulte `_staging_internacoes`, `hospital` nem `socioeconomico`.
 - Sempre limite resultados não agregados.
 
+## GRÁFICO (campo `chart`)
+
+Você declara a FORMA. Você NUNCA escreve os pontos: quem monta a série é a
+interface, a partir das linhas que o banco devolver. Por isso `x`, `y` e
+`series` têm de ser nomes EXATOS de colunas do seu SELECT — se você inventar um
+nome, o gráfico simplesmente não aparece.
+
+`x`, `y` e `series` APONTAM para colunas; não são nomes de colunas. NUNCA use
+`AS x`, `AS y` ou `AS series` no SELECT. O usuário vê a tabela do resultado, e
+uma coluna chamada `x` não diz nada. Dê o alias pelo que o dado É — `ano`, `uf`,
+`municipio`, `sexo`, `internacoes` — e então aponte `x: "ano"`, `y:
+"internacoes"`, `series: "sexo"`.
+
+Escolha da forma, pela pergunta e pelo formato do resultado:
+- `linha` — evolução no tempo. O eixo x é ano/mês/data.
+- `barra` — comparação entre categorias com rótulo curto (UF, sexo, ano).
+- `barra_horizontal` — ranking, ou rótulos longos (nome de município, de CID).
+- `pizza` — parte-do-todo, no máximo 6 fatias, e só se o usuário pedir
+  proporção ou pizza. Para mais de 6 categorias use `barra_horizontal`.
+- `dispersao` — relação entre DUAS medidas contínuas. `x` e `y` são as duas
+  medidas; `series` fica vazio e o rótulo do ponto sai da 1ª coluna.
+- `heatmap` — matriz de duas categorias (ex.: mês × ano). `x` e `series` são as
+  duas categorias e `y` é a medida.
+- `empilhada_100` — composição em porcentagem ao longo de uma categoria.
+
+Use `nenhum` quando:
+- o resultado é um número só (não se faz gráfico de um valor);
+- o resultado tem 1 ou 2 linhas — a frase já diz tudo;
+- as colunas numéricas têm unidades diferentes (contagem e reais, por exemplo);
+  duas escalas num eixo só produzem leitura errada. Escolha UMA medida.
+- o usuário não pediu gráfico e a tabela responde melhor.
+
+Se o usuário pediu gráfico explicitamente, ESCREVA O SQL PENSANDO NO GRÁFICO:
+ordene por tempo quando for série temporal, limite o top-N quando for ranking, e
+devolva a coluna de rótulo legível (nome do município, descrição do CID) junto
+com o código — não só o código.
+
 {schema}
 
 ## O QUE ESTA BASE NÃO RESPONDE
@@ -85,6 +122,10 @@ isso e sugira o motivo provável.
 - Seja conciso: 1 a 4 frases para resultados escalares; para tabelas, um resumo \
 curto mais os destaques. Não repita a tabela inteira linha a linha.
 - Não mostre a query nem fale de SQL: o usuário já a vê separadamente.
+- Se o usuário pediu um GRÁFICO, a interface já o desenhou logo acima do seu \
+texto. NUNCA escreva código (Python, matplotlib, JavaScript) nem descreva como \
+plotar, e não diga "segue o gráfico abaixo". Escreva o que o gráfico MOSTRA: a \
+tendência, o pico, a virada, o contraste entre as séries.
 
 RESSALVAS OBRIGATÓRIAS — se alguma se aplicar ao resultado, inclua uma frase \
 curta de aviso; se não se aplicar, não mencione:
@@ -499,6 +540,13 @@ class TextToSQLAgent:
             },
         }
 
+        spec, descarte = _valida_chart(plan.get("chart"), res)
+        if spec:
+            yield {"type": "chart", "chart": spec}
+            yield rastro("executar", "Gráfico declarado pelo agente", json.dumps(spec, ensure_ascii=False, indent=2), "json")
+        elif descarte:
+            yield rastro("executar", "Gráfico descartado", descarte)
+
         # ---- 5. Resumir -----------------------------------------------------
         yield passo("resumir", "ativo")
         yield rastro("resumir", "Instruções de redação da resposta", ANSWER_SYSTEM_PROMPT)
@@ -523,6 +571,68 @@ class TextToSQLAgent:
             messages=[{"role": "user", "content": self._payload_resposta(question, res, assumptions)}],
             reasoning_effort="low",
         )
+
+
+_FORMAS = {
+    "linha",
+    "barra",
+    "barra_horizontal",
+    "pizza",
+    "dispersao",
+    "heatmap",
+    "empilhada_100",
+}
+
+
+def _valida_chart(bruto: object, res: QueryResult) -> tuple[dict | None, str]:
+    """Confere a declaração do modelo contra o resultado que o banco devolveu.
+
+    O modelo pode alucinar um nome de coluna, pedir pizza com 40 fatias ou
+    apontar `y` para uma coluna de texto. Em qualquer desses casos é melhor não
+    ter gráfico nenhum do que ter um gráfico errado — a mesma regra que vale
+    para os números da resposta. Devolve (spec, motivo_do_descarte).
+    """
+    if not isinstance(bruto, dict):
+        return None, ""
+    forma = str(bruto.get("kind") or "nenhum")
+    if forma == "nenhum":
+        return None, (bruto.get("reason") or "").strip()
+    if forma not in _FORMAS:
+        return None, f"Forma desconhecida: {forma!r}."
+    if not res.rows:
+        return None, "A consulta não devolveu linhas."
+
+    # A comparação é sem distinção de caixa: o alias do SELECT pode voltar do
+    # DuckDB com outra capitalização.
+    por_nome = {c.lower(): c for c in res.columns}
+
+    def coluna(chave: str) -> str | None:
+        nome = str(bruto.get(chave) or "").strip()
+        return por_nome.get(nome.lower())
+
+    x, y = coluna("x"), coluna("y")
+    if x is None or y is None:
+        faltando = [
+            f"{k}={bruto.get(k)!r}" for k in ("x", "y") if por_nome.get(str(bruto.get(k) or "").lower()) is None
+        ]
+        return None, f"Coluna inexistente no resultado ({', '.join(faltando)}). Colunas: {', '.join(res.columns)}."
+
+    iy = res.columns.index(y)
+    if not all(isinstance(linha[iy], (int, float)) and not isinstance(linha[iy], bool) for linha in res.rows):
+        return None, f"A coluna {y!r} do eixo de valor não é numérica."
+
+    if forma == "pizza" and len(res.rows) > 6:
+        forma = "barra_horizontal"
+
+    spec = {
+        "kind": forma,
+        "x": x,
+        "y": y,
+        "series": coluna("series"),
+        "title": str(bruto.get("title") or "").strip(),
+        "reason": str(bruto.get("reason") or "").strip(),
+    }
+    return spec, ""
 
 
 def _json_safe(v):

@@ -53,6 +53,33 @@ export interface QueryResult {
 
 export type FailureKind = "rede" | "sql" | "timeout" | "offline";
 
+/** Formas que o agente pode pedir. Espelha o enum do SQL_SCHEMA no backend. */
+export type ChartKind =
+  | "linha"
+  | "barra"
+  | "barra_horizontal"
+  | "pizza"
+  | "dispersao"
+  | "heatmap"
+  | "empilhada_100";
+
+/**
+ * O que o agente declara sobre o gráfico. Ele escolhe a FORMA e as COLUNAS;
+ * os pontos são montados no cliente a partir das linhas do resultado, então o
+ * gráfico nunca contém um número que a consulta não devolveu.
+ *
+ * `x`, `y` e `series` já vêm conferidos contra `result.columns` pelo backend.
+ */
+export interface ChartSpec {
+  kind: ChartKind;
+  x: string;
+  y: string;
+  series: string | null;
+  title: string;
+  /** Uma frase do agente justificando a forma escolhida. */
+  reason: string;
+}
+
 /** Uma rodada anterior, enviada ao backend para resolver acompanhamentos. */
 export interface Turn {
   question: string;
@@ -70,6 +97,8 @@ export interface AgentPayload {
   refused?: boolean;
   /** Perguntas de acompanhamento sugeridas. */
   followUps?: string[];
+  /** Gráfico declarado pelo agente, quando a forma do resultado permite. */
+  chart?: ChartSpec;
 }
 
 export type Feedback = "util" | "nao-util";
@@ -106,6 +135,7 @@ export type StreamEvent =
   | { type: "sql"; sql: string }
   | { type: "result"; result: QueryResult }
   | { type: "assumptions"; assumptions: string[] }
+  | { type: "chart"; chart: ChartSpec }
   | { type: "token"; text: string }
   | { type: "refused" }
   | { type: "follow-ups"; questions: string[] }

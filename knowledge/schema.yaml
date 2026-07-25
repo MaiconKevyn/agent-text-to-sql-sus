@@ -392,6 +392,33 @@ rules:
 # -----------------------------------------------------------------------------
 # EXEMPLOS (few-shot)
 # -----------------------------------------------------------------------------
+  - id: covid_esta_em_b342_e_nao_em_u07
+    severity: critica
+    text: |
+      COVID-19 NESTA BASE É B342, NÃO U07. O código U07 da CID-10 — o código
+      oficial de COVID-19 — tem ZERO ocorrências em DIAG_PRINC na base inteira.
+      Os únicos códigos U que existem somam 3.383 linhas: U049 (SRAG, 2.680) e
+      códigos U80-U89 de resistência a antibiótico.
+
+      Onde a COVID realmente está:
+        CID     descrição                          2019      2020      2021
+        B342    Infecc p/coronavirus NE              10   398.613   905.001
+        U049    Sindrome respiratoria aguda grave     14     1.279     1.053
+        U071    (não existe)                           0         0         0
+
+      Regras:
+        - Para "covid", "coronavírus" ou "pandemia" por diagnóstico, use
+          DIAG_PRINC = 'B342'. Nunca use U07 nem U071/U072: devolve zero e o
+          usuário lê o zero como "não houve COVID".
+        - B342 NÃO pertence ao capítulo J (doenças respiratórias). Uma consulta
+          de "doença respiratória" com DIAG_PRINC LIKE 'J%' EXCLUI as
+          internações por COVID. Diga isso ao comparar os dois.
+        - U049 (SRAG) é um recorte diferente e muito menor — não é sinônimo de
+          COVID nesta base.
+        - Diga ao usuário que B342 é "infecção por coronavírus não especificado":
+          é a codificação usada na prática, não um diagnóstico laboratorial
+          confirmado de SARS-CoV-2.
+
 examples:
   - question: "Quantas internações de mulheres houve em 2019?"
     sql: |

@@ -49,3 +49,6 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 *.local
+
+# navegadores baixados pelo playwright (só o script de screenshots usa)
+frontend/test-results/

@@ -21,10 +21,11 @@ export function ReportPanel({ report, phase, blocks, error, onClose }: Props) {
   const visiveis = report?.blocks ?? blocks;
 
   return (
-    <aside
-      className="flex h-full w-full flex-col border-l border-line bg-canvas"
-      aria-label="Relatório da investigação"
-    >
+    // Sem landmark próprio: quem rotula é o container (o <aside> do painel
+    // lateral ou o <div role="dialog"> da folha inferior). Rotular aqui também
+    // criava dois landmarks aninhados com o mesmo nome — um leitor de tela
+    // anuncia "Relatório da investigação" duas vezes seguidas.
+    <div className="flex h-full w-full flex-col bg-canvas">
       <header className="flex items-start gap-2 border-b border-line px-4 py-3">
         <FlaskConical aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
         <div className="min-w-0 flex-1">
@@ -90,7 +91,7 @@ export function ReportPanel({ report, phase, blocks, error, onClose }: Props) {
           </section>
         )}
       </div>
-    </aside>
+    </div>
   );
 }
 

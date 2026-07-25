@@ -134,7 +134,7 @@ export default function App() {
             aria-label={inv.aberto ? "Relatório da investigação" : "Estrutura do banco"}
             aria-hidden={!(schemaOpen || inv.aberto) || isMobile}
             className={cn(
-              "hidden min-h-0 shrink-0 overflow-hidden lg:block",
+              "hidden min-h-0 shrink-0 overflow-hidden border-l border-line lg:block",
               "transition-[width] duration-200 ease-out",
               inv.aberto ? "w-[30rem]" : schemaOpen ? "w-80" : "w-0",
             )}

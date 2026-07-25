@@ -22,6 +22,7 @@ from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from .investigation import Investigador
 from .agent import TextToSQLAgent, Turn
 from .config import settings
 from .db import Database
@@ -52,6 +53,17 @@ def agente() -> TextToSQLAgent:
         _db = Database()
         _agent = TextToSQLAgent(db=_db)
     return _agent
+
+
+_investigador: Investigador | None = None
+
+
+def investigador() -> Investigador:
+    """Reusa o mesmo agente do /api/ask — mesma conexão, mesmo dicionário."""
+    global _investigador
+    if _investigador is None:
+        _investigador = Investigador(agente())
+    return _investigador
 
 
 def sse(evento: dict) -> str:
@@ -161,6 +173,32 @@ def _schema_payload() -> dict:
 @app.get("/api/schema")
 def schema() -> JSONResponse:
     return JSONResponse(_schema_payload())
+
+
+@app.get("/api/investigate")
+def investigate(
+    q: str = Query(..., min_length=8, max_length=2000, description="Pergunta de investigação"),
+) -> StreamingResponse:
+    """Investigação com várias consultas. Leva minutos — daí o SSE.
+
+    Endpoint separado do /api/ask de propósito: uma investigação custa 7-9
+    chamadas de LLM e varre 144 milhões de linhas várias vezes. É um modo que o
+    usuário escolhe sabendo que vai esperar, nunca o caminho padrão.
+    """
+
+    def fluxo() -> Iterator[str]:
+        try:
+            for evento in investigador().investigar_stream(q):
+                yield sse(evento)
+        except Exception as exc:  # noqa: BLE001
+            yield sse({"type": "failure", "message": f"Erro inesperado no servidor: {exc}"})
+            yield sse({"type": "done"})
+
+    return StreamingResponse(
+        fluxo(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/ask")

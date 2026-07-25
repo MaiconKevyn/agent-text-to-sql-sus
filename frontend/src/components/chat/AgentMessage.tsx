@@ -2,6 +2,7 @@ import { AlertTriangle, Activity, Info, Ban, WifiOff, Timer, PlugZap } from "luc
 import { DebugTrace } from "@/components/debug/DebugTrace";
 import { ResultTable } from "@/components/result/ResultTable";
 import { ResultChart } from "@/components/result/ResultChart";
+import { InvestigateChip } from "@/components/chat/InvestigateChip";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,8 @@ interface AgentMessageProps {
   busy: boolean;
   onRegenerate: (id: string) => void;
   onFeedback: (id: string, v: Feedback) => void;
+  /** Abre o modo investigação para a pergunta desta mensagem. */
+  onInvestigate?: (pergunta: string) => void;
 }
 
 export function AgentMessageBubble({
@@ -35,6 +38,7 @@ export function AgentMessageBubble({
   busy,
   onRegenerate,
   onFeedback,
+  onInvestigate,
 }: AgentMessageProps) {
   const { status, payload, failure } = message;
   const pensando = status === "pensando";
@@ -121,6 +125,10 @@ export function AgentMessageBubble({
         )}
         {payload?.sql && <SqlBlock sql={payload.sql} />}
         {payload?.result && <ResultTable result={payload.result} />}
+
+        {pronto && onInvestigate && (
+          <InvestigateChip question={message.sourceQuestion} onStart={onInvestigate} />
+        )}
 
         {debug && message.trace.length > 0 && <DebugTrace entries={message.trace} />}
 

@@ -176,3 +176,74 @@ export interface DatabaseSchema {
   period: string;
   grain: string;
 }
+
+/* --------------------------------------------------------------------------
+   Investigação: várias consultas para uma pergunta só.
+   Espelha src/investigation/report.py — mudou lá, muda aqui.
+   -------------------------------------------------------------------------- */
+
+export type InvestigationPhase =
+  | "planejar"
+  | "executar"
+  | "refletir"
+  | "aprofundar"
+  | "sintetizar";
+
+export type PhaseState = "ativo" | "concluido" | "recusado";
+
+/** Uma etapa executada: a evidência, com o papel que ela cumpre no argumento. */
+export interface ReportBlock {
+  question: string;
+  purpose: string;
+  /** "reflexao" = existe porque o argumento tinha um buraco. */
+  origin: "plano" | "reflexao";
+  sql: string | null;
+  error: string | null;
+  /** O recorte que a query aplicou, em português. Sem isto o número está certo
+   *  e o rótulo pode estar errado — "câncer" que inclui neoplasia benigna. */
+  definition: string;
+  assumptions: string[];
+  chart: ChartSpec | null;
+  result: QueryResult | null;
+}
+
+export interface Report {
+  question: string;
+  reading: string;
+  text: string;
+  /** Lacuna que a investigação NÃO conseguiu fechar. */
+  gap: string;
+  refusal: string;
+  elapsed: number;
+  llmCalls: number;
+  stepsOk: number;
+  stepsFromReflection: number;
+  blocks: ReportBlock[];
+}
+
+export type InvestigationEvent =
+  | {
+      type: "phase";
+      phase: InvestigationPhase;
+      state: PhaseState;
+      reading?: string;
+      steps?: { question: string; purpose: string }[];
+      ok?: number;
+      total?: number;
+      extra?: number;
+      gap?: string;
+      defects?: string[];
+    }
+  | { type: "block"; block: ReportBlock }
+  | { type: "report"; report: Report }
+  | { type: "refused"; reason: string }
+  | { type: "failure"; message: string }
+  | { type: "done" };
+
+export const PHASE_LABELS: Record<InvestigationPhase, string> = {
+  planejar: "Planejando a investigação",
+  executar: "Executando as consultas",
+  refletir: "Revisando o argumento",
+  aprofundar: "Fechando as lacunas",
+  sintetizar: "Escrevendo o relatório",
+};

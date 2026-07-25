@@ -4,6 +4,8 @@ import { AppHeader } from "@/components/AppHeader";
 import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { MessageList } from "@/components/chat/MessageList";
 import { SchemaExplorer } from "@/components/schema/SchemaExplorer";
+import { ReportPanel } from "@/components/report/ReportPanel";
+import { useInvestigation } from "@/hooks/useInvestigation";
 import { useChat } from "@/hooks/useChat";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/useTheme";
@@ -79,6 +81,8 @@ export default function App() {
     [isMobile],
   );
 
+  const inv = useInvestigation();
+
   const painel = (
     <SchemaExplorer
       onPickTable={usarTabela}
@@ -109,6 +113,7 @@ export default function App() {
               onPick={perguntar}
               onRegenerate={regenerate}
               onFeedback={setFeedback}
+              onInvestigate={inv.iniciar}
             />
             <div className="border-t border-line bg-canvas/85 px-3 py-3 backdrop-blur-md sm:px-5">
               <div className="mx-auto max-w-3xl">
@@ -126,16 +131,55 @@ export default function App() {
               não rodar, o painel ainda assim chega à largura final em vez de
               ficar parado no meio, cortando o conteúdo. */}
           <aside
-            aria-label="Estrutura do banco"
-            aria-hidden={!schemaOpen || isMobile}
+            aria-label={inv.aberto ? "Relatório da investigação" : "Estrutura do banco"}
+            aria-hidden={!(schemaOpen || inv.aberto) || isMobile}
             className={cn(
-              "hidden min-h-0 shrink-0 overflow-hidden border-l border-line lg:block",
+              "hidden min-h-0 shrink-0 overflow-hidden lg:block",
               "transition-[width] duration-200 ease-out",
-              schemaOpen ? "w-80" : "w-0 border-l-0",
+              inv.aberto ? "w-[30rem]" : schemaOpen ? "w-80" : "w-0",
             )}
           >
-            <div className="h-full w-80">{painel}</div>
+            {/* A largura anima em CSS; o conteúdo tem largura fixa para não
+                refluir durante a transição. O relatório é mais largo porque
+                carrega tabela e gráfico, não só nome de coluna. */}
+            <div className={inv.aberto ? "h-full w-[30rem]" : "h-full w-80"}>
+              {inv.aberto ? (
+                <ReportPanel
+                  report={inv.relatorio}
+                  phase={inv.fase}
+                  blocks={inv.blocos}
+                  error={inv.erro}
+                  onClose={inv.fechar}
+                />
+              ) : (
+                painel
+              )}
+            </div>
           </aside>
+        </div>
+
+        {/* Em tela estreita o painel lateral não existe (lg:block), então o
+            relatório precisa do próprio caminho — senão a investigação roda e
+            não aparece em lugar nenhum. */}
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Relatório da investigação"
+          aria-hidden={!inv.aberto}
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-40 h-[85vh] overflow-hidden rounded-t-2xl",
+            "border-t border-line shadow-panel lg:hidden",
+            "transition-transform duration-200 ease-out",
+            inv.aberto ? "translate-y-0" : "pointer-events-none translate-y-full",
+          )}
+        >
+          <ReportPanel
+            report={inv.relatorio}
+            phase={inv.fase}
+            blocks={inv.blocos}
+            error={inv.erro}
+            onClose={inv.fechar}
+          />
         </div>
 
         {/* Mobile: bottom sheet, também em CSS. */}

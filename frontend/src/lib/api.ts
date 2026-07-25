@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { DatabaseSchema, StreamEvent, Turn } from "./types";
+import type { DatabaseSchema, StreamEvent, Turn, InvestigationEvent } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -138,3 +138,38 @@ export const SUGGESTED_QUESTIONS = [
     hint: "fora do alcance",
   },
 ];
+
+/**
+ * Investigação: várias consultas para uma pergunta só. Leva minutos, então os
+ * eventos de fase existem para a interface não ficar muda enquanto roda.
+ */
+export async function* investigate(
+  question: string,
+  { signal }: { signal?: AbortSignal } = {},
+): AsyncGenerator<InvestigationEvent> {
+  const url = `${BASE}/api/investigate?q=${encodeURIComponent(question)}`;
+  let resp: Response;
+  try {
+    resp = await fetch(url, { signal, headers: { Accept: "text/event-stream" } });
+  } catch (causa) {
+    throw new BackendOffline(String(causa));
+  }
+  if (!resp.ok || !resp.body) {
+    throw new Error(`A investigação falhou (HTTP ${resp.status}).`);
+  }
+
+  const leitor = resp.body.pipeThrough(new TextDecoderStream()).getReader();
+  let resto = "";
+  while (true) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    resto += value;
+    const partes = resto.split("\n\n");
+    resto = partes.pop() ?? "";
+    for (const parte of partes) {
+      const linha = parte.split("\n").find((l) => l.startsWith("data:"));
+      if (!linha) continue;
+      yield JSON.parse(linha.slice(5).trim()) as InvestigationEvent;
+    }
+  }
+}

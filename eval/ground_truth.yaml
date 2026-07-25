@@ -1,0 +1,2918 @@
+cases:
+- id: agg_total_internacoes
+  question: Quantas internações existem na base no total?
+  category: agregacao_simples
+  difficulty: facil
+  tests: Contagem básica sem filtro.
+  gold_sql: 'SELECT COUNT(*) AS total_internacoes FROM internacoes;
+
+    '
+- id: agg_total_obitos
+  question: Quantos óbitos foram registrados no total?
+  category: agregacao_simples
+  difficulty: facil
+  tests: Uso do booleano MORTE.
+  gold_sql: 'SELECT COUNT(*) AS total_obitos FROM internacoes WHERE MORTE;
+
+    '
+- id: agg_valor_total
+  question: Qual o valor total gasto com internações em toda a base?
+  category: agregacao_simples
+  difficulty: facil
+  tests: SUM sobre VAL_TOT.
+  gold_sql: 'SELECT ROUND(SUM(VAL_TOT), 2) AS valor_total FROM internacoes;
+
+    '
+- id: agg_media_permanencia
+  question: Qual a média de dias de permanência das internações?
+  category: agregacao_simples
+  difficulty: facil
+  tests: AVG simples.
+  gold_sql: 'SELECT ROUND(AVG(DIAS_PERM), 4) AS media_dias FROM internacoes;
+
+    '
+- id: agg_taxa_mortalidade_geral
+  question: Qual a taxa de mortalidade hospitalar geral?
+  category: taxa
+  difficulty: facil
+  tests: Razão óbitos/total expressa em %.
+  gold_sql: 'SELECT ROUND(100.0 * AVG(MORTE::INT), 4) AS taxa_mortalidade_pct
+
+    FROM internacoes;
+
+    '
+- id: temp_internacoes_2020
+  question: Quantas internações houve em 2020?
+  category: temporal
+  difficulty: facil
+  tests: Recorte por ano usando DT_SAIDA (competência da base).
+  gold_sql: 'SELECT COUNT(*) AS total FROM internacoes WHERE year(DT_SAIDA) = 2020;
+
+    '
+- id: temp_marco_2021
+  question: Quantas internações foram registradas em março de 2021?
+  category: temporal
+  difficulty: facil
+  tests: Filtro de ano + mês.
+  gold_sql: 'SELECT COUNT(*) AS total
+
+    FROM internacoes
+
+    WHERE year(DT_SAIDA) = 2021 AND month(DT_SAIDA) = 3;
+
+    '
+- id: temp_intervalo_2015_2019
+  question: Quantas internações ocorreram entre 2015 e 2019?
+  category: temporal
+  difficulty: facil
+  tests: Intervalo fechado de anos.
+  gold_sql: 'SELECT COUNT(*) AS total
+
+    FROM internacoes
+
+    WHERE year(DT_SAIDA) BETWEEN 2015 AND 2019;
+
+    '
+- id: temp_serie_anual
+  question: Mostre a evolução do número de internações por ano.
+  category: temporal
+  difficulty: media
+  ordered: true
+  tests: Série anual completa — inclusive 2007, que é ano parcial. A resposta deve sinalizar isso.
+  answer_must_mention:
+  - - '2007'
+  - - parcial
+    - incompleto
+    - agosto
+    - só 5 meses
+    - cinco meses
+  gold_sql: 'SELECT year(DT_SAIDA) AS ano, COUNT(*) AS internacoes
+
+    FROM internacoes
+
+    GROUP BY 1
+
+    ORDER BY 1;
+
+    '
+- id: temp_ano_mais_obitos
+  question: Qual ano teve o maior número de óbitos?
+  category: temporal
+  difficulty: media
+  ordered: true
+  tests: Ranking temporal — o pico é 2021 (COVID).
+  gold_sql: 'SELECT year(DT_SAIDA) AS ano, COUNT(*) AS obitos
+
+    FROM internacoes
+
+    WHERE MORTE
+
+    GROUP BY 1
+
+    ORDER BY obitos DESC
+
+    LIMIT 1;
+
+    '
+- id: temp_sazonalidade_mensal
+  question: Em quais meses do ano há mais internações? Considere todo o período.
+  category: temporal
+  difficulty: media
+  ordered: true
+  tests: Agregação por mês do calendário, ignorando o ano.
+  gold_sql: 'SELECT month(DT_SAIDA) AS mes, COUNT(*) AS internacoes
+
+    FROM internacoes
+
+    GROUP BY 1
+
+    ORDER BY internacoes DESC;
+
+    '
+- id: temp_ano_completo_menor_volume
+  question: Considerando apenas anos completos, qual ano teve menos internações?
+  category: armadilha
+  difficulty: dificil
+  ordered: true
+  tests: 'ARMADILHA: 2007 é parcial (ago-dez) e deve ser excluído; resposta correta é 2020. O gold devolve
+    só o ano — que é o que a pergunta pede.'
+  gold_sql: 'SELECT year(DT_SAIDA) AS ano
+
+    FROM internacoes
+
+    WHERE year(DT_SAIDA) BETWEEN 2008 AND 2023
+
+    GROUP BY 1
+
+    ORDER BY COUNT(*) ASC
+
+    LIMIT 1;
+
+    '
+- id: demo_mulheres_2019
+  question: Quantas internações de mulheres houve em 2019?
+  category: armadilha
+  difficulty: media
+  tests: 'ARMADILHA CRÍTICA: SEXO=2 não existe no fato; feminino é 3.'
+  gold_sql: 'SELECT COUNT(*) AS total
+
+    FROM internacoes
+
+    WHERE SEXO IN (2, 3) AND year(DT_SAIDA) = 2019;
+
+    '
+- id: demo_por_sexo
+  question: Qual a distribuição de internações por sexo?
+  category: armadilha
+  difficulty: media
+  tests: 'ARMADILHA: agrupar por código produz 1 e 3; agrupar pelo rótulo consolida em Masculino/Feminino.'
+  gold_sql: 'SELECT s.DESCRICAO AS sexo, COUNT(*) AS internacoes
+
+    FROM internacoes i
+
+    JOIN sexo s ON i.SEXO = s.SEXO
+
+    GROUP BY 1
+
+    ORDER BY internacoes DESC;
+
+    '
+- id: demo_homens_idosos
+  question: Quantas internações de homens com 60 anos ou mais existem na base?
+  category: filtro
+  difficulty: facil
+  tests: Filtro combinado de sexo e idade.
+  gold_sql: 'SELECT COUNT(*) AS total
+
+    FROM internacoes
+
+    WHERE SEXO = 1 AND IDADE >= 60;
+
+    '
+- id: demo_raca_cor
+  question: Quantas internações por raça/cor do paciente?
+  category: join_dimensao
+  difficulty: facil
+  tests: Join com raca_cor. A resposta deve destacar que 'Sem informação' é a 2ª maior categoria (29,2%),
+    à frente de 'Branca'.
+  answer_must_mention:
+  - - sem informação
+    - sem informacao
+    - não informad
+    - nao informad
+    - ignorad
+  gold_sql: 'SELECT r.DESCRICAO AS raca_cor, COUNT(*) AS internacoes
+
+    FROM internacoes i
+
+    JOIN raca_cor r ON i.RACA_COR = r.RACA_COR
+
+    GROUP BY 1
+
+    ORDER BY internacoes DESC;
+
+    '
+- id: demo_menores_1_ano
+  question: Quantas internações foram de bebês com menos de 1 ano?
+  category: filtro
+  difficulty: facil
+  tests: Filtro IDADE < 1.
+  gold_sql: 'SELECT COUNT(*) AS total FROM internacoes WHERE IDADE < 1;
+
+    '
+- id: demo_faixa_etaria
+  question: 'Distribua as internações por faixa etária: menores de 1 ano, 1 a 14, 15 a 59 e 60 ou mais.'
+  category: agregacao_complexa
+  difficulty: media
+  tests: CASE WHEN para faixas etárias.
+  gold_sql: "SELECT CASE\n         WHEN IDADE < 1 THEN 'menor de 1 ano'\n         WHEN IDADE < 15 THEN\
+    \ '1 a 14'\n         WHEN IDADE < 60 THEN '15 a 59'\n         ELSE '60 ou mais'\n       END AS faixa_etaria,\n\
+    \       COUNT(*) AS internacoes\nFROM internacoes\nGROUP BY 1\nORDER BY internacoes DESC;\n"
+- id: demo_idade_media_por_sexo
+  question: Qual a idade média dos pacientes internados, por sexo?
+  category: join_dimensao
+  difficulty: media
+  tests: AVG com quebra pelo rótulo do sexo.
+  gold_sql: 'SELECT s.DESCRICAO AS sexo, ROUND(AVG(i.IDADE), 4) AS idade_media
+
+    FROM internacoes i
+
+    JOIN sexo s ON i.SEXO = s.SEXO
+
+    GROUP BY 1
+
+    ORDER BY idade_media DESC;
+
+    '
+- id: cid_top10_diagnosticos
+  question: Quais são os 10 diagnósticos principais mais frequentes?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: Join com cid e ranking.
+  gold_sql: 'SELECT c.DESCRICAO AS diagnostico, COUNT(*) AS internacoes
+
+    FROM internacoes i
+
+    LEFT JOIN cid c ON i.DIAG_PRINC = c.CID
+
+    GROUP BY 1
+
+    ORDER BY internacoes DESC
+
+    LIMIT 10;
+
+    '
+- id: cid_pneumonia_categoria
+  question: Quantas internações tiveram pneumonia não especificada (J18.9) como diagnóstico principal?
+  category: armadilha
+  difficulty: media
+  tests: 'ARMADILHA: o usuário escreve J18.9 mas o banco guarda ''J189'' (sem ponto).'
+  gold_sql: 'SELECT COUNT(*) AS total FROM internacoes WHERE DIAG_PRINC = ''J189'';
+
+    '
+- id: cid_categoria_j18_completa
+  question: Qual o total de internações por pneumonia (categoria J18, somando todas as subcategorias)?
+    Quero um número único.
+  category: armadilha
+  difficulty: dificil
+  tests: 'ARMADILHA: precisa de LIKE ''J18%'' para pegar J180..J189 e a própria J18.'
+  gold_sql: 'SELECT COUNT(*) AS total FROM internacoes WHERE DIAG_PRINC LIKE ''J18%'';
+
+    '
+- id: cid_infarto_2023
+  question: Quantas internações por infarto agudo do miocárdio ocorreram em 2023?
+  category: dominio
+  difficulty: dificil
+  tests: Requer mapear 'infarto agudo do miocárdio' para a categoria CID I21.
+  gold_sql: 'SELECT COUNT(*) AS total
+
+    FROM internacoes
+
+    WHERE DIAG_PRINC LIKE ''I21%'' AND year(DT_SAIDA) = 2023;
+
+    '
+- id: cid_por_capitulo
+  question: Quantas internações por capítulo da CID-10?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Uso da hierarquia DS_CAPITULO com LEFT JOIN, como manda a regra do dicionário: os 777 CIDs órfãos
+    viram um 23º grupo em vez de sumirem.'
+  gold_sql: "SELECT COALESCE(c.DS_CAPITULO, 'Sem capítulo conhecido') AS capitulo,\n       COUNT(*) AS\
+    \ internacoes\nFROM internacoes i\nLEFT JOIN cid c ON i.DIAG_PRINC = c.CID\nGROUP BY 1\nORDER BY internacoes\
+    \ DESC;\n"
+- id: cid_letalidade_top
+  question: Quais os 10 diagnósticos com a maior taxa de mortalidade? Considere apenas os com pelo menos
+    10 mil internações.
+  category: taxa
+  difficulty: dificil
+  ordered: true
+  tests: Taxa por grupo com HAVING de volume mínimo.
+  gold_sql: "SELECT c.DESCRICAO AS diagnostico,\n       COUNT(*) AS internacoes,\n       ROUND(100.0 *\
+    \ AVG(i.MORTE::INT), 4) AS taxa_mortalidade_pct\nFROM internacoes i\nJOIN cid c ON i.DIAG_PRINC =\
+    \ c.CID\nGROUP BY 1\nHAVING COUNT(*) >= 10000\nORDER BY taxa_mortalidade_pct DESC\nLIMIT 10;\n"
+- id: cid_diabetes_permanencia
+  question: Qual a média de dias de permanência das internações por diabetes mellitus (E10 a E14)?
+  category: dominio
+  difficulty: dificil
+  tests: Faixa de categorias CID via LIKE múltiplo ou BETWEEN. O gold devolve só a média — que é o que
+    a pergunta pede.
+  gold_sql: 'SELECT ROUND(AVG(DIAS_PERM), 4) AS media_dias
+
+    FROM internacoes
+
+    WHERE DIAG_PRINC >= ''E10'' AND DIAG_PRINC < ''E15'';
+
+    '
+- id: proc_top5
+  question: Quais os 5 procedimentos mais realizados?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: Join com procedimentos.
+  gold_sql: 'SELECT p.NOME_PROC AS procedimento, COUNT(*) AS total
+
+    FROM internacoes i
+
+    JOIN procedimentos p ON i.PROC_REA = p.PROC_REA
+
+    GROUP BY 1
+
+    ORDER BY total DESC
+
+    LIMIT 5;
+
+    '
+- id: proc_partos_cesarea_vs_normal
+  question: Quantos partos normais e quantas cesáreas foram realizados, somando todas as variantes desses
+    procedimentos?
+  category: dominio
+  difficulty: dificil
+  tests: 'Mapear o conceito clínico para TODAS as variantes: parto normal (comum, alto risco, CPN) e cesárea
+    (comum, alto risco, com laqueadura). Contar só ''PARTO NORMAL'' e ''PARTO CESARIANO'' subestima em
+    1,2 e 2,0 milhões.'
+  gold_sql: "SELECT CASE\n         WHEN i.PROC_REA IN ('0310010039','0310010047','0310010055') THEN 'Parto\
+    \ normal'\n         ELSE 'Cesárea'\n       END AS tipo_parto,\n       COUNT(*) AS total\nFROM internacoes\
+    \ i\nWHERE i.PROC_REA IN ('0310010039','0310010047','0310010055',\n                     '0411010034','0411010026','0411010042')\n\
+    GROUP BY 1\nORDER BY total DESC;\n"
+- id: proc_custo_medio_top
+  question: Quais os 10 procedimentos com maior custo médio? Considere só os com pelo menos mil realizações.
+  category: taxa
+  difficulty: dificil
+  ordered: true
+  tests: Média de valor por grupo com HAVING.
+  gold_sql: "SELECT p.NOME_PROC AS procedimento,\n       COUNT(*) AS realizacoes,\n       ROUND(AVG(i.VAL_TOT),\
+    \ 4) AS custo_medio\nFROM internacoes i\nJOIN procedimentos p ON i.PROC_REA = p.PROC_REA\nGROUP BY\
+    \ 1\nHAVING COUNT(*) >= 1000\nORDER BY custo_medio DESC\nLIMIT 10;\n"
+- id: geo_por_uf
+  question: Quantas internações por estado de residência do paciente?
+  category: join_dimensao
+  difficulty: media
+  tests: Join com municipios e agregação por UF.
+  gold_sql: 'SELECT m.SG_UF AS uf, COUNT(*) AS internacoes
+
+    FROM internacoes i
+
+    JOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D
+
+    GROUP BY 1
+
+    ORDER BY internacoes DESC;
+
+    '
+- id: geo_top10_municipios
+  question: Quais os 10 municípios de residência com mais internações?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: Ranking por município, desambiguando pela UF.
+  gold_sql: 'SELECT m.NO_MUNICIPIO AS municipio, m.SG_UF AS uf, COUNT(*) AS internacoes
+
+    FROM internacoes i
+
+    JOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D
+
+    GROUP BY 1, 2
+
+    ORDER BY internacoes DESC
+
+    LIMIT 10;
+
+    '
+- id: geo_sao_paulo_2023
+  question: Quantas internações de moradores de São Paulo (capital) houve em 2023?
+  category: armadilha
+  difficulty: dificil
+  tests: 'ARMADILHA DUPLA: NO_MUNICIPIO É acentuado (''São Paulo'' — filtrar por ''Sao Paulo'' devolve
+    0) e há homônimos em outras UFs, exigindo SG_UF=''SP''.'
+  gold_sql: "SELECT COUNT(*) AS total\nFROM internacoes i\nJOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D\n\
+    WHERE strip_accents(m.NO_MUNICIPIO) = 'Sao Paulo' AND m.SG_UF = 'SP'\n  AND year(i.DT_SAIDA) = 2023;\n"
+- id: geo_mortalidade_por_uf
+  question: Qual a taxa de mortalidade hospitalar por UF de residência?
+  category: taxa
+  difficulty: dificil
+  tests: Taxa combinada com join geográfico.
+  gold_sql: "SELECT m.SG_UF AS uf,\n       COUNT(*) AS internacoes,\n       ROUND(100.0 * AVG(i.MORTE::INT),\
+    \ 4) AS taxa_mortalidade_pct\nFROM internacoes i\nJOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D\n\
+    GROUP BY 1\nORDER BY taxa_mortalidade_pct DESC;\n"
+- id: geo_custo_medio_uf_2023
+  question: Qual o custo médio de uma internação por UF em 2023?
+  category: taxa
+  difficulty: media
+  tests: Média de valor com quebra geográfica e temporal.
+  gold_sql: 'SELECT m.SG_UF AS uf, ROUND(AVG(i.VAL_TOT), 4) AS custo_medio
+
+    FROM internacoes i
+
+    JOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D
+
+    WHERE year(i.DT_SAIDA) = 2023
+
+    GROUP BY 1
+
+    ORDER BY custo_medio DESC;
+
+    '
+- id: uti_total
+  question: Quantas internações utilizaram UTI?
+  category: armadilha
+  difficulty: media
+  tests: 'ARMADILHA: ''usou UTI'' = MARCA_UTI > 0, não MARCA_UTI IS NOT NULL.'
+  gold_sql: 'SELECT COUNT(*) AS total FROM internacoes WHERE MARCA_UTI > 0;
+
+    '
+- id: uti_mortalidade_comparada
+  question: A mortalidade é maior entre quem passou pela UTI? Compare quem usou e quem não usou.
+  category: taxa
+  difficulty: dificil
+  tests: Comparação de taxas entre dois grupos derivados.
+  gold_sql: "SELECT CASE WHEN MARCA_UTI > 0 THEN 'usou UTI' ELSE 'nao usou UTI' END AS grupo,\n      \
+    \ COUNT(*) AS internacoes,\n       ROUND(100.0 * AVG(MORTE::INT), 4) AS taxa_mortalidade_pct\nFROM\
+    \ internacoes\nGROUP BY 1\nORDER BY taxa_mortalidade_pct DESC;\n"
+- id: dq_diarias_uti
+  question: Qual a média de diárias de UTI entre as internações que usaram UTI?
+  category: dado_corrompido
+  difficulty: dificil
+  answerable: false
+  tests: UTI_INT_TO é zero em 9.107.168 das 9.107.197 internações com UTI. O chatbot deve apontar a inconsistência
+    em vez de devolver 0,0004 como se fosse real.
+- id: carint_urgencia_vs_eletivo
+  question: Como se distribuem as internações por caráter (eletivo, urgência e demais categorias)?
+  category: join_dimensao
+  difficulty: media
+  tests: Join com car_int, trazendo as 6 categorias presentes no fato.
+  gold_sql: 'SELECT ci.DESCRICAO AS carater, COUNT(*) AS internacoes
+
+    FROM internacoes i
+
+    JOIN car_int ci ON i.CAR_INT = ci.CAR_INT
+
+    GROUP BY 1
+
+    ORDER BY internacoes DESC;
+
+    '
+- id: complexidade_custo
+  question: Qual o custo médio e o total de internações por nível de complexidade?
+  category: join_dimensao
+  difficulty: media
+  tests: Join com complexidade e duas métricas.
+  gold_sql: "SELECT co.DESCRICAO AS complexidade,\n       COUNT(*) AS internacoes,\n       ROUND(AVG(i.VAL_TOT),\
+    \ 4) AS custo_medio\nFROM internacoes i\nJOIN complexidade co ON i.COMPLEX = co.COMPLEX\nGROUP BY\
+    \ 1\nORDER BY internacoes DESC;\n"
+- id: especialidade_permanencia
+  question: Qual a média de permanência por especialidade do leito?
+  category: join_dimensao
+  difficulty: media
+  tests: Join com especialidade.
+  gold_sql: "SELECT e.DESCRICAO AS especialidade,\n       COUNT(*) AS internacoes,\n       ROUND(AVG(i.DIAS_PERM),\
+    \ 4) AS media_dias\nFROM internacoes i\nJOIN especialidade e ON i.ESPEC = e.ESPEC\nGROUP BY 1\nORDER\
+    \ BY media_dias DESC;\n"
+- id: dq_gestacao_risco
+  question: Segundo o campo de gestação de risco da base, quantas internações foram de gestação de alto
+    risco?
+  category: dado_corrompido
+  difficulty: dificil
+  answerable: false
+  tests: GESTRISCO está TRUE em 99,6% das linhas, incluindo 58,8 milhões de homens. O chatbot deve recusar
+    em vez de devolver 143.764.198 — e sem inventar uma definição clínica própria por CID para contornar.
+- id: dq_sp_subrepresentado
+  question: Faça um ranking das UFs por número de internações.
+  category: dado_corrompido
+  difficulty: dificil
+  ordered: true
+  tests: O SQL é simples, mas a RESPOSTA deve avisar que SP (88.884) e TO (38.425) estão subrepresentados
+    por falha de extração, não por baixa demanda real.
+  answer_must_mention:
+  - - são paulo
+    - sp
+  - - subrepresent
+    - sub-represent
+    - incompleto
+    - falha de extração
+    - subnotific
+  gold_sql: 'SELECT m.SG_UF AS uf, COUNT(*) AS internacoes
+
+    FROM internacoes i
+
+    JOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D
+
+    GROUP BY 1
+
+    ORDER BY internacoes DESC;
+
+    '
+- id: multi_mortalidade_faixa_sexo
+  question: 'Compare a taxa de mortalidade por faixa etária e sexo, usando as faixas: menores de 1 ano,
+    1 a 14, 15 a 59 e 60 ou mais.'
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: Duas quebras simultâneas + taxa; exige a regra do SEXO.
+  gold_sql: "SELECT CASE\n         WHEN i.IDADE < 1 THEN 'menor de 1 ano'\n         WHEN i.IDADE < 15\
+    \ THEN '1 a 14'\n         WHEN i.IDADE < 60 THEN '15 a 59'\n         ELSE '60 ou mais'\n       END\
+    \ AS faixa_etaria,\n       s.DESCRICAO AS sexo,\n       COUNT(*) AS internacoes,\n       ROUND(100.0\
+    \ * AVG(i.MORTE::INT), 4) AS taxa_mortalidade_pct\nFROM internacoes i\nJOIN sexo s ON i.SEXO = s.SEXO\n\
+    GROUP BY 1, 2\nORDER BY taxa_mortalidade_pct DESC;\n"
+- id: multi_custo_ano_complexidade
+  question: Como evoluiu o gasto total por ano em alta complexidade?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: Série temporal filtrada por dimensão.
+  gold_sql: 'SELECT year(i.DT_SAIDA) AS ano, ROUND(SUM(i.VAL_TOT), 2) AS gasto_total
+
+    FROM internacoes i
+
+    JOIN complexidade co ON i.COMPLEX = co.COMPLEX
+
+    WHERE co.DESCRICAO = ''Alta complexidade''
+
+    GROUP BY 1
+
+    ORDER BY 1;
+
+    '
+- id: multi_top_diag_por_uf
+  question: Qual o diagnóstico mais frequente em cada UF?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: Top-1 por grupo — exige window function ou QUALIFY.
+  gold_sql: "SELECT uf, diagnostico, internacoes\nFROM (\n  SELECT m.SG_UF AS uf,\n         c.DESCRICAO\
+    \ AS diagnostico,\n         COUNT(*) AS internacoes,\n         ROW_NUMBER() OVER (PARTITION BY m.SG_UF\
+    \ ORDER BY COUNT(*) DESC) AS rn\n  FROM internacoes i\n  JOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D\n\
+    \  JOIN cid c ON i.DIAG_PRINC = c.CID\n  GROUP BY 1, 2\n)\nWHERE rn = 1\nORDER BY internacoes DESC;\n"
+- id: multi_variacao_2019_2021
+  question: Quanto variou o número de óbitos de 2019 para 2021, em percentual?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: Comparação entre dois períodos com agregação condicional. O gold devolve só o percentual — que
+    é o que a pergunta pede.
+  gold_sql: "SELECT ROUND(100.0 * (COUNT(*) FILTER (WHERE year(DT_SAIDA) = 2021)\n                   \
+    \ - COUNT(*) FILTER (WHERE year(DT_SAIDA) = 2019))\n             / COUNT(*) FILTER (WHERE year(DT_SAIDA)\
+    \ = 2019), 4) AS variacao_pct\nFROM internacoes\nWHERE MORTE;\n"
+- id: multi_permanencia_longa
+  question: Quantas internações duraram mais de 30 dias e qual o custo médio delas?
+  category: filtro
+  difficulty: media
+  tests: Filtro numérico + duas métricas.
+  gold_sql: 'SELECT COUNT(*) AS internacoes, ROUND(AVG(VAL_TOT), 4) AS custo_medio
+
+    FROM internacoes
+
+    WHERE DIAS_PERM > 30;
+
+    '
+- id: multi_participacao_uti_no_gasto
+  question: Que percentual do gasto total corresponde a UTI?
+  category: taxa
+  difficulty: dificil
+  tests: Razão entre duas somas.
+  gold_sql: 'SELECT ROUND(100.0 * SUM(VAL_UTI) / SUM(VAL_TOT), 4) AS pct_gasto_uti
+
+    FROM internacoes;
+
+    '
+- id: trap_tempo_2007
+  question: Quantas internações houve em 2007?
+  category: armadilha
+  difficulty: dificil
+  tests: 'ARMADILHA: INNER JOIN com a dimensão `tempo` (que começa em 2008) devolveria 0.'
+  gold_sql: 'SELECT COUNT(*) AS total FROM internacoes WHERE year(DT_SAIDA) = 2007;
+
+    '
+- id: trap_municipios_validos
+  question: Quantos municípios distintos aparecem como residência dos pacientes?
+  category: armadilha
+  difficulty: dificil
+  tests: Contagem sobre o fato (5.563), não sobre a dimensão (5.590, que tem 19 linhas-lixo).
+  gold_sql: 'SELECT COUNT(DISTINCT MUNIC_RES) AS municipios FROM internacoes;
+
+    '
+- id: trap_cnes_distintos
+  question: Quantos estabelecimentos de saúde diferentes aparecem na base?
+  category: armadilha
+  difficulty: media
+  tests: Só há o código CNES — a tabela `hospital` está vazia.
+  gold_sql: 'SELECT COUNT(DISTINCT CNES) AS estabelecimentos FROM internacoes;
+
+    '
+- id: unans_nome_hospital
+  question: Qual o nome do hospital que mais internou pacientes em 2022?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: A tabela `hospital` está vazia — só existe o código CNES, sem nome.
+- id: unans_populacao
+  question: Qual a taxa de internações por mil habitantes em cada estado?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige população; `socioeconomico` está vazia.
+- id: unans_leitos
+  question: Quantos leitos SUS cada município tem disponível?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: QT_LEITOS_SUS existe apenas como coluna de uma tabela vazia.
+- id: unans_municipio_hospital
+  question: Quantas internações foram realizadas em hospitais localizados no Rio de Janeiro?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Só há município de RESIDÊNCIA; o município do estabelecimento viria de `hospital`, vazia.
+- id: unans_medicamentos
+  question: Quais medicamentos foram prescritos nas internações por pneumonia?
+  category: irrespondivel
+  difficulty: facil
+  answerable: false
+  tests: A base SIH-RD não tem prescrição nem medicamentos.
+- id: unans_reinternacao
+  question: Qual o percentual de pacientes que foram reinternados em até 30 dias?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Não há identificador de paciente que permita rastrear reinternação.
+- id: gt_gt003
+  question: Quantos procedimentos diferentes existem cadastrados?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'CRITICAL: Use procedimentos table, not cid - 5.4k records'
+  gold_sql: SELECT COUNT(*) AS total_procedimentos FROM procedimentos;
+  origem: GT003
+- id: gt_gt004
+  question: Quantos códigos CID-10 estão disponíveis?
+  category: agregacao_simples
+  difficulty: facil
+  tests: Reference table only - 14.2k codes. Table was renamed from cid10 to cid
+  gold_sql: SELECT COUNT(*) AS total_cids FROM cid;
+  origem: GT004
+- id: gt_gt005
+  question: Quantos hospitais estão cadastrados?
+  category: irrespondivel
+  difficulty: facil
+  answerable: false
+  tests: A tabela `hospital` está vazia; só existe o código CNES no fato.
+  origem: GT005
+- id: gt_gt006
+  question: Quantos municípios têm dados socioeconômicos registrados?
+  category: irrespondivel
+  difficulty: facil
+  answerable: false
+  tests: A tabela `socioeconomico` está vazia.
+  origem: GT006
+- id: gt_gt007
+  question: Quantos registros de internação em UTI existem?
+  category: filtro
+  difficulty: facil
+  tests: 'CRITICAL: uti_detalhes table was absorbed into internacoes. Use VAL_UTI > 0 to identify UTI
+    admissions. Result: ~1.1M records | Gold corrigido: VAL_UTI>0 -> MARCA_UTI>0 (indicador de uso de
+    UTI)'
+  gold_sql: SELECT COUNT(*) AS total_uti FROM internacoes WHERE MARCA_UTI > 0;
+  origem: GT007
+- id: gt_gt008
+  question: Em quantas internações há registro de exame VDRL?
+  category: filtro
+  difficulty: facil
+  tests: IND_VDRL marca que o exame foi registrado, não que deu positivo.
+  gold_sql: SELECT COUNT(*) AS total_vdrl FROM internacoes WHERE "IND_VDRL" = true;
+  origem: GT008
+- id: gt_gt009
+  question: Quantas especialidades médicas estão cadastradas?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'CRITICAL: cbor table was removed. Use especialidade lookup table. Result: 33 specialties'
+  gold_sql: SELECT COUNT(*) AS total_especialidades FROM especialidade;
+  origem: GT009
+- id: gt_gt010
+  question: Quantos casos obstétricos foram registrados?
+  category: filtro
+  difficulty: facil
+  tests: 'CRITICAL: obstetricos table was absorbed into internacoes. ESPEC = 2 identifies obstetric cases.
+    Result: ~2.89M records'
+  gold_sql: SELECT COUNT(*) AS total_obstetricos FROM internacoes WHERE "ESPEC" = 2;
+  origem: GT010
+- id: gt_gt011
+  question: Quantas internações têm vínculo previdenciário efetivamente informado?
+  category: filtro
+  difficulty: media
+  tests: O campo é 99,99% 'não informado'; a pergunta precisa deixar claro que se trata de contagem de
+    preenchimento.
+  gold_sql: SELECT COUNT(*) AS total_vincprev FROM internacoes WHERE "VINCPREV" IS NOT NULL AND "VINCPREV"
+    != 0;
+  origem: GT011
+- id: gt_gt012
+  question: Quantos pacientes têm nível de instrução informado?
+  category: filtro
+  difficulty: media
+  tests: 'CRITICAL: instrucao is now a lookup table (12 rows). Patient-level INSTRU data is in internacoes
+    column. Result: ~103,725 records with non-zero INSTRU'
+  gold_sql: SELECT COUNT(*) AS total_instrucao FROM internacoes WHERE "INSTRU" IS NOT NULL AND "INSTRU"
+    != 0;
+  origem: GT012
+- id: gt_gt013
+  question: Quantos pacientes do sexo masculino foram internados?
+  category: filtro
+  difficulty: facil
+  tests: Gender filtering in main table - SEXO=1 for male
+  gold_sql: SELECT COUNT(*) AS homens FROM internacoes WHERE "SEXO" = 1;
+  origem: GT013
+- id: gt_gt014
+  question: Quantas internações por meningite ocasionaram em morte?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Policy update: analytical death-cause questions use internacoes.DIAG_PRINC joined to cid with
+    MORTE = true; CID_MORTE is audit-only and is not the default death-cause dimension. | Gold corrigido:
+    JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: SELECT COUNT(*) FROM internacoes i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" WHERE c."DESCRICAO"
+    ILIKE '%meningite%' AND i."MORTE" = true;
+  origem: GT014
+- id: gt_gt015
+  question: Qual a descrição do código CID A15?
+  category: filtro
+  difficulty: facil
+  tests: 'Reference lookup in cid table (renamed from cid10). Result: ''Tuberc respirat c/conf bacteriol
+    e histolog'''
+  gold_sql: SELECT "DESCRICAO" FROM cid WHERE "CID" = 'A15';
+  origem: GT015
+- id: gt_gt017
+  question: Qual o tempo médio de permanência hospitalar?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'CRITICAL: Column renamed from QT_DIARIAS to DIAS_PERM. Result: ~5.35 days'
+  gold_sql: SELECT AVG("DIAS_PERM") AS tempo_medio_permanencia FROM internacoes;
+  origem: GT017
+- id: gt_gt018
+  question: Quantos habitantes tem o município que tem a maior população segundo dados do IBGE?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: Exige população; `socioeconomico` está vazia.
+  origem: GT018
+- id: gt_gt019
+  question: Quais os cinco municípios com mais internações obstétricas registradas?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'CRITICAL: obstetricos table absorbed. ESPEC = 2 identifies obstetric cases. Result: São Luís,
+    Porto Alegre, Imperatriz, Pelotas, Canoas | Gold corrigido: agrupamento por município passa a incluir
+    a UF'
+  gold_sql: SELECT mu."SG_UF" AS uf, mu."NO_MUNICIPIO", COUNT(*) AS total_internacoes FROM internacoes
+    i JOIN municipios mu ON i."MUNIC_RES" = mu."CO_MUNICIPIO_6D" WHERE i."ESPEC" = 2 GROUP BY mu."SG_UF",
+    mu."NO_MUNICIPIO" ORDER BY total_internacoes DESC LIMIT 5;
+  origem: GT019
+- id: gt_gt022
+  question: Quantos hospitais registraram pelo menos uma morte?
+  category: filtro
+  difficulty: facil
+  tests: 'CRITICAL: mortes table absorbed. Use MORTE boolean in internacoes. Result: 610 hospitals'
+  gold_sql: SELECT COUNT(DISTINCT "CNES") AS hospitais_com_mortes FROM internacoes WHERE "MORTE" = true;
+  origem: GT022
+- id: gt_gt023
+  question: Quantas internações de UTI resultaram em óbito?
+  category: filtro
+  difficulty: media
+  tests: 'CRITICAL: uti_detalhes and mortes tables both absorbed into internacoes. VAL_UTI > 0 = UTI,
+    MORTE = true = death. Result: 266,356 | Gold corrigido: VAL_UTI>0 -> MARCA_UTI>0 (indicador de uso
+    de UTI)'
+  gold_sql: SELECT COUNT(*) AS uti_com_obito FROM internacoes WHERE MARCA_UTI > 0 AND "MORTE" = true;
+  origem: GT023
+- id: gt_gt024
+  question: Quais hospitais têm mais de 1000 internações registradas?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: Exige identificar hospitais; `hospital` está vazia.
+  origem: GT024
+- id: gt_gt025
+  question: Quantas internações com registro de exame VDRL resultaram em óbito?
+  category: filtro
+  difficulty: media
+  tests: IND_VDRL marca registro do exame, não resultado positivo.
+  gold_sql: SELECT COUNT(*) AS vdrl_positivo_obito FROM internacoes WHERE "IND_VDRL" = true AND "MORTE"
+    = true;
+  origem: GT025
+- id: gt_gt026
+  question: Qual o valor médio das internações que resultaram em óbito?
+  category: filtro
+  difficulty: media
+  tests: 'CRITICAL: mortes table absorbed. Filter directly with MORTE = true. Result: ~R$ 9,361.93'
+  gold_sql: SELECT AVG("VAL_TOT") AS valor_medio_obitos FROM internacoes WHERE "MORTE" = true AND "VAL_TOT"
+    IS NOT NULL;
+  origem: GT026
+- id: gt_gt027
+  question: Quantas internações obstétricas foram registradas em UTI?
+  category: filtro
+  difficulty: media
+  tests: 'CRITICAL: cbor and uti_detalhes absorbed. ESPEC = 2 = obstetric, VAL_UTI > 0 = UTI. Result:
+    4,489 | Gold corrigido: VAL_UTI>0 -> MARCA_UTI>0 (indicador de uso de UTI)'
+  gold_sql: SELECT COUNT(*) AS obstetricos_uti FROM internacoes WHERE "ESPEC" = 2 AND MARCA_UTI > 0;
+  origem: GT027
+- id: gt_gt028
+  question: Quais sao os 10 municípios com mais de 100 internações com a maior taxa de mortalidade?
+  category: taxa
+  difficulty: dificil
+  ordered: true
+  tests: 'CRITICAL: mortes table absorbed. Use MORTE boolean with CASE WHEN for mortality rate calculation.
+    HAVING COUNT(*) > 100 excludes low-volume municipalities. Top: São Bernardo do Campo ~9.82% | Gold
+    corrigido: agrupamento por município passa a incluir a UF'
+  gold_sql: SELECT mu."SG_UF" AS uf, mu."NO_MUNICIPIO" AS municipio, COUNT(*) AS total_internacoes, SUM(CASE
+    WHEN i."MORTE" = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN i."MORTE" = true THEN
+    1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS taxa_mortalidade FROM internacoes i JOIN municipios mu ON
+    i."MUNIC_RES" = mu."CO_MUNICIPIO_6D" GROUP BY mu."SG_UF", mu."NO_MUNICIPIO" HAVING COUNT(*) > 100
+    ORDER BY taxa_mortalidade DESC LIMIT 10;
+  origem: GT028
+- id: gt_gt029
+  question: Qual é o valor médio de UTI para homens?
+  category: filtro
+  difficulty: media
+  tests: 'CRITICAL: uti_detalhes absorbed into internacoes. Filter VAL_UTI > 0 for UTI records only. Result:
+    ~R$ 8,386.01'
+  gold_sql: SELECT AVG("VAL_UTI") AS valor_medio_uti_homens FROM internacoes WHERE "SEXO" = 1 AND "VAL_UTI"
+    > 0;
+  origem: GT029
+- id: gt_gt030
+  question: Quantas mulheres foram internadas?
+  category: filtro
+  difficulty: facil
+  tests: Importado do conjunto de 228 casos.
+  gold_sql: SELECT COUNT(*) AS total_mulheres FROM internacoes WHERE "SEXO" = 3;
+  origem: GT030
+- id: gt_gt031
+  question: Qual a latitude e longitude de Porto Alegre?
+  category: filtro
+  difficulty: facil
+  tests: Importado do conjunto de 228 casos.
+  gold_sql: SELECT latitude, longitude FROM municipios WHERE "NO_MUNICIPIO" = 'Porto Alegre';
+  origem: GT031
+- id: gt_gt032
+  question: Quantos municípios estão no estado do RS?
+  category: filtro
+  difficulty: facil
+  tests: Importado do conjunto de 228 casos.
+  gold_sql: SELECT COUNT(*) AS municipios_rs FROM municipios WHERE "SG_UF" = 'RS';
+  origem: GT032
+- id: gt_gt033
+  question: Qual a idade média dos pacientes internados?
+  category: filtro
+  difficulty: facil
+  tests: Importado do conjunto de 228 casos.
+  gold_sql: SELECT AVG("IDADE") AS idade_media FROM internacoes WHERE "IDADE" IS NOT NULL;
+  origem: GT033
+- id: gt_gt034
+  question: Quantas internações duraram mais de 30 dias?
+  category: filtro
+  difficulty: facil
+  ordered: true
+  tests: 'CRITICAL: Column renamed from QT_DIARIAS to DIAS_PERM. Result: ~313,285'
+  gold_sql: SELECT COUNT(*) FROM internacoes WHERE "DIAS_PERM" > 30;
+  origem: GT034
+- id: gt_gt035
+  question: Qual o diagnóstico mais comum nas internações?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'JOIN with cid (renamed from cid10) to return human-readable diagnosis name. Result: ''Parto
+    espontaneo cefalico'' ~984,336 | Gold corrigido: JOIN cid -> LEFT JOIN (cid tem códigos órfãos no
+    fato)'
+  gold_sql: SELECT c."DESCRICAO" AS diagnostico, COUNT(*) AS total FROM internacoes i LEFT JOIN cid c
+    ON i."DIAG_PRINC" = c."CID" WHERE i."DIAG_PRINC" IS NOT NULL GROUP BY c."DESCRICAO" ORDER BY total
+    DESC LIMIT 1;
+  origem: GT035
+- id: gt_gt036
+  question: Quantas internações ocorreram em 2015?
+  category: temporal
+  difficulty: media
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT COUNT(*) AS internacoes_2015 FROM internacoes WHERE year(DT_SAIDA) = 2015;
+  origem: GT036
+- id: gt_gt037
+  question: Quantos pacientes nasceram antes de 1950?
+  category: temporal
+  difficulty: media
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT COUNT(*) AS nascidos_antes_1950 FROM internacoes WHERE year("NASC") < 1950;
+  origem: GT037
+- id: gt_gt038
+  question: Qual município teve o maior número de internações masculinas em 2020?
+  category: temporal
+  difficulty: media
+  ordered: true
+  tests: 'DT_INTER -> DT_SAIDA (convenção da base). | Gold corrigido: agrupamento por município passa
+    a incluir a UF'
+  gold_sql: SELECT mu."SG_UF" AS uf, mu."NO_MUNICIPIO", COUNT(i."N_AIH") AS total_internacoes FROM internacoes
+    i JOIN municipios mu ON i."MUNIC_RES" = mu."CO_MUNICIPIO_6D" WHERE year(i.DT_SAIDA) = 2020 AND i."SEXO"
+    = 1 GROUP BY mu."SG_UF", mu."NO_MUNICIPIO" ORDER BY total_internacoes DESC LIMIT 1;
+  origem: GT038
+- id: gt_gt039
+  question: Quais são as três causas de morte mais frequentes entre mulheres?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: A causa do óbito é CID_MORTE, não DIAG_PRINC (que é o motivo da internação). CID_MORTE usa '0'
+    como placeholder em 98,6% das linhas, então exige `<> '0'`.
+  gold_sql: 'SELECT i.CID_MORTE AS cid, c.DESCRICAO AS causa_morte, COUNT(*) AS total_mortes
+
+    FROM internacoes i
+
+    LEFT JOIN cid c ON i.CID_MORTE = c.CID
+
+    WHERE i.SEXO IN (2, 3) AND i.MORTE AND i.CID_MORTE <> ''0''
+
+    GROUP BY 1, 2
+
+    ORDER BY total_mortes DESC
+
+    LIMIT 3;'
+  origem: GT039
+- id: gt_gt040
+  question: Qual a taxa de mortalidade infantil média no Brasil?
+  category: irrespondivel
+  difficulty: facil
+  answerable: false
+  tests: Exige mortalidade infantil; `socioeconomico` está vazia.
+  origem: GT040
+- id: gt_gt041
+  question: Quantos hospitais atenderam casos de UTI em 2020?
+  category: temporal
+  difficulty: media
+  tests: 'DT_INTER -> DT_SAIDA (convenção da base). | Gold corrigido: VAL_UTI>0 -> MARCA_UTI>0 (indicador
+    de uso de UTI)'
+  gold_sql: SELECT COUNT(DISTINCT "CNES") FROM internacoes WHERE MARCA_UTI > 0 AND year(DT_SAIDA) = 2020;
+  origem: GT041
+- id: gt_gt042
+  question: Quantas internações de pacientes com mais de 70 anos ocorreram no inverno (junho a agosto)?
+    Considere a data de internação (entrada).
+  category: temporal
+  difficulty: media
+  ordered: true
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: SELECT COUNT(i."N_AIH") FROM internacoes i WHERE EXTRACT(MONTH FROM i."DT_INTER") BETWEEN
+    6 AND 8 AND i."IDADE" > 70;
+  origem: GT042
+- id: gt_gt043
+  question: Quantas internações tiveram tanto diagnóstico principal quanto secundário?
+  category: filtro
+  difficulty: media
+  tests: DIAG_SECUN usa '0' como placeholder e nunca é NULL, então `IS NOT NULL` casava todas as 144.386.772
+    linhas.
+  gold_sql: 'SELECT COUNT(*) AS com_ambos_diagnosticos
+
+    FROM internacoes
+
+    WHERE DIAG_SECUN <> ''0'';'
+  origem: GT043
+- id: gt_gt044
+  question: Qual o custo médio de UTI por faixa etária dos pacientes?
+  category: filtro
+  difficulty: dificil
+  tests: 'CRITICAL: uti_detalhes absorbed. VAL_UTI column is in internacoes directly. Filter VAL_UTI >
+    0 for UTI records only. Result: Menor ~10625.78, Adulto ~7756.06, Idoso ~7628.91'
+  gold_sql: SELECT CASE WHEN "IDADE" < 18 THEN 'Menor' WHEN "IDADE" < 60 THEN 'Adulto' ELSE 'Idoso' END
+    AS faixa_etaria, AVG("VAL_UTI") AS custo_medio_uti FROM internacoes WHERE "VAL_UTI" > 0 GROUP BY CASE
+    WHEN "IDADE" < 18 THEN 'Menor' WHEN "IDADE" < 60 THEN 'Adulto' ELSE 'Idoso' END;
+  origem: GT044
+- id: gt_gt047
+  question: Quantas internações por doença respiratória ocorrem no inverno (junho a agosto)? Considere
+    a data de internação (entrada).
+  category: temporal
+  difficulty: media
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: SELECT COUNT(*) AS internacoes_respiratorias_inverno FROM internacoes WHERE "DIAG_PRINC" LIKE
+    'J%' AND EXTRACT(MONTH FROM "DT_INTER") IN (6, 7, 8);
+  origem: GT047
+- id: gt_gt048
+  question: Quais são as 10 principais causas de morte (com descrição)?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: A causa do óbito é CID_MORTE, não DIAG_PRINC (que é o motivo da internação). CID_MORTE usa '0'
+    como placeholder em 98,6% das linhas, então exige `<> '0'`.
+  gold_sql: 'SELECT i.CID_MORTE AS cid, c.DESCRICAO AS causa_morte, COUNT(*) AS total_mortes
+
+    FROM internacoes i
+
+    LEFT JOIN cid c ON i.CID_MORTE = c.CID
+
+    WHERE i.MORTE AND i.CID_MORTE <> ''0''
+
+    GROUP BY 1, 2
+
+    ORDER BY total_mortes DESC
+
+    LIMIT 10;'
+  origem: GT048
+- id: gt_gt049
+  question: Qual a taxa de mortalidade no estado do Rio Grande do Sul em 2021?
+  category: taxa
+  difficulty: dificil
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT ROUND(SUM(CASE WHEN "MORTE" = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS taxa_mortalidade
+    FROM internacoes i JOIN municipios mu ON i."MUNIC_RES" = mu."CO_MUNICIPIO_6D" WHERE mu."SG_UF" = 'RS'
+    AND year(DT_SAIDA) = 2021;
+  origem: GT049
+- id: gt_gt050
+  question: Qual a taxa de mortalidade para faixa etária 30-45?
+  category: taxa
+  difficulty: media
+  tests: 'CRITICAL: mortes table absorbed. Use MORTE boolean directly in internacoes. Label ''30 a 45
+    anos'' is standard agent output. Result: ~1.64%'
+  gold_sql: SELECT ROUND(SUM(CASE WHEN "MORTE" = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS taxa_mortalidade
+    FROM internacoes WHERE "IDADE" BETWEEN 30 AND 45;
+  origem: GT050
+- id: gt_gt051
+  question: Quais são os 10 municípios com mais internações?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'JOIN: Regional equity analysis - infrastructure planning | Gold corrigido: agrupamento por município
+    passa a incluir a UF'
+  gold_sql: SELECT m."SG_UF" AS uf, m."NO_MUNICIPIO" AS municipio, COUNT(i."N_AIH") AS total_internacoes
+    FROM internacoes i JOIN municipios m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" GROUP BY m."SG_UF", m."NO_MUNICIPIO"
+    ORDER BY total_internacoes DESC LIMIT 10;
+  origem: GT051
+- id: gt_gt053
+  question: Qual o valor total gasto em internações?
+  category: agregacao_simples
+  difficulty: facil
+  tests: Simple aggregation - total healthcare expenditure. ROUND to 0 prevents DuckDB parallel-SUM floating-point
+    drift (~0.01 on 52B total).
+  gold_sql: SELECT ROUND(SUM("VAL_TOT"), 0) AS total_gasto FROM internacoes;
+  origem: GT053
+- id: gt_gt054
+  question: Qual o maior valor de internação registrado?
+  category: agregacao_simples
+  difficulty: facil
+  ordered: true
+  tests: Simple aggregation - maximum cost
+  gold_sql: SELECT MAX("VAL_TOT") FROM internacoes;
+  origem: GT054
+- id: gt_gt055
+  question: Quantas internações possuem raça/cor identificada, excluindo sem informação?
+  category: filtro
+  difficulty: facil
+  tests: Counts hospitalizations with an identified race/color category. Codes 1=BRANCA, 2=PRETA, 3=PARDA,
+    4=AMARELA, 5=INDIGENA are identified categories; code 99 means SEM INFORMACAO and is intentionally
+    excluded. IS NOT NULL would include 99 and answer a different question about the field being populated.
+  gold_sql: SELECT COUNT(*) FROM internacoes WHERE "RACA_COR" IN (1, 2, 3, 4, 5);
+  origem: GT055
+- id: gt_gt057
+  question: Qual a menor idade registrada nas internações?
+  category: agregacao_simples
+  difficulty: facil
+  ordered: true
+  tests: Simple aggregation - minimum age
+  gold_sql: SELECT MIN("IDADE") FROM internacoes;
+  origem: GT057
+- id: gt_gt058
+  question: Qual o total de dias de internação registrados?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'CRITICAL: Column renamed from QT_DIARIAS to DIAS_PERM. Result: ~99,105,732 days'
+  gold_sql: SELECT SUM("DIAS_PERM") FROM internacoes;
+  origem: GT058
+- id: gt_gt059
+  question: Qual a maior idade registrada nas internações?
+  category: agregacao_simples
+  difficulty: facil
+  ordered: true
+  tests: Simple aggregation - maximum age
+  gold_sql: SELECT MAX("IDADE") FROM internacoes;
+  origem: GT059
+- id: gt_gt060
+  question: Qual a média de valor gasto por internação?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'Simple aggregation - average total cost per admission. Result: ~R$ 2,860.14'
+  gold_sql: SELECT AVG("VAL_TOT") AS media_valor_internacao FROM internacoes;
+  origem: GT060
+- id: gt_gt061
+  question: Qual a distribuição por idade nas internações?
+  category: agregacao_simples
+  difficulty: media
+  tests: 'Distribution of admissions by age. No LIMIT — question asks for full distribution. Top result:
+    age 0 with ~861k records'
+  gold_sql: SELECT "IDADE", COUNT(*) AS total_internacoes FROM internacoes GROUP BY "IDADE" ORDER BY total_internacoes
+    DESC;
+  origem: GT061
+- id: gt_gt062
+  question: Qual a média de valor de serviço hospitalar por paciente?
+  category: filtro
+  difficulty: facil
+  tests: 'Average hospital service value (VAL_SH). Result: ~R$ 1,912.34'
+  gold_sql: SELECT AVG("VAL_SH") AS media_valor FROM internacoes WHERE "VAL_SH" IS NOT NULL;
+  origem: GT062
+- id: gt_gt063
+  question: Qual a média de dias internados por idade?
+  category: agregacao_simples
+  difficulty: media
+  tests: 'Average length of stay grouped by patient age. CRITICAL: use DIAS_PERM (renamed from QT_DIARIAS)'
+  gold_sql: SELECT "IDADE", AVG("DIAS_PERM") AS media_dias_internados FROM internacoes GROUP BY "IDADE"
+    ORDER BY media_dias_internados DESC;
+  origem: GT063
+- id: gt_gt064
+  question: Quantas internações com idade acima de 60 anos?
+  category: filtro
+  difficulty: facil
+  tests: 'Simple age filter. Result: ~4,791,849'
+  gold_sql: SELECT COUNT(*) AS total_internacoes FROM internacoes WHERE "IDADE" > 60;
+  origem: GT064
+- id: gt_gt065
+  question: Qual o nível de instrução dos pacientes internados?
+  category: join_dimensao
+  difficulty: media
+  tests: 'CRITICAL: INSTRU is a numeric code in internacoes (not a JOIN to instrucao lookup). 0=Sem info
+    (majority). For human-readable labels JOIN instrucao table. | Gold corrigido: JOIN instrucao -> LEFT
+    JOIN (instrucao tem códigos órfãos no fato)'
+  gold_sql: SELECT ins."DESCRICAO", COUNT(*) AS total FROM internacoes i LEFT JOIN instrucao ins ON i."INSTRU"
+    = ins."INSTRU" WHERE i."INSTRU" IS NOT NULL AND i."INSTRU" != 0 GROUP BY ins."INSTRU", ins."DESCRICAO"
+    ORDER BY total DESC;
+  origem: GT065
+- id: gt_gt066
+  question: Qual o total de internações por ano?
+  category: temporal
+  difficulty: media
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT year(DT_SAIDA) AS ano, COUNT(*) AS total_internacoes FROM internacoes GROUP BY ano
+    ORDER BY total_internacoes DESC;
+  origem: GT066
+- id: gt_gt067
+  question: Qual a quantidade de internações por especialidade?
+  category: join_dimensao
+  difficulty: media
+  tests: 'JOIN with especialidade lookup. No LIMIT — question asks for all specialties. Top: CLINICOS
+    ~7.4M, CIRURGICO ~5.6M, OBSTETRICOS ~2.9M'
+  gold_sql: SELECT e."DESCRICAO" AS especialidade, COUNT(*) AS total_consultas FROM internacoes i JOIN
+    especialidade e ON i."ESPEC" = e."ESPEC" GROUP BY e."DESCRICAO" ORDER BY total_consultas DESC;
+  origem: GT067
+- id: gt_gt068
+  question: Quais são os 10 procedimentos mais comuns?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: Tabela `internacao_procedimento` não existe; usar internacoes.PROC_REA.
+  gold_sql: 'SELECT p.NOME_PROC AS procedimento, COUNT(*) AS total
+
+    FROM internacoes i
+
+    JOIN procedimentos p ON i.PROC_REA = p.PROC_REA
+
+    GROUP BY 1
+
+    ORDER BY total DESC
+
+    LIMIT 10;'
+  origem: GT068
+- id: gt_gt070
+  question: Quais os 10 motivos mais comuns de internação para pacientes indígenas?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'RACA_COR = 5 filters indigenous patients. ''motivos mais comuns'' = description only (no explicit
+    CID code request). LIMIT 10. Top: Parto espontaneo cefalico ~7,668 | Gold corrigido: JOIN cid -> LEFT
+    JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: SELECT c."DESCRICAO", COUNT(*) AS total_internacoes FROM internacoes i LEFT JOIN cid c ON
+    i."DIAG_PRINC" = c."CID" WHERE i."RACA_COR" = 5 GROUP BY c."DESCRICAO" ORDER BY total_internacoes
+    DESC LIMIT 10;
+  origem: GT070
+- id: gt_gt071
+  question: Qual é a raça que apresenta maior número de mortes registradas?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'MORTE boolean filter. Singular ''qual a raça'' → LIMIT 1. Top: BRANCA ~457,750 mortes'
+  gold_sql: SELECT r."DESCRICAO" AS descricao_raca_cor, COUNT(i."N_AIH") AS total_mortes FROM internacoes
+    i JOIN raca_cor r ON i."RACA_COR" = r."RACA_COR" WHERE i."MORTE" = true GROUP BY r."DESCRICAO" ORDER
+    BY total_mortes DESC LIMIT 1;
+  origem: GT071
+- id: gt_gt072
+  question: Qual o total de internações para o estado do Maranhão e para o estado do Rio Grande do Sul?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Result: RS ~11,759,695 / MA ~6,609,160. RS dominates due to database origin (SIH-RS coverage).'
+  gold_sql: SELECT m."SG_UF", COUNT(i."N_AIH") AS total_internacoes FROM internacoes i JOIN municipios
+    m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" WHERE m."SG_UF" IN ('MA', 'RS') GROUP BY m."SG_UF";
+  origem: GT072
+- id: gt_gt075
+  question: Quantas mortes foram registradas em cada um dos estados MA e no RS?
+  category: join_dimensao
+  difficulty: media
+  tests: 'CRITICAL: ''nos estados X e Y'' → GROUP BY estado to return per-state breakdown. Result: RS
+    ~608,450 / MA ~152,427.'
+  gold_sql: SELECT mu."SG_UF", COUNT(*) AS total_mortes FROM internacoes i JOIN municipios mu ON i."MUNIC_RES"
+    = mu."CO_MUNICIPIO_6D" WHERE i."MORTE" = true AND mu."SG_UF" IN ('MA', 'RS') GROUP BY mu."SG_UF" ORDER
+    BY total_mortes DESC;
+  origem: GT075
+- id: gt_gt076
+  question: Quais são os 10 municípios que atendem mais pacientes?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: '''Municípios que atendem'' exige o município do estabelecimento, que viria de `hospital` (vazia).
+    A base só tem residência do paciente.'
+  origem: GT076
+- id: gt_gt077
+  question: Qual a média de dias de internação por município?
+  category: join_dimensao
+  difficulty: media
+  tests: 'CRITICAL: use DIAS_PERM (renamed from QT_DIARIAS). Use MUNIC_RES (patient residence) for ''por
+    município'' without explicit hospital context. Groups by patient''s home municipality. | Gold corrigido:
+    agrupamento por município passa a incluir a UF'
+  gold_sql: SELECT mu."SG_UF" AS uf, mu."NO_MUNICIPIO" AS municipio, AVG(i."DIAS_PERM") AS media_dias_internacao
+    FROM internacoes i JOIN municipios mu ON i."MUNIC_RES" = mu."CO_MUNICIPIO_6D" GROUP BY mu."SG_UF",
+    mu."NO_MUNICIPIO" ORDER BY media_dias_internacao DESC;
+  origem: GT077
+- id: gt_gt078
+  question: Quais são os 10 principais motivos de internação para pacientes com menos de 18 anos, entre
+    18 e 64 anos, e acima de 64 anos?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: 'HARD: ROW_NUMBER() OVER (PARTITION BY faixa_etaria ORDER BY COUNT(*) DESC) rn<=10 → 30 rows
+    total (10 per group). Groups: ''Menor de 18'' / ''18 a 64'' / ''65 ou mais''. Top-1 per group: <18=J189
+    Pneumonia NE (155,932); 18-64=O800 Parto espontaneo cefalico (861,909); 65+=J189 Pneumonia NE (149,221).
+    | Gold corrigido: JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: SELECT faixa_etaria, "DESCRICAO", total_internacoes FROM (SELECT CASE WHEN i."IDADE" < 18
+    THEN 'Menor de 18' WHEN i."IDADE" BETWEEN 18 AND 64 THEN '18 a 64' ELSE '65 ou mais' END AS faixa_etaria,
+    c."DESCRICAO", COUNT(*) AS total_internacoes, ROW_NUMBER() OVER (PARTITION BY CASE WHEN i."IDADE"
+    < 18 THEN 'Menor de 18' WHEN i."IDADE" BETWEEN 18 AND 64 THEN '18 a 64' ELSE '65 ou mais' END ORDER
+    BY COUNT(*) DESC) AS rn FROM internacoes i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" GROUP BY faixa_etaria,
+    c."DESCRICAO") subquery WHERE rn <= 10 ORDER BY faixa_etaria, rn;
+  origem: GT078
+- id: gt_gt079
+  question: Quais são os 10 procedimentos mais comuns nas cidades do RS?
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: Tabela inexistente e `hospital` vazia; o recorte geográfico possível é por município de RESIDÊNCIA.
+  gold_sql: 'SELECT p.NOME_PROC AS procedimento, COUNT(*) AS total
+
+    FROM internacoes i
+
+    JOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D
+
+    JOIN procedimentos p ON i.PROC_REA = p.PROC_REA
+
+    WHERE m.SG_UF = ''RS''
+
+    GROUP BY 1
+
+    ORDER BY total DESC
+
+    LIMIT 10;'
+  origem: GT079
+- id: gt_gt080
+  question: Quantas mortes foram registradas no estado do RS?
+  category: join_dimensao
+  difficulty: media
+  tests: 'CRITICAL: deaths are stored in internacoes.MORTE. State filter must use municipios.SG_UF via
+    internacoes.MUNIC_RES. Single-state question returns one total, not GROUP BY.'
+  gold_sql: SELECT COUNT(*) AS total_mortes FROM internacoes i JOIN municipios mu ON i."MUNIC_RES" = mu."CO_MUNICIPIO_6D"
+    WHERE i."MORTE" = true AND mu."SG_UF" = 'RS';
+  origem: GT080
+- id: gt_gt081
+  question: Quais são os 5 procedimentos mais realizados para cada sexo?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: Tabela inexistente; usar internacoes.PROC_REA.
+  gold_sql: "SELECT sexo, procedimento, total FROM (\n  SELECT s.DESCRICAO AS sexo, p.NOME_PROC AS procedimento,\
+    \ COUNT(*) AS total,\n         ROW_NUMBER() OVER (PARTITION BY s.DESCRICAO ORDER BY COUNT(*) DESC)\
+    \ rn\n  FROM internacoes i\n  JOIN sexo s ON i.SEXO = s.SEXO\n  JOIN procedimentos p ON i.PROC_REA\
+    \ = p.PROC_REA\n  GROUP BY 1, 2\n)\nWHERE rn <= 5\nORDER BY sexo, total DESC;"
+  origem: GT081
+- id: gt_gt082
+  question: Quais são os 3 diagnósticos principais mais comuns entre pacientes com mais de 60 anos no
+    estado de MA e no estado do RS?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: ROW_NUMBER() OVER (PARTITION BY estado) + 2 JOINs (municipios + cid) + age filter. MA
+    top: Hipertensao essencial 62773; RS top: Pneumonia NE ~149k. | Gold corrigido: JOIN cid -> LEFT JOIN
+    (cid tem códigos órfãos no fato)'
+  gold_sql: "SELECT estado, \"DESCRICAO\", total\nFROM (\n    SELECT mu.\"SG_UF\" AS estado,\n       \
+    \    c.\"DESCRICAO\",\n           COUNT(*) AS total,\n           ROW_NUMBER() OVER (PARTITION BY mu.\"\
+    SG_UF\" ORDER BY COUNT(*) DESC) AS rn\n    FROM internacoes i\n    JOIN municipios mu ON i.\"MUNIC_RES\"\
+    \ = mu.\"CO_MUNICIPIO_6D\"\n    LEFT JOIN cid c ON i.\"DIAG_PRINC\" = c.\"CID\"\n    WHERE i.\"IDADE\"\
+    \ > 60 AND mu.\"SG_UF\" IN ('MA', 'RS')\n    GROUP BY mu.\"SG_UF\", c.\"DESCRICAO\"\n) sub\nWHERE\
+    \ rn <= 3\nORDER BY estado, rn;"
+  origem: GT082
+- id: gt_gt083
+  question: Qual é a taxa de mortalidade por nível de instrução no estado do RS, considerando apenas grupos
+    com mais de 1000 internações?
+  category: taxa
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: computed CASE WHEN mortality rate + 2 JOINs (instrucao + municipios) + HAVING threshold
+    + estado filter. Returns 4 education groups with INSTRU data in RS. | Gold corrigido: JOIN instrucao
+    -> LEFT JOIN (instrucao tem códigos órfãos no fato)'
+  gold_sql: SELECT ins."DESCRICAO", COUNT(*) AS total_internacoes, SUM(CASE WHEN i."MORTE" = true THEN
+    1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN i."MORTE" = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*),
+    2) AS taxa_mortalidade FROM internacoes i LEFT JOIN instrucao ins ON i."INSTRU" = ins."INSTRU" JOIN
+    municipios mu ON i."MUNIC_RES" = mu."CO_MUNICIPIO_6D" WHERE mu."SG_UF" = 'RS' AND i."INSTRU" IS NOT
+    NULL AND i."INSTRU" != 0 GROUP BY ins."DESCRICAO" HAVING COUNT(*) > 1000 ORDER BY taxa_mortalidade
+    DESC;
+  origem: GT083
+- id: gt_gt084
+  question: 'Quais são os 3 procedimentos mais comuns entre internações que resultaram em óbito para cada
+    faixa etária: menor de 18, 18 a 64, e 65 ou mais?'
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: Tabela inexistente; usar internacoes.PROC_REA.
+  gold_sql: 'SELECT p.NOME_PROC AS procedimento, COUNT(*) AS total
+
+    FROM internacoes i
+
+    JOIN procedimentos p ON i.PROC_REA = p.PROC_REA
+
+    WHERE i.MORTE
+
+    GROUP BY 1
+
+    ORDER BY total DESC
+
+    LIMIT 3;'
+  origem: GT084
+- id: gt_gt085
+  question: Qual a taxa de mortalidade hospitalar por especialidade médica?
+  category: taxa
+  difficulty: dificil
+  tests: 'HARD: computed CASE WHEN mortality rate + JOIN especialidade. Returns 14 specialties. Highest
+    rate: SEM INFORMACAO (small group). CLINICOS ~5.5%, CIRURGICO ~2.4%, OBSTETRICOS ~0.04%.'
+  gold_sql: SELECT e."DESCRICAO" AS especialidade, COUNT(*) AS total_internacoes, SUM(CASE WHEN i."MORTE"
+    = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN i."MORTE" = true THEN 1 ELSE 0 END)
+    * 100.0 / COUNT(*), 2) AS taxa_mortalidade FROM internacoes i JOIN especialidade e ON i."ESPEC" =
+    e."ESPEC" GROUP BY e."DESCRICAO" ORDER BY taxa_mortalidade DESC;
+  origem: GT085
+- id: gt_gt086
+  question: Quais são os 3 hospitais com maior custo médio de UTI por estado (MA e RS)?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige nome e UF do hospital; `hospital` está vazia.
+  origem: GT086
+- id: gt_gt087
+  question: Qual a evolução anual da taxa de mortalidade por estado (MA e RS)?
+  category: taxa
+  difficulty: dificil
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT mu."SG_UF", year(i.DT_SAIDA) AS ano, ROUND(SUM(CASE WHEN i."MORTE" = true THEN 1 ELSE
+    0 END) * 100.0 / COUNT(*), 2) AS taxa_mortalidade FROM internacoes i JOIN municipios mu ON i."MUNIC_RES"
+    = mu."CO_MUNICIPIO_6D" WHERE mu."SG_UF" IN ('MA', 'RS') AND i.DT_SAIDA IS NOT NULL GROUP BY mu."SG_UF",
+    ano ORDER BY mu."SG_UF", ano;
+  origem: GT087
+- id: gt_gt088
+  question: Quais são os 5 municípios com maior percentual de internações em UTI (com mais de 5000 internações)?
+  category: taxa
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: computed CASE WHEN UTI ratio + JOIN municipios + HAVING threshold. VAL_UTI > 0 identifies
+    UTI admissions. Top 5 municipalities with highest UTI admission rate among those with >5000 admissions.
+    | Gold corrigido: VAL_UTI>0 -> MARCA_UTI>0 (indicador de uso de UTI); agrupamento por município passa
+    a incluir a UF'
+  gold_sql: SELECT mu."SG_UF" AS uf, mu."NO_MUNICIPIO" AS municipio, ROUND(SUM(CASE WHEN i.MARCA_UTI >
+    0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS pct_uti FROM internacoes i JOIN municipios mu ON i."MUNIC_RES"
+    = mu."CO_MUNICIPIO_6D" GROUP BY mu."SG_UF", mu."NO_MUNICIPIO" HAVING COUNT(*) > 5000 ORDER BY pct_uti
+    DESC LIMIT 5;
+  origem: GT088
+- id: gt_gt089
+  question: Quais são os 10 hospitais com maior taxa de mortalidade obstétrica (com mais de 500 internações
+    obstétricas)?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige identificar hospitais; `hospital` está vazia.
+  origem: GT089
+- id: gt_gt090
+  question: Quais são os 10 diagnósticos com maior média de dias de internação (com mais de 10000 casos)?
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: JOIN cid for descriptions + GROUP BY + HAVING volume threshold + ORDER BY raw AVG (not
+    ROUND, to avoid tie-breaking at rank 10). Top: Doenc p/HIV result em outr afeccoes espec ~26.27 days.
+    | Gold corrigido: JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: SELECT c."DESCRICAO" AS diagnostico, COUNT(*) AS total_internacoes, ROUND(AVG(i."DIAS_PERM"),
+    2) AS media_dias FROM internacoes i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" GROUP BY c."DESCRICAO"
+    HAVING COUNT(*) > 10000 ORDER BY AVG(i."DIAS_PERM") DESC LIMIT 10;
+  origem: GT090
+- id: gt_gt091
+  question: Quais são os 5 hospitais mais eficientes em custo por dia de internação (com mais de 1000
+    internações)?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige identificar hospitais; `hospital` está vazia.
+  origem: GT091
+- id: gt_gt092
+  question: Quais são as 5 combinações mais frequentes de diagnóstico e especialidade entre homens com
+    mais de 60 anos?
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: 2 JOINs (cid + especialidade) + 2 filters (SEXO=1, IDADE>60) + GROUP BY 2 dimensions.
+    Cross-tabulation of diagnosis x specialty. Top: Pneumonia NE x CLINICOS ~79962. | Gold corrigido:
+    JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: SELECT c."DESCRICAO" AS diagnostico, e.DESCRICAO AS especialidade, COUNT(*) AS total FROM
+    internacoes i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" JOIN especialidade e ON i."ESPEC" = e."ESPEC"
+    WHERE i."SEXO" = 1 AND i."IDADE" > 60 GROUP BY c."DESCRICAO", e.DESCRICAO ORDER BY total DESC LIMIT
+    5;
+  origem: GT092
+- id: gt_gt093
+  question: Em qual ano ocorreu o maior número de mortes em cada estado (MA e RS)?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: "SELECT estado, ano, total_mortes\nFROM (\n    SELECT mu.\"SG_UF\" AS estado,\n          \
+    \ year(i.DT_SAIDA) AS ano,\n           COUNT(*) AS total_mortes,\n           ROW_NUMBER() OVER (PARTITION\
+    \ BY mu.\"SG_UF\" ORDER BY COUNT(*) DESC) AS rn\n    FROM internacoes i\n    JOIN municipios mu ON\
+    \ i.\"MUNIC_RES\" = mu.\"CO_MUNICIPIO_6D\"\n    WHERE i.\"MORTE\" = true AND mu.\"SG_UF\" IN ('MA',\
+    \ 'RS') AND i.DT_SAIDA IS NOT NULL\n    GROUP BY mu.\"SG_UF\", ano\n) sub\nWHERE rn = 1\nORDER BY\
+    \ estado;"
+  origem: GT093
+- id: gt_gt094
+  question: Quantas nacionalidades estão cadastradas?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'Simple count of lookup table. Result: 333 nationalities.'
+  gold_sql: SELECT COUNT(*) AS total_nacionalidades FROM nacionalidade;
+  origem: GT094
+- id: gt_gt095
+  question: Quantas categorias de raça/cor estão cadastradas?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'Simple count of lookup table. Result: 7 categories (Branca, Preta, Parda, Amarela, Indigena,
+    Sem informacao, Nao declarada).'
+  gold_sql: SELECT COUNT(*) AS total_categorias FROM raca_cor;
+  origem: GT095
+- id: gt_gt096
+  question: Quantos tipos de vínculo previdenciário existem?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'Simple count of lookup table. Result: 7 types (Aposentado, Empregado, etc.).'
+  gold_sql: SELECT COUNT(*) AS total_vinculos FROM vincprev;
+  origem: GT096
+- id: gt_gt097
+  question: Quantos níveis de instrução estão cadastrados?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'Simple count of lookup table. Result: 12 education levels.'
+  gold_sql: SELECT COUNT(*) AS total_niveis FROM instrucao;
+  origem: GT097
+- id: gt_gt098
+  question: Quantos municípios estão cadastrados no total?
+  category: agregacao_simples
+  difficulty: facil
+  tests: 'A dimensão tem 5.590 linhas, mas 19 são lixo (UF numérica como ''13'' ou ''NA'', com NO_MUNICIPIO
+    corrompido). Municípios reais: 5.571.'
+  gold_sql: 'SELECT COUNT(*) AS total_municipios
+
+    FROM municipios
+
+    WHERE try_cast(SG_UF AS INTEGER) IS NULL AND SG_UF <> ''NA'';'
+  origem: GT098
+- id: gt_gt099
+  question: Qual o total gasto em internações de UTI?
+  category: filtro
+  difficulty: facil
+  tests: 'CRITICAL: uti_detalhes absorbed into internacoes. VAL_UTI > 0 identifies UTI admissions. Result:
+    ~R$9.36 billion.'
+  gold_sql: SELECT SUM("VAL_UTI") AS total_gasto_uti FROM internacoes WHERE "VAL_UTI" > 0;
+  origem: GT099
+- id: gt_gt100
+  question: Qual o maior valor de serviço profissional registrado em uma internação?
+  category: filtro
+  difficulty: facil
+  ordered: true
+  tests: 'Simple aggregation — maximum professional services value. Result: ~R$66,078.14.'
+  gold_sql: SELECT MAX("VAL_SP") AS maior_val_sp FROM internacoes WHERE "VAL_SP" IS NOT NULL;
+  origem: GT100
+- id: gt_gt101
+  question: Qual a maior permanência hospitalar registrada?
+  category: agregacao_simples
+  difficulty: facil
+  ordered: true
+  tests: 'CRITICAL: use DIAS_PERM (renamed from QT_DIARIAS). Simple MAX aggregation. Result: 363 days.'
+  gold_sql: SELECT MAX("DIAS_PERM") AS max_dias FROM internacoes;
+  origem: GT101
+- id: gt_gt102
+  question: Quantos municípios estão no estado do Maranhão?
+  category: filtro
+  difficulty: facil
+  tests: 'Simple filter on reference table. Result: 217 municipalities in MA.'
+  gold_sql: SELECT COUNT(*) AS municipios_ma FROM municipios WHERE "SG_UF" = 'MA';
+  origem: GT102
+- id: gt_gt103
+  question: Quantos estados distintos estão cobertos pelo banco de dados?
+  category: join_dimensao
+  difficulty: facil
+  tests: COUNT(DISTINCT SG_UF) sobre a dimensão devolve 39 por causa de 19 linhas-lixo com UF numérica.
+    As UFs reais alcançáveis pelo fato são 27.
+  gold_sql: 'SELECT COUNT(DISTINCT m.SG_UF) AS total_estados
+
+    FROM internacoes i
+
+    JOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D;'
+  origem: GT103
+- id: gt_gt104
+  question: Quantas internações tiveram cobrança de serviço hospitalar?
+  category: filtro
+  difficulty: facil
+  tests: 'Simple filter on VAL_SH (hospital services value). Result: ~18,381,977 admissions (~99.7% of
+    total).'
+  gold_sql: SELECT COUNT(*) AS total_com_sh FROM internacoes WHERE "VAL_SH" > 0;
+  origem: GT104
+- id: gt_gt105
+  question: Quantas internações ocorreram em fins de semana (sábado e domingo)? Considere a data de internação
+    (entrada).
+  category: temporal
+  difficulty: media
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: SELECT COUNT(*) AS internacoes_fds FROM internacoes WHERE EXTRACT(DOW FROM "DT_INTER") IN
+    (0, 6) AND "DT_INTER" IS NOT NULL;
+  origem: GT105
+- id: gt_gt106
+  question: Qual o custo médio de internação por especialidade médica?
+  category: join_dimensao
+  difficulty: media
+  tests: JOIN especialidade for descriptions + GROUP BY + AVG(VAL_TOT). Returns 14 specialty groups ordered
+    by average cost. No LIMIT — question asks for all specialties.
+  gold_sql: SELECT e."DESCRICAO" AS especialidade, ROUND(AVG(i."VAL_TOT"), 2) AS custo_medio FROM internacoes
+    i JOIN especialidade e ON i."ESPEC" = e."ESPEC" WHERE i."VAL_TOT" IS NOT NULL GROUP BY e."DESCRICAO"
+    ORDER BY custo_medio DESC;
+  origem: GT106
+- id: gt_gt107
+  question: Quantas internações psiquiátricas resultaram em óbito?
+  category: filtro
+  difficulty: media
+  tests: 'CRITICAL: ESPEC=5 is PSIQUIATRIA (not 6). MORTE boolean absorbed from mortes table. 2 conditions.
+    Result: 1,118 deaths.'
+  gold_sql: SELECT COUNT(*) AS psiquiatria_obitos FROM internacoes WHERE "ESPEC" = 5 AND "MORTE" = true;
+  origem: GT107
+- id: gt_gt110
+  question: Qual o total gasto em serviços profissionais nas internações?
+  category: filtro
+  difficulty: facil
+  tests: 'VAL_SP is the professional services value column in internacoes. Simple SUM aggregation. Result:
+    ~R$ 8.12 billion.'
+  gold_sql: SELECT SUM("VAL_SP") AS total_val_sp FROM internacoes WHERE "VAL_SP" IS NOT NULL;
+  origem: GT110
+- id: gt_gt111
+  question: Quantos hospitais registraram internações mas nunca tiveram nenhum óbito registrado?
+  category: filtro
+  difficulty: dificil
+  tests: 'HARD: anti-join pattern via NOT EXISTS correlated subquery. Finds hospitals with at least one
+    admission but zero deaths. Result: 101 hospitals.'
+  gold_sql: SELECT COUNT(*) AS hospitais_sem_obito FROM (SELECT DISTINCT i."CNES" FROM internacoes i WHERE
+    NOT EXISTS (SELECT 1 FROM internacoes d WHERE d."CNES" = i."CNES" AND d."MORTE" = true)) sub;
+  origem: GT111
+- id: gt_gt112
+  question: Qual o crescimento percentual anual de internações no estado do RS entre 2008 e 2023, retornando
+    apenas anos com ano anterior disponível?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: WITH internacoes_por_ano AS (SELECT year(i.DT_SAIDA) AS ano, COUNT(*) AS total_internacoes
+    FROM internacoes i JOIN municipios mu ON i."MUNIC_RES" = mu."CO_MUNICIPIO_6D" WHERE mu."SG_UF" = 'RS'
+    AND i.DT_SAIDA IS NOT NULL AND year(i.DT_SAIDA) BETWEEN 2008 AND 2023 GROUP BY ano), crescimento_percentual
+    AS (SELECT ano, total_internacoes, LAG(total_internacoes) OVER (ORDER BY ano) AS total_anterior FROM
+    internacoes_por_ano) SELECT ano, total_internacoes, ROUND((total_internacoes - total_anterior) * 100.0
+    / NULLIF(total_anterior, 0), 2) AS crescimento_percentual FROM crescimento_percentual WHERE total_anterior
+    IS NOT NULL ORDER BY ano;
+  origem: GT112
+- id: gt_gt113
+  question: Quais são os 10 municípios do RS com taxa de mortalidade acima da média estadual (considerando
+    apenas municípios com mais de 500 internações)?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: two CTEs — one computes RS state-level average mortality (5.174%), second aggregates per
+    municipality with HAVING > 500. Cross-join selects only municipalities above average. Output: 3 cols
+    (nome, total_internacoes, taxa_mortalidade). Top: Santo Antônio das Missões 7.70%, Morro Redondo 7.43%,
+    Rosário do Sul 7.41%.'
+  gold_sql: "WITH media_rs AS (\n    SELECT ROUND(SUM(CASE WHEN i.\"MORTE\" = true THEN 1 ELSE 0 END)\
+    \ * 100.0 / COUNT(*), 4) AS taxa_media\n    FROM internacoes i\n    JOIN municipios mu ON i.\"MUNIC_RES\"\
+    \ = mu.\"CO_MUNICIPIO_6D\"\n    WHERE mu.\"SG_UF\" = 'RS'\n), por_municipio AS (\n    SELECT mu.\"\
+    NO_MUNICIPIO\" AS nome,\n           COUNT(*) AS total_internacoes,\n           ROUND(SUM(CASE WHEN\
+    \ i.\"MORTE\" = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS taxa_mortalidade\n    FROM internacoes\
+    \ i\n    JOIN municipios mu ON i.\"MUNIC_RES\" = mu.\"CO_MUNICIPIO_6D\"\n    WHERE mu.\"SG_UF\" =\
+    \ 'RS'\n    GROUP BY mu.\"NO_MUNICIPIO\"\n    HAVING COUNT(*) > 500\n)\nSELECT pm.nome, pm.total_internacoes,\
+    \ pm.taxa_mortalidade\nFROM por_municipio pm, media_rs mr\nWHERE pm.taxa_mortalidade > mr.taxa_media\n\
+    ORDER BY pm.taxa_mortalidade DESC\nLIMIT 10;"
+  origem: GT113
+- id: gt_gt114
+  question: Qual a distribuição dos métodos contraceptivos utilizados por pacientes em internações obstétricas,
+    incluindo os casos sem informação?
+  category: join_dimensao
+  difficulty: dificil
+  tests: 'HARD: LEFT JOIN with COALESCE to preserve NULL/unmatched rows as ''SEM INFORMACAO''. CRITICAL:
+    contraceptivos PK is ''CONTRACEPTIVO'' (not ''CONTRACEP1''). Filter ESPEC=2 for obstetric. Top: SEM
+    INFORMACAO 2,858,216; PRESERVATIVO 12,433; HORMONIO ORAL 7,323.'
+  gold_sql: SELECT COALESCE(c."DESCRICAO", 'SEM INFORMACAO') AS metodo_contraceptivo, COUNT(*) AS total_internacoes
+    FROM internacoes i LEFT JOIN contraceptivos c ON i."CONTRACEP1" = c."CONTRACEPTIVO" WHERE i."ESPEC"
+    = 2 GROUP BY COALESCE(c."DESCRICAO", 'SEM INFORMACAO') ORDER BY total_internacoes DESC;
+  origem: GT114
+- id: gt_gt115
+  question: Qual o hospital com maior receita total por especialidade médica, considerando apenas hospitais
+    com mais de 500 internações na especialidade?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: ROW_NUMBER() OVER (PARTITION BY especialidade ORDER BY SUM DESC) with HAVING filter inside
+    subquery. Returns top-1 hospital per specialty (13 rows). Top CIRURGICO: CNES 2237253 R$2.12B; CLINICOS:
+    CNES 2237601 R$990M.'
+  gold_sql: SELECT especialidade, "CNES", receita_total FROM (SELECT e."DESCRICAO" AS especialidade, i."CNES",
+    ROUND(SUM(i."VAL_TOT"), 2) AS receita_total, ROW_NUMBER() OVER (PARTITION BY e."DESCRICAO" ORDER BY
+    SUM(i."VAL_TOT") DESC) AS rn FROM internacoes i JOIN especialidade e ON i."ESPEC" = e."ESPEC" GROUP
+    BY e."DESCRICAO", i."CNES" HAVING COUNT(*) > 500) sub WHERE rn = 1 ORDER BY receita_total DESC;
+  origem: GT115
+- id: gt_gt116
+  question: Quais são os 10 diagnósticos com maior crescimento absoluto de internações entre os períodos
+    2008-2012 e 2019-2023, considerando diagnósticos com mais de 1000 internações no primeiro período?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'DT_INTER -> DT_SAIDA (convenção da base). | Gold corrigido: JOIN cid -> LEFT JOIN (cid tem códigos
+    órfãos no fato)'
+  gold_sql: WITH p1 AS (SELECT "DIAG_PRINC", COUNT(*) AS n1 FROM internacoes WHERE year(DT_SAIDA) BETWEEN
+    2008 AND 2012 AND "DIAG_PRINC" IS NOT NULL GROUP BY "DIAG_PRINC"), p2 AS (SELECT "DIAG_PRINC", COUNT(*)
+    AS n2 FROM internacoes WHERE year(DT_SAIDA) BETWEEN 2019 AND 2023 AND "DIAG_PRINC" IS NOT NULL GROUP
+    BY "DIAG_PRINC") SELECT c."DESCRICAO", p1.n1 AS periodo_2008_2012, p2.n2 AS periodo_2019_2023, (p2.n2
+    - p1.n1) AS crescimento_absoluto FROM p1 JOIN p2 ON p1."DIAG_PRINC" = p2."DIAG_PRINC" LEFT JOIN cid
+    c ON p1."DIAG_PRINC" = c."CID" WHERE p1.n1 > 1000 ORDER BY crescimento_absoluto DESC LIMIT 10;
+  origem: GT116
+- id: gt_gt117
+  question: Qual a razão entre internações masculinas e femininas em UTI por ano, considerando apenas
+    internações cirúrgicas (ESPEC = 1)?
+  category: taxa
+  difficulty: dificil
+  tests: '''Razão'' é razão simples (1,434 homens por mulher). O gold antigo multiplicava por 100 e chamava
+    de ''pct'' — isso é percentual, que a pergunta não pediu.'
+  gold_sql: "SELECT year(DT_SAIDA) AS ano,\n       COUNT(*) FILTER (WHERE SEXO = 1) AS homens_uti,\n \
+    \      COUNT(*) FILTER (WHERE SEXO IN (2, 3)) AS mulheres_uti,\n       ROUND(COUNT(*) FILTER (WHERE\
+    \ SEXO = 1) * 1.0\n             / NULLIF(COUNT(*) FILTER (WHERE SEXO IN (2, 3)), 0), 3) AS razao_h_m\n\
+    FROM internacoes\nWHERE MARCA_UTI > 0 AND ESPEC = 1\nGROUP BY 1\nORDER BY 1;"
+  origem: GT117
+- id: gt_gt118
+  question: Quais são os 10 hospitais com mais de 1000 internações que nunca registraram nenhuma internação
+    em UTI?
+  category: agregacao_simples
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: HAVING clause with dual aggregate conditions — COUNT(*) > 1000 AND SUM(CASE WHEN) = 0
+    (anti-condition). Identifies hospitals that never had a UTI admission. 462 hospitals match total.
+    Top: CNES 2772299 with 109,261 admissions. | Gold corrigido: VAL_UTI>0 -> MARCA_UTI>0 (indicador de
+    uso de UTI)'
+  gold_sql: SELECT "CNES", COUNT(*) AS total_internacoes FROM internacoes GROUP BY "CNES" HAVING COUNT(*)
+    > 1000 AND SUM(CASE WHEN MARCA_UTI > 0 THEN 1 ELSE 0 END) = 0 ORDER BY total_internacoes DESC LIMIT
+    10;
+  origem: GT118
+- id: gt_gt119
+  question: Qual o custo médio de UTI por especialidade médica e sexo do paciente, considerando apenas
+    internações com custo de UTI registrado?
+  category: join_dimensao
+  difficulty: dificil
+  tests: 'HARD: JOIN especialidade + CASE WHEN for sex label + dual filter (VAL_UTI > 0, SEXO IN) + GROUP
+    BY 2 dimensions. Returns 14 rows (3 cols: especialidade, sexo, custo_medio_uti). Top by custo_medio:
+    PEDIATRICOS Feminino R$11,572; PEDIATRICOS Masculino R$11,001; CLINICOS Masculino R$9,540.'
+  gold_sql: SELECT e."DESCRICAO" AS especialidade, CASE WHEN i."SEXO" = 1 THEN 'Masculino' ELSE 'Feminino'
+    END AS sexo, ROUND(AVG(i."VAL_UTI"), 2) AS custo_medio_uti FROM internacoes i JOIN especialidade e
+    ON i."ESPEC" = e."ESPEC" WHERE i."VAL_UTI" > 0 AND i."SEXO" IN (1, 3) GROUP BY e."DESCRICAO", i."SEXO"
+    ORDER BY custo_medio_uti DESC;
+  origem: GT119
+- id: gt_gt120
+  question: Qual o total e o percentual de internações por doenças respiratórias (CID J%) em cada trimestre
+    do ano no estado do RS? Considere a data de internação (entrada).
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: SELECT EXTRACT(QUARTER FROM i."DT_INTER") AS trimestre, COUNT(*) AS total_respiratorio, ROUND(COUNT(*)
+    * 100.0 / SUM(COUNT(*)) OVER (), 2) AS pct_anual FROM internacoes i JOIN municipios mu ON i."MUNIC_RES"
+    = mu."CO_MUNICIPIO_6D" WHERE i."DIAG_PRINC" LIKE 'J%' AND mu."SG_UF" = 'RS' AND i."DT_INTER" IS NOT
+    NULL GROUP BY trimestre ORDER BY trimestre;
+  origem: GT120
+- id: gt_gt121
+  question: Quais municípios com mais de 500 internações aparecem simultaneamente no top-20 de volume
+    e no top-20 de taxa de mortalidade nos estados MA e RS?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: two CTEs each computing a different top-20 ranking, combined with IN subquery (intersection).
+    Result: 2 municipalities — Bagé and São Leopoldo (RS cities that are both high-volume and high-mortality).
+    | Gold corrigido: removido LIMIT que a pergunta não pede'
+  gold_sql: "WITH top_volume AS (\n    SELECT mu.\"NO_MUNICIPIO\" AS nome\n    FROM internacoes i\n  \
+    \  JOIN municipios mu ON i.\"MUNIC_RES\" = mu.\"CO_MUNICIPIO_6D\"\n    WHERE mu.\"SG_UF\" IN ('MA',\
+    \ 'RS')\n    GROUP BY mu.\"NO_MUNICIPIO\"\n    HAVING COUNT(*) > 500\n    ORDER BY COUNT(*) DESC\n\
+    \    LIMIT 20\n), top_mortalidade AS (\n    SELECT mu.\"NO_MUNICIPIO\" AS nome\n    FROM internacoes\
+    \ i\n    JOIN municipios mu ON i.\"MUNIC_RES\" = mu.\"CO_MUNICIPIO_6D\"\n    WHERE mu.\"SG_UF\" IN\
+    \ ('MA', 'RS')\n    GROUP BY mu.\"NO_MUNICIPIO\"\n    HAVING COUNT(*) > 500\n    ORDER BY SUM(CASE\
+    \ WHEN i.\"MORTE\" = true THEN 1 ELSE 0 END) * 1.0 / COUNT(*) DESC\n    LIMIT 20\n)\nSELECT tv.nome\n\
+    FROM top_volume tv\nWHERE tv.nome IN (SELECT nome FROM top_mortalidade)\nORDER BY tv.nome;"
+  origem: GT121
+- id: gt_gt122
+  question: Quais procedimentos, ordenados por volume decrescente, cobrem até 80% do total de atendimentos
+    realizados?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: Tabela inexistente; usar internacoes.PROC_REA.
+  gold_sql: "SELECT procedimento, total, pct_acumulado FROM (\n  SELECT p.NOME_PROC AS procedimento, COUNT(*)\
+    \ AS total,\n         ROUND(100.0 * SUM(COUNT(*)) OVER (ORDER BY COUNT(*) DESC)\n               /\
+    \ SUM(COUNT(*)) OVER (), 2) AS pct_acumulado\n  FROM internacoes i\n  JOIN procedimentos p ON i.PROC_REA\
+    \ = p.PROC_REA\n  GROUP BY 1\n)\nWHERE pct_acumulado <= 80\nORDER BY total DESC;"
+  origem: GT122
+- id: gt_gt124
+  question: Qual a média móvel de 3 anos de internações no estado do RS por ano (2008-2023)?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT ano, total_internacoes, ROUND(AVG(total_internacoes) OVER (ORDER BY ano ROWS BETWEEN
+    2 PRECEDING AND CURRENT ROW), 0) AS media_movel_3anos FROM (SELECT year(i.DT_SAIDA) AS ano, COUNT(*)
+    AS total_internacoes FROM internacoes i JOIN municipios mu ON i."MUNIC_RES" = mu."CO_MUNICIPIO_6D"
+    WHERE mu."SG_UF" = 'RS' AND i.DT_SAIDA IS NOT NULL AND year(i.DT_SAIDA) BETWEEN 2008 AND 2023 GROUP
+    BY ano) sub ORDER BY ano;
+  origem: GT124
+- id: gt_gt125
+  question: Qual a distribuição e percentual de internações em UTI por dia da semana?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: INNER JOIN com a dimensão `tempo` descarta silenciosamente as 431.437 internações de 2007, porque
+    `tempo` começa em 2008.
+  gold_sql: "SELECT dayofweek(DT_SAIDA) AS dia_semana,\n       COUNT(*) AS internacoes_uti,\n       ROUND(100.0\
+    \ * COUNT(*) / SUM(COUNT(*)) OVER (), 2) AS percentual\nFROM internacoes\nWHERE MARCA_UTI > 0\nGROUP\
+    \ BY 1\nORDER BY 1;"
+  origem: GT125
+- id: gt_gt126
+  question: Como se distribuem os hospitais em quartis de volume de internações? Mostre o número de hospitais
+    e o intervalo de internações por quartil.
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: 'HARD: NTILE(4) window function over double-nested subquery. Result: 4 rows (quartiles). Q1 (lowest):
+    178 hospitals, 1–3,372 admissions, avg 1,172; Q4 (highest): 177 hospitals, 26,785–584,036 admissions,
+    avg 79,634.'
+  gold_sql: SELECT ntile_grupo, COUNT(*) AS total_hospitais, MIN(total_internacoes) AS min_internacoes,
+    MAX(total_internacoes) AS max_internacoes, ROUND(AVG(total_internacoes), 0) AS media_internacoes FROM
+    (SELECT "CNES", total_internacoes, NTILE(4) OVER (ORDER BY total_internacoes) AS ntile_grupo FROM
+    (SELECT "CNES", COUNT(*) AS total_internacoes FROM internacoes GROUP BY "CNES") sub) ranked GROUP
+    BY ntile_grupo ORDER BY ntile_grupo;
+  origem: GT126
+- id: gt_gt127
+  question: Quais são os 10 diagnósticos com maior queda absoluta de internações entre os períodos 2008-2012
+    e 2019-2023, considerando diagnósticos com mais de 1000 internações no primeiro período?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'DT_INTER -> DT_SAIDA (convenção da base). | Gold corrigido: JOIN cid -> LEFT JOIN (cid tem códigos
+    órfãos no fato)'
+  gold_sql: WITH p1 AS (SELECT "DIAG_PRINC", COUNT(*) AS n1 FROM internacoes WHERE year(DT_SAIDA) BETWEEN
+    2008 AND 2012 AND "DIAG_PRINC" IS NOT NULL GROUP BY "DIAG_PRINC"), p2 AS (SELECT "DIAG_PRINC", COUNT(*)
+    AS n2 FROM internacoes WHERE year(DT_SAIDA) BETWEEN 2019 AND 2023 AND "DIAG_PRINC" IS NOT NULL GROUP
+    BY "DIAG_PRINC") SELECT c."DESCRICAO", p1.n1 AS periodo_2008_2012, p2.n2 AS periodo_2019_2023, (p1.n1
+    - p2.n2) AS queda_absoluta FROM p1 JOIN p2 ON p1."DIAG_PRINC" = p2."DIAG_PRINC" LEFT JOIN cid c ON
+    p1."DIAG_PRINC" = c."CID" WHERE p1.n1 > 1000 ORDER BY queda_absoluta DESC LIMIT 10;
+  origem: GT127
+- id: gt_gt128
+  question: Quais são os 10 municípios com mais de 1000 internações que têm taxa de internação em UTI
+    mais de duas vezes acima da média nacional?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: CTE for national avg + cross-join + HAVING with ratio condition comparing local vs 2x
+    national. National avg: ~6.01%. Result: 6 municipalities; top: Bagé 13.49%, Cidreira 12.34%, Barra
+    do Ribeiro 12.22%. | Gold corrigido: VAL_UTI>0 -> MARCA_UTI>0 (indicador de uso de UTI)'
+  gold_sql: "WITH media_nacional AS (\n    SELECT SUM(CASE WHEN MARCA_UTI > 0 THEN 1 ELSE 0 END) * 100.0\
+    \ / COUNT(*) AS taxa_uti_nacional\n    FROM internacoes\n)\nSELECT mu.\"NO_MUNICIPIO\" AS nome,\n\
+    \       mu.\"SG_UF\" AS estado,\n       COUNT(*) AS total_internacoes,\n       ROUND(SUM(CASE WHEN\
+    \ i.MARCA_UTI > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) AS taxa_uti_local,\n       ROUND(mn.taxa_uti_nacional,\
+    \ 2) AS taxa_uti_nacional\nFROM internacoes i\nJOIN municipios mu ON i.\"MUNIC_RES\" = mu.\"CO_MUNICIPIO_6D\"\
+    , media_nacional mn\nGROUP BY mu.\"NO_MUNICIPIO\", mu.\"SG_UF\", mn.taxa_uti_nacional\nHAVING COUNT(*)\
+    \ > 1000\n   AND SUM(CASE WHEN i.MARCA_UTI > 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) > 2 * mn.taxa_uti_nacional\n\
+    ORDER BY taxa_uti_local DESC\nLIMIT 10;"
+  origem: GT128
+- id: gt_gt129
+  question: Quais códigos CID aparecem como diagnóstico principal em óbitos registrados?
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: 'Policy update: analytical death-cause questions use internacoes.DIAG_PRINC joined to cid with
+    MORTE = true; CID_MORTE is audit-only and is not the default death-cause dimension. This replaces
+    the previous CID_MORTE anti-join requirement, which is not coherent under the DIAG_PRINC + MORTE=true
+    policy. | Gold corrigido: removido LIMIT que a pergunta não pede; JOIN cid -> LEFT JOIN (cid tem códigos
+    órfãos no fato)'
+  gold_sql: SELECT c."CID", c."DESCRICAO", COUNT(*) AS total_mortes FROM internacoes i LEFT JOIN cid c
+    ON i."DIAG_PRINC" = c."CID" WHERE i."MORTE" = true AND i."DIAG_PRINC" IS NOT NULL GROUP BY c."CID",
+    c."DESCRICAO" ORDER BY total_mortes DESC;
+  origem: GT129
+- id: gt_gt130
+  question: Quais são os 10 municípios com maior taxa de mortalidade em internações obstétricas, entre
+    aqueles com mais de 200 internações obstétricas e taxa acima da média nacional obstétrica?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'HARD: CTE for national obstetric avg + cross-join + 2 HAVING conditions (volume + rate threshold)
+    + ESPEC=2 filter. National obstetric mortality avg: ~0.0274%. Top: Lavras do Sul RS 0.8464%, Aceguá
+    RS 0.6079%. Returns municipalities with 2–7 obstetric deaths but high rate due to small volume.'
+  gold_sql: "WITH media_obs AS (\n    SELECT SUM(CASE WHEN i.\"MORTE\" = true THEN 1 ELSE 0 END) * 100.0\
+    \ / COUNT(*) AS taxa_media_obstetrica\n    FROM internacoes i\n    WHERE i.\"ESPEC\" = 2\n)\nSELECT\
+    \ mu.\"NO_MUNICIPIO\" AS nome,\n       mu.\"SG_UF\" AS estado,\n       COUNT(*) AS total_obstetrico,\n\
+    \       SUM(CASE WHEN i.\"MORTE\" = true THEN 1 ELSE 0 END) AS total_mortes,\n       ROUND(SUM(CASE\
+    \ WHEN i.\"MORTE\" = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 4) AS taxa_mort_obstetrica,\n   \
+    \    ROUND(mo.taxa_media_obstetrica, 4) AS media_nacional\nFROM internacoes i\nJOIN municipios mu\
+    \ ON i.\"MUNIC_RES\" = mu.\"CO_MUNICIPIO_6D\", media_obs mo\nWHERE i.\"ESPEC\" = 2\nGROUP BY mu.\"\
+    NO_MUNICIPIO\", mu.\"SG_UF\", mo.taxa_media_obstetrica\nHAVING COUNT(*) > 200\n   AND SUM(CASE WHEN\
+    \ i.\"MORTE\" = true THEN 1 ELSE 0 END) * 100.0 / COUNT(*) > mo.taxa_media_obstetrica\nORDER BY taxa_mort_obstetrica\
+    \ DESC\nLIMIT 10;"
+  origem: GT130
+- id: gt_gt131
+  question: Quais são os 5 procedimentos mais realizados em internações de pacientes indígenas?
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: Tabela inexistente; usar internacoes.PROC_REA.
+  gold_sql: 'SELECT p.NOME_PROC AS procedimento, COUNT(*) AS total
+
+    FROM internacoes i
+
+    JOIN procedimentos p ON i.PROC_REA = p.PROC_REA
+
+    WHERE i.RACA_COR = ''05''
+
+    GROUP BY 1
+
+    ORDER BY total DESC
+
+    LIMIT 5;'
+  origem: GT131
+- id: gt_gt132
+  question: Quais os 3 hospitais com maior valor médio de serviço hospitalar (VAL_SH) por estado (MA e
+    RS), considerando hospitais com mais de 500 internações?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige nome e UF do hospital; `hospital` está vazia.
+  origem: GT132
+- id: gt_gt133
+  question: Em qual mês de cada ano (2008-2023) ocorreu o maior número de internações em UTI? Considere
+    a data de internação (entrada).
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'Sazonalidade: enunciado explicita a data de entrada. | Gold corrigido: VAL_UTI>0 -> MARCA_UTI>0
+    (indicador de uso de UTI)'
+  gold_sql: SELECT ano, mes, total_uti FROM (SELECT EXTRACT(YEAR FROM "DT_INTER") AS ano, EXTRACT(MONTH
+    FROM "DT_INTER") AS mes, COUNT(*) AS total_uti, ROW_NUMBER() OVER (PARTITION BY EXTRACT(YEAR FROM
+    "DT_INTER") ORDER BY COUNT(*) DESC) AS rn FROM internacoes WHERE MARCA_UTI > 0 AND "DT_INTER" IS NOT
+    NULL AND EXTRACT(YEAR FROM "DT_INTER") BETWEEN 2008 AND 2023 GROUP BY ano, mes) sub WHERE rn = 1 ORDER
+    BY ano;
+  origem: GT133
+- id: gt_gt134
+  question: Qual a média de dias de internação por especialidade médica, comparando lado a lado os estados
+    MA e RS?
+  category: join_dimensao
+  difficulty: dificil
+  tests: 'HARD: 3-table JOIN + CASE WHEN pivot (AVG per state in separate columns) + HAVING dual presence
+    condition. No hidden support threshold is applied because the question asks only for side-by-side
+    averages. Result: 13 specialties. CLINICOS: MA 4.50 days vs RS 7.06 days; CIRURGICO: MA 4.16 vs RS
+    4.22; OBSTETRICOS: MA 2.18 vs RS 2.65.'
+  gold_sql: SELECT e."DESCRICAO" AS especialidade, ROUND(AVG(CASE WHEN mu."SG_UF" = 'MA' THEN i."DIAS_PERM"
+    END), 2) AS media_dias_MA, ROUND(AVG(CASE WHEN mu."SG_UF" = 'RS' THEN i."DIAS_PERM" END), 2) AS media_dias_RS
+    FROM internacoes i JOIN especialidade e ON i."ESPEC" = e."ESPEC" JOIN municipios mu ON i."MUNIC_RES"
+    = mu."CO_MUNICIPIO_6D" WHERE mu."SG_UF" IN ('MA', 'RS') GROUP BY e."DESCRICAO" HAVING COUNT(CASE WHEN
+    mu."SG_UF" = 'MA' THEN 1 END) > 0 AND COUNT(CASE WHEN mu."SG_UF" = 'RS' THEN 1 END) > 0 ORDER BY especialidade;
+  origem: GT134
+- id: gt_gt135
+  question: Quantas internacoes de urgencia foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: carga assistencial. Metrica: count. Denominador/escopo: internacoes com CAR_INT=2. Conta
+    internacoes de urgencia usando CAR_INT=2.'
+  gold_sql: SELECT COUNT(*) AS total_internacoes_urgencia FROM internacoes WHERE "CAR_INT" = 2;
+  origem: GT135
+- id: gt_gt136
+  question: Quantas internacoes eletivas foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: carga assistencial. Metrica: count. Denominador/escopo: internacoes com CAR_INT=1. Conta
+    internacoes eletivas usando CAR_INT=1.'
+  gold_sql: SELECT COUNT(*) AS total_internacoes_eletivas FROM internacoes WHERE "CAR_INT" = 1;
+  origem: GT136
+- id: gt_gt137
+  question: Quantas internacoes de alta complexidade foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: carga assistencial. Metrica: count. Denominador/escopo: internacoes com COMPLEX=03. Conta
+    internacoes de alta complexidade conforme codigo COMPLEX=''03''.'
+  gold_sql: SELECT COUNT(*) AS total_alta_complexidade FROM internacoes WHERE "COMPLEX" = '03';
+  origem: GT137
+- id: gt_gt138
+  question: Quantas internacoes tiveram valor total maior que zero?
+  category: filtro
+  difficulty: facil
+  ordered: true
+  tests: 'Tema: custos. Metrica: count. Denominador/escopo: internacoes com VAL_TOT positivo. Conta registros
+    com VAL_TOT positivo.'
+  gold_sql: SELECT COUNT(*) AS internacoes_com_valor_total FROM internacoes WHERE "VAL_TOT" > 0;
+  origem: GT138
+- id: gt_gt140
+  question: Quantas internacoes por COVID ou coronavirus foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: doencas especificas. Metrica: count. Denominador/escopo: internacoes com codigos B342/B972.
+    Usa os codigos de coronavirus presentes no catalogo CID: B342 e B972.'
+  gold_sql: SELECT COUNT(*) AS total_covid_coronavirus FROM internacoes WHERE "DIAG_PRINC" IN ('B342',
+    'B972');
+  origem: GT140
+- id: gt_gt141
+  question: Quantas internacoes por diabetes foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: doencas especificas. Metrica: count. Denominador/escopo: internacoes com CID E10-E14.
+    Usa CID E10-E14 para diabetes mellitus como diagnostico principal.'
+  gold_sql: SELECT COUNT(*) AS total_diabetes FROM internacoes WHERE "DIAG_PRINC" LIKE 'E10%' OR "DIAG_PRINC"
+    LIKE 'E11%' OR "DIAG_PRINC" LIKE 'E12%' OR "DIAG_PRINC" LIKE 'E13%' OR "DIAG_PRINC" LIKE 'E14%';
+  origem: GT141
+- id: gt_gt142
+  question: Quantas internacoes por hipertensao essencial foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: doencas especificas. Metrica: count. Denominador/escopo: internacoes com CID I10%. Usa
+    CID I10 para hipertensao essencial.'
+  gold_sql: SELECT COUNT(*) AS total_hipertensao_essencial FROM internacoes WHERE "DIAG_PRINC" LIKE 'I10%';
+  origem: GT142
+- id: gt_gt143
+  question: Quantas internacoes por acidente vascular cerebral inespecifico foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: doencas especificas. Metrica: count. Denominador/escopo: internacoes com CID I64%. Usa
+    CID I64 para acidente vascular cerebral nao especificado.'
+  gold_sql: SELECT COUNT(*) AS total_avc_i64 FROM internacoes WHERE "DIAG_PRINC" LIKE 'I64%';
+  origem: GT143
+- id: gt_gt144
+  question: Quantas internacoes por infarto agudo do miocardio foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: doencas especificas. Metrica: count. Denominador/escopo: internacoes com CID I21%. Usa
+    CID I21 para infarto agudo do miocardio.'
+  gold_sql: SELECT COUNT(*) AS total_infarto_agudo FROM internacoes WHERE "DIAG_PRINC" LIKE 'I21%';
+  origem: GT144
+- id: gt_gt145
+  question: Quantas internacoes de pacientes indigenas foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: perfil demografico. Metrica: count. Denominador/escopo: internacoes com RACA_COR=5. Conta
+    internacoes com RACA_COR=5.'
+  gold_sql: SELECT COUNT(*) AS total_pacientes_indigenas FROM internacoes WHERE "RACA_COR" = 5;
+  origem: GT145
+- id: gt_gt146
+  question: Quantas internacoes de pacientes pardos foram registradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: perfil demografico. Metrica: count. Denominador/escopo: internacoes com RACA_COR=3. Conta
+    internacoes com RACA_COR=3.'
+  gold_sql: SELECT COUNT(*) AS total_pacientes_pardos FROM internacoes WHERE "RACA_COR" = 3;
+  origem: GT146
+- id: gt_gt147
+  question: Quantas internacoes estao com raca/cor sem informacao?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: qualidade de dados. Metrica: count. Denominador/escopo: internacoes com RACA_COR=99. Conta
+    registros com RACA_COR=99, valor observado nos perfis como sem informacao.'
+  gold_sql: SELECT COUNT(*) AS total_raca_cor_sem_informacao FROM internacoes WHERE "RACA_COR" = 99;
+  origem: GT147
+- id: gt_gt149
+  question: Quantas internacoes tiveram permanencia registrada como zero dias?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: permanencia. Metrica: count. Denominador/escopo: internacoes com DIAS_PERM=0. Conta registros
+    com DIAS_PERM igual a zero.'
+  gold_sql: SELECT COUNT(*) AS internacoes_zero_dias FROM internacoes WHERE "DIAS_PERM" = 0;
+  origem: GT149
+- id: gt_gt150
+  question: Quantas internacoes tiveram permanencia de pelo menos 15 dias?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: permanencia. Metrica: count. Denominador/escopo: internacoes com DIAS_PERM>=15. Conta
+    permanencias prolongadas de 15 dias ou mais.'
+  gold_sql: SELECT COUNT(*) AS internacoes_15_dias_ou_mais FROM internacoes WHERE "DIAS_PERM" >= 15;
+  origem: GT150
+- id: gt_gt151
+  question: Qual a mediana da idade dos pacientes internados?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: perfil demografico. Metrica: median. Denominador/escopo: internacoes com IDADE nao nula.
+    Calcula mediana de IDADE excluindo nulos.'
+  gold_sql: SELECT MEDIAN("IDADE") AS idade_mediana FROM internacoes WHERE "IDADE" IS NOT NULL;
+  origem: GT151
+- id: gt_gt152
+  question: Qual a mediana do valor total das internacoes com valor informado?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: custos. Metrica: median. Denominador/escopo: internacoes com VAL_TOT nao nulo. Calcula
+    mediana de VAL_TOT excluindo nulos.'
+  gold_sql: SELECT MEDIAN("VAL_TOT") AS mediana_valor_total FROM internacoes WHERE "VAL_TOT" IS NOT NULL;
+  origem: GT152
+- id: gt_gt153
+  question: Quantas internacoes possuem CID de morte preenchido?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: mortalidade hospitalar. Metrica: count. Denominador/escopo: internacoes com CID_MORTE
+    preenchido. Conta CID_MORTE preenchido e diferente de zero.'
+  gold_sql: SELECT COUNT(*) AS total_cid_morte_preenchido FROM internacoes WHERE "CID_MORTE" IS NOT NULL
+    AND "CID_MORTE" <> '0';
+  origem: GT153
+- id: gt_gt154
+  question: Quantas internacoes ocorreram no mes de janeiro? Considere a data de internação (entrada).
+  category: temporal
+  difficulty: facil
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: SELECT COUNT(*) AS internacoes_janeiro FROM internacoes WHERE EXTRACT(MONTH FROM "DT_INTER")
+    = 1;
+  origem: GT154
+- id: gt_gt155
+  question: Quantas internacoes ocorreram no primeiro trimestre? Considere a data de internação (entrada).
+  category: temporal
+  difficulty: facil
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: SELECT COUNT(*) AS internacoes_primeiro_trimestre FROM internacoes WHERE EXTRACT(QUARTER FROM
+    "DT_INTER") = 1;
+  origem: GT155
+- id: gt_gt156
+  question: Quantas internacoes foram de pacientes com 80 anos ou mais?
+  category: filtro
+  difficulty: facil
+  ordered: true
+  tests: 'Tema: perfil demografico. Metrica: count. Denominador/escopo: internacoes com IDADE>=80. Conta
+    internacoes de pacientes com 80 anos ou mais.'
+  gold_sql: SELECT COUNT(*) AS internacoes_80_mais FROM internacoes WHERE "IDADE" >= 80;
+  origem: GT156
+- id: gt_gt157
+  question: Quantas internacoes foram de criancas de 1 a 4 anos?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: perfil demografico. Metrica: count. Denominador/escopo: internacoes com IDADE 1-4. Conta
+    internacoes entre 1 e 4 anos.'
+  gold_sql: SELECT COUNT(*) AS internacoes_1_a_4_anos FROM internacoes WHERE "IDADE" BETWEEN 1 AND 4;
+  origem: GT157
+- id: gt_gt158
+  question: Quantas internacoes de pacientes com idade zero resultaram em morte?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: mortalidade hospitalar. Metrica: count. Denominador/escopo: internacoes IDADE=0 e MORTE=true.
+    Conta obitos hospitalares em registros com IDADE=0.'
+  gold_sql: SELECT COUNT(*) AS mortes_idade_zero FROM internacoes WHERE "IDADE" = 0 AND "MORTE" = true;
+  origem: GT158
+- id: gt_gt159
+  question: Quantas internacoes estao com valor total nulo?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: qualidade de dados. Metrica: count. Denominador/escopo: internacoes com VAL_TOT nulo.
+    Conta registros sem VAL_TOT informado.'
+  gold_sql: SELECT COUNT(*) AS internacoes_valor_total_nulo FROM internacoes WHERE "VAL_TOT" IS NULL;
+  origem: GT159
+- id: gt_gt160
+  question: Quantas internacoes tem data de entrada fora do periodo de 2007 a 2023?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: qualidade de dados. Metrica: count. Denominador/escopo: internacoes fora do periodo esperado.
+    Conta entradas fora de 2007-2023 conforme data quality check DQ002.'
+  gold_sql: SELECT COUNT(*) AS internacoes_fora_periodo_2007_2023 FROM internacoes WHERE "DT_INTER" <
+    DATE '2007-01-01' OR "DT_INTER" > DATE '2023-12-31';
+  origem: GT160
+- id: gt_gt161
+  question: Quantos hospitais cadastrados existem no MA e no RS?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: Exige a UF do hospital; `hospital` está vazia.
+  origem: GT161
+- id: gt_gt162
+  question: Quantos municipios possuem latitude e longitude cadastradas?
+  category: filtro
+  difficulty: facil
+  tests: 'Tema: territorio. Metrica: count. Denominador/escopo: municipios com coordenadas. Conta municipios
+    com latitude e longitude preenchidas.'
+  gold_sql: SELECT COUNT(*) AS municipios_com_coordenadas FROM municipios WHERE "latitude" IS NOT NULL
+    AND "longitude" IS NOT NULL;
+  origem: GT162
+- id: gt_gt163
+  question: Quantos registros socioeconomicos possuem populacao informada?
+  category: irrespondivel
+  difficulty: facil
+  answerable: false
+  tests: Exige população; `socioeconomico` está vazia.
+  origem: GT163
+- id: gt_gt164
+  question: Qual a populacao total registrada nos indicadores socioeconomicos de 2021?
+  category: irrespondivel
+  difficulty: facil
+  answerable: false
+  tests: Exige população; `socioeconomico` está vazia.
+  origem: GT164
+- id: gt_gt165
+  question: Qual o maior PIB per capita registrado na tabela socioeconomica?
+  category: irrespondivel
+  difficulty: facil
+  answerable: false
+  tests: Exige PIB per capita; `socioeconomico` está vazia.
+  origem: GT165
+- id: gt_gt166
+  question: Quantos registros de procedimento estao sem codigo de procedimento realizado?
+  category: join_dimensao
+  difficulty: facil
+  tests: Tabela inexistente. A pergunta equivalente no fato é quantas internações não casam com a dimensão
+    de procedimentos.
+  gold_sql: 'SELECT COUNT(*) AS sem_procedimento_correspondente
+
+    FROM internacoes i
+
+    LEFT JOIN procedimentos p ON i.PROC_REA = p.PROC_REA
+
+    WHERE p.PROC_REA IS NULL;'
+  origem: GT166
+- id: gt_gt167
+  question: Quantas internacoes possuem ocupacao CBOR informada?
+  category: filtro
+  difficulty: facil
+  tests: CBOR usa '000000' como placeholder e nunca é NULL, então a query original respondia 144.386.772
+    em vez de 17.533.
+  gold_sql: 'SELECT COUNT(*) AS internacoes_com_cbor
+
+    FROM internacoes
+
+    WHERE CBOR <> ''000000'';'
+  origem: GT167
+- id: gt_gt170
+  question: Qual a quantidade de internacoes por complexidade assistencial?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Tema: carga assistencial. Metrica: distribution. Denominador/escopo: internacoes por complexidade.
+    Agrupa internacoes pela dimensao complexidade.'
+  gold_sql: SELECT c."DESCRICAO" AS complexidade, COUNT(*) AS total_internacoes FROM internacoes i JOIN
+    complexidade c ON i."COMPLEX" = c."COMPLEX" GROUP BY c."DESCRICAO" ORDER BY total_internacoes DESC;
+  origem: GT170
+- id: gt_gt171
+  question: Qual a taxa de mortalidade por complexidade assistencial?
+  category: taxa
+  difficulty: media
+  tests: 'Tema: mortalidade hospitalar. Metrica: mortality_rate. Denominador/escopo: internacoes por complexidade.
+    Numerador MORTE=true; denominador total da complexidade.'
+  gold_sql: SELECT c."DESCRICAO" AS complexidade, COUNT(*) AS total_internacoes, SUM(CASE WHEN i."MORTE"
+    = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN i."MORTE" = true THEN 1 ELSE 0 END)
+    * 100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM internacoes i JOIN complexidade c ON i."COMPLEX"
+    = c."COMPLEX" GROUP BY c."DESCRICAO" ORDER BY taxa_mortalidade DESC;
+  origem: GT171
+- id: gt_gt172
+  question: Quais sao os 10 municipios de residencia com maior numero de obitos hospitalares?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'Tema: mortalidade hospitalar. Metrica: top_n_deaths. Denominador/escopo: obitos hospitalares
+    por municipio de residencia. Usa LEFT JOIN por cobertura likely de MUNIC_RES e agrupa por municipio
+    de residencia.'
+  gold_sql: SELECT m."NO_MUNICIPIO" AS municipio, m."SG_UF" AS uf, COUNT(*) AS total_mortes FROM internacoes
+    i LEFT JOIN municipios m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" WHERE i."MORTE" = true GROUP BY m."NO_MUNICIPIO",
+    m."SG_UF" ORDER BY total_mortes DESC LIMIT 10;
+  origem: GT172
+- id: gt_gt173
+  question: Quais sao os 10 CIDs de infarto agudo do miocardio mais frequentes nas internacoes?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'Tema: doencas especificas. Metrica: top_n. Denominador/escopo: internacoes por CID I21%. Filtra
+    CID I21 e ranqueia subcodigos de infarto agudo. | Gold corrigido: JOIN cid -> LEFT JOIN (cid tem códigos
+    órfãos no fato)'
+  gold_sql: SELECT c."CID", c."DESCRICAO", COUNT(*) AS total_internacoes FROM internacoes i LEFT JOIN
+    cid c ON i."DIAG_PRINC" = c."CID" WHERE i."DIAG_PRINC" LIKE 'I21%' GROUP BY c."CID", c."DESCRICAO"
+    ORDER BY total_internacoes DESC LIMIT 10;
+  origem: GT173
+- id: gt_gt174
+  question: Quais capitulos CID aparecem com maior volume de internacoes?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'Tema: doencas especificas. Metrica: top_n. Denominador/escopo: internacoes por capitulo CID.
+    Agrupa por cid.DS_CAPITULO para reduzir granularidade clinica. | Gold corrigido: removido LIMIT que
+    a pergunta não pede; JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: SELECT c."DS_CAPITULO" AS capitulo_cid, COUNT(*) AS total_internacoes FROM internacoes i LEFT
+    JOIN cid c ON i."DIAG_PRINC" = c."CID" GROUP BY c."DS_CAPITULO" ORDER BY total_internacoes DESC;
+  origem: GT174
+- id: gt_gt175
+  question: Qual a taxa de mortalidade por sexo?
+  category: taxa
+  difficulty: media
+  tests: 'Tema: mortalidade hospitalar. Metrica: mortality_rate. Denominador/escopo: internacoes por sexo.
+    Numerador MORTE=true; denominador internacoes do sexo.'
+  gold_sql: SELECT s."DESCRICAO" AS sexo, ROUND(SUM(CASE WHEN i."MORTE" = true THEN 1 ELSE 0 END) * 100.0
+    / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM internacoes i JOIN sexo s ON i."SEXO" = s."SEXO"
+    GROUP BY s."DESCRICAO" ORDER BY taxa_mortalidade DESC;
+  origem: GT175
+- id: gt_gt176
+  question: Qual a idade media dos pacientes por sexo?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Tema: perfil demografico. Metrica: avg_age. Denominador/escopo: internacoes com idade informada
+    por sexo. Calcula AVG(IDADE) por descricao de sexo.'
+  gold_sql: SELECT s."DESCRICAO" AS sexo, ROUND(AVG(i."IDADE"), 2) AS idade_media FROM internacoes i JOIN
+    sexo s ON i."SEXO" = s."SEXO" WHERE i."IDADE" IS NOT NULL GROUP BY s."DESCRICAO" ORDER BY idade_media
+    DESC;
+  origem: GT176
+- id: gt_gt177
+  question: Qual o custo medio de internacao por sexo?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Tema: custos. Metrica: avg_cost. Denominador/escopo: internacoes com VAL_TOT por sexo. Calcula
+    AVG(VAL_TOT) por sexo.'
+  gold_sql: SELECT s."DESCRICAO" AS sexo, ROUND(AVG(i."VAL_TOT"), 2) AS custo_medio FROM internacoes i
+    JOIN sexo s ON i."SEXO" = s."SEXO" WHERE i."VAL_TOT" IS NOT NULL GROUP BY s."DESCRICAO" ORDER BY custo_medio
+    DESC;
+  origem: GT177
+- id: gt_gt178
+  question: Qual a distribuicao percentual de internacoes por raca/cor, excluindo sem informacao?
+  category: agregacao_complexa
+  difficulty: media
+  tests: 'Tema: perfil demografico. Metrica: distribution_pct. Denominador/escopo: internacoes com raca/cor
+    identificada. Exclui RACA_COR=99 e agrupa categorias validas.'
+  gold_sql: SELECT r."DESCRICAO" AS raca_cor, COUNT(*) AS total_internacoes, ROUND(COUNT(*) * 100.0 /
+    SUM(COUNT(*)) OVER (), 2) AS percentual FROM internacoes i JOIN raca_cor r ON i."RACA_COR" = r."RACA_COR"
+    WHERE i."RACA_COR" IN (1, 2, 3, 4, 5) GROUP BY r."DESCRICAO" ORDER BY total_internacoes DESC;
+  origem: GT178
+- id: gt_gt179
+  question: Qual a taxa de mortalidade por raca/cor identificada?
+  category: taxa
+  difficulty: media
+  tests: 'Tema: mortalidade hospitalar. Metrica: mortality_rate. Denominador/escopo: internacoes com raca/cor
+    identificada. Numerador MORTE=true; denominador internacoes da raca/cor identificada.'
+  gold_sql: SELECT r."DESCRICAO" AS raca_cor, COUNT(*) AS total_internacoes, SUM(CASE WHEN i."MORTE" =
+    true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN i."MORTE" = true THEN 1 ELSE 0 END) *
+    100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM internacoes i JOIN raca_cor r ON i."RACA_COR"
+    = r."RACA_COR" WHERE i."RACA_COR" IN (1, 2, 3, 4, 5) GROUP BY r."DESCRICAO" ORDER BY taxa_mortalidade
+    DESC;
+  origem: GT179
+- id: gt_gt180
+  question: Qual o total de internacoes por mes em 2023? Considere a data de internação (entrada).
+  category: temporal
+  difficulty: media
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: SELECT EXTRACT(MONTH FROM "DT_INTER") AS mes, COUNT(*) AS total_internacoes FROM internacoes
+    WHERE EXTRACT(YEAR FROM "DT_INTER") = 2023 GROUP BY mes ORDER BY mes;
+  origem: GT180
+- id: gt_gt181
+  question: Qual a evolucao anual das internacoes por doencas respiratorias?
+  category: temporal
+  difficulty: media
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT year(DT_SAIDA) AS ano, COUNT(*) AS total_respiratorias FROM internacoes WHERE "DIAG_PRINC"
+    LIKE 'J%' AND DT_SAIDA IS NOT NULL GROUP BY ano ORDER BY ano;
+  origem: GT181
+- id: gt_gt182
+  question: Qual a evolucao anual de internacoes e mortes por COVID ou coronavirus?
+  category: temporal
+  difficulty: media
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT year(DT_SAIDA) AS ano, COUNT(*) AS total_internacoes, SUM(CASE WHEN "MORTE" = true
+    THEN 1 ELSE 0 END) AS total_mortes FROM internacoes WHERE "DIAG_PRINC" IN ('B342', 'B972') AND DT_SAIDA
+    IS NOT NULL GROUP BY ano ORDER BY ano;
+  origem: GT182
+- id: gt_gt183
+  question: Qual a evolucao anual das internacoes com uso de UTI?
+  category: temporal
+  difficulty: media
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT year(DT_SAIDA) AS ano, COUNT(*) AS internacoes_uti FROM internacoes WHERE "MARCA_UTI"
+    <> 0 AND DT_SAIDA IS NOT NULL GROUP BY ano ORDER BY ano;
+  origem: GT183
+- id: gt_gt184
+  question: Qual a permanencia media por ano de internacao?
+  category: temporal
+  difficulty: media
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT year(DT_SAIDA) AS ano, ROUND(AVG("DIAS_PERM"), 2) AS media_dias_permanencia FROM internacoes
+    WHERE "DIAS_PERM" IS NOT NULL AND DT_SAIDA IS NOT NULL GROUP BY ano ORDER BY ano;
+  origem: GT184
+- id: gt_gt185
+  question: Quais sao os 10 hospitais com maior volume de internacoes em UTI?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: Exige identificar hospitais; `hospital` está vazia.
+  origem: GT185
+- id: gt_gt186
+  question: Quais sao os 10 hospitais com maior numero absoluto de mortes?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: Exige identificar hospitais; `hospital` está vazia.
+  origem: GT186
+- id: gt_gt187
+  question: Qual o valor total de internacoes por estado de residencia MA e RS?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Tema: custos. Metrica: sum_cost. Denominador/escopo: internacoes de residentes MA/RS. Soma VAL_TOT
+    por UF de residencia usando LEFT JOIN por cobertura likely.'
+  gold_sql: SELECT m."SG_UF" AS uf_residencia, ROUND(SUM(i."VAL_TOT"), 2) AS valor_total FROM internacoes
+    i LEFT JOIN municipios m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" WHERE m."SG_UF" IN ('MA', 'RS') GROUP
+    BY m."SG_UF" ORDER BY m."SG_UF";
+  origem: GT187
+- id: gt_gt188
+  question: Quais regioes de saude do RS registraram mais internacoes de residentes?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'Tema: territorio. Metrica: top_n. Denominador/escopo: internacoes por regiao de saude. Agrupa
+    residentes do RS por NO_REGIAO_SAUDE. | Gold corrigido: removido LIMIT que a pergunta não pede'
+  gold_sql: SELECT m."NO_REGIAO_SAUDE" AS regiao_saude, COUNT(*) AS total_internacoes FROM internacoes
+    i LEFT JOIN municipios m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" WHERE m."SG_UF" = 'RS' GROUP BY m."NO_REGIAO_SAUDE"
+    ORDER BY total_internacoes DESC;
+  origem: GT188
+- id: gt_gt189
+  question: Qual a media de medicos por mil habitantes por UF em 2021?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: Exige médicos por mil habitantes; `socioeconomico` está vazia.
+  origem: GT189
+- id: gt_gt190
+  question: Quais municipios tiveram maior taxa de mortalidade infantil em 2021?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: Exige mortalidade infantil; `socioeconomico` está vazia.
+  origem: GT190
+- id: gt_gt191
+  question: Quais nacionalidades aparecem com maior volume de internacoes? Liste os 10 primeiros.
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'Tema: perfil demografico. Metrica: top_n. Denominador/escopo: internacoes por nacionalidade.
+    Agrupa por nacionalidade informada nas internacoes. | Gold corrigido: removido LIMIT que a pergunta
+    não pede'
+  gold_sql: 'SELECT n."DESCRICAO" AS nacionalidade, COUNT(*) AS total_internacoes FROM internacoes i JOIN
+    nacionalidade n ON i."NACIONAL" = n."NACIONAL" GROUP BY n."DESCRICAO" ORDER BY total_internacoes DESC
+
+    LIMIT 10;'
+  origem: GT191
+- id: gt_gt192
+  question: Qual a distribuicao de internacoes por vinculo previdenciario?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Tema: perfil previdenciario. Metrica: distribution. Denominador/escopo: internacoes com vinculo
+    mapeado. Agrupa internacoes pela dimensao vincprev.'
+  gold_sql: SELECT v."DESCRICAO" AS vinculo_previdenciario, COUNT(*) AS total_internacoes FROM internacoes
+    i JOIN vincprev v ON i."VINCPREV" = v."VINCPREV" GROUP BY v."DESCRICAO" ORDER BY total_internacoes
+    DESC;
+  origem: GT192
+- id: gt_gt193
+  question: Qual a taxa de mortalidade por nivel de instrucao?
+  category: taxa
+  difficulty: media
+  tests: 'Tema: mortalidade hospitalar. Metrica: mortality_rate. Denominador/escopo: internacoes por instrucao.
+    Calcula taxa de mortalidade por nivel de instrucao. | Gold corrigido: JOIN instrucao -> LEFT JOIN
+    (instrucao tem códigos órfãos no fato)'
+  gold_sql: SELECT ins."DESCRICAO" AS nivel_instrucao, COUNT(*) AS total_internacoes, SUM(CASE WHEN i."MORTE"
+    = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN i."MORTE" = true THEN 1 ELSE 0 END)
+    * 100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM internacoes i LEFT JOIN instrucao ins ON
+    i."INSTRU" = ins."INSTRU" GROUP BY ins."DESCRICAO" ORDER BY taxa_mortalidade DESC;
+  origem: GT193
+- id: gt_gt194
+  question: Qual a evolucao anual das internacoes com gestacao de risco registrada?
+  category: irrespondivel
+  difficulty: media
+  answerable: false
+  tests: GESTRISCO está TRUE em 99,6% das linhas, incluindo 58,8 milhões de pacientes masculinos.
+  origem: GT194
+- id: gt_gt195
+  question: Qual a evolução anual das internações com registro de exame VDRL?
+  category: temporal
+  difficulty: media
+  tests: IND_VDRL marca registro do exame, não resultado positivo. DT_INTER -> DT_SAIDA (convenção da
+    base).
+  gold_sql: SELECT year(DT_SAIDA) AS ano, COUNT(*) AS casos_vdrl_positivo FROM internacoes WHERE "IND_VDRL"
+    = true AND DT_SAIDA IS NOT NULL GROUP BY ano ORDER BY ano;
+  origem: GT195
+- id: gt_gt196
+  question: Qual a evolucao anual das internacoes por parto cesariano?
+  category: temporal
+  difficulty: media
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT year(DT_SAIDA) AS ano, COUNT(*) AS total_cesarianas FROM internacoes WHERE "DIAG_PRINC"
+    LIKE 'O82%' AND DT_SAIDA IS NOT NULL GROUP BY ano ORDER BY ano;
+  origem: GT196
+- id: gt_gt197
+  question: Como as internacoes obstetricas se distribuem por faixa etaria?
+  category: filtro
+  difficulty: media
+  tests: 'Tema: saude materno-infantil. Metrica: distribution. Denominador/escopo: internacoes obstetricas
+    com idade. Usa CID O% e faixas etarias obstetricas.'
+  gold_sql: SELECT CASE WHEN "IDADE" < 15 THEN '<15' WHEN "IDADE" BETWEEN 15 AND 19 THEN '15-19' WHEN
+    "IDADE" BETWEEN 20 AND 34 THEN '20-34' WHEN "IDADE" BETWEEN 35 AND 49 THEN '35-49' ELSE '50+' END
+    AS faixa_etaria, COUNT(*) AS total_obstetricas FROM internacoes WHERE "DIAG_PRINC" LIKE 'O%' AND "IDADE"
+    IS NOT NULL GROUP BY faixa_etaria ORDER BY MIN(CASE WHEN "IDADE" < 15 THEN 1 WHEN "IDADE" BETWEEN
+    15 AND 19 THEN 2 WHEN "IDADE" BETWEEN 20 AND 34 THEN 3 WHEN "IDADE" BETWEEN 35 AND 49 THEN 4 ELSE
+    5 END);
+  origem: GT197
+- id: gt_gt198
+  question: Quais capitulos CID tem maior custo total de internacoes?
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'Tema: custos. Metrica: sum_cost. Denominador/escopo: custo por capitulo CID. Soma VAL_TOT por
+    capitulo CID. | Gold corrigido: removido LIMIT que a pergunta não pede; JOIN cid -> LEFT JOIN (cid
+    tem códigos órfãos no fato)'
+  gold_sql: SELECT c."DS_CAPITULO" AS capitulo_cid, ROUND(SUM(i."VAL_TOT"), 2) AS custo_total FROM internacoes
+    i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" WHERE i."VAL_TOT" IS NOT NULL GROUP BY c."DS_CAPITULO"
+    ORDER BY custo_total DESC;
+  origem: GT198
+- id: gt_gt199
+  question: Quais procedimentos foram mais realizados em internacoes com UTI? Liste os 10 primeiros.
+  category: join_dimensao
+  difficulty: media
+  ordered: true
+  tests: 'Tabela inexistente; usar internacoes.PROC_REA. | Gold corrigido: removido LIMIT que a pergunta
+    não pede'
+  gold_sql: 'SELECT p.NOME_PROC AS procedimento, COUNT(*) AS total
+
+    FROM internacoes i
+
+    JOIN procedimentos p ON i.PROC_REA = p.PROC_REA
+
+    WHERE i.MARCA_UTI > 0
+
+    GROUP BY 1
+
+    ORDER BY total DESC
+
+    LIMIT 10;'
+  origem: GT199
+- id: gt_gt200
+  question: Qual a distribuicao de internacoes por tipo de UTI registrada?
+  category: join_dimensao
+  difficulty: media
+  tests: 'Tema: UTI. Metrica: distribution. Denominador/escopo: internacoes com UTI. Agrupa internacoes
+    com MARCA_UTI diferente de zero pela dimensao marca_uti.'
+  gold_sql: SELECT m."DESCRICAO" AS tipo_uti, COUNT(*) AS total_internacoes FROM internacoes i JOIN marca_uti
+    m ON i."MARCA_UTI" = m."MARCA_UTI" WHERE i."MARCA_UTI" <> 0 GROUP BY m."DESCRICAO" ORDER BY total_internacoes
+    DESC;
+  origem: GT200
+- id: gt_gt201
+  question: Qual a taxa anual de mortalidade nas internacoes por COVID ou coronavirus?
+  category: taxa
+  difficulty: dificil
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: SELECT year(DT_SAIDA) AS ano, COUNT(*) AS total_internacoes, SUM(CASE WHEN "MORTE" = true
+    THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN "MORTE" = true THEN 1 ELSE 0 END) * 100.0
+    / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM internacoes WHERE "DIAG_PRINC" IN ('B342', 'B972')
+    AND DT_SAIDA IS NOT NULL GROUP BY ano ORDER BY ano;
+  origem: GT201
+- id: gt_gt202
+  question: Quais faixas etarias tiveram maior taxa de mortalidade em internacoes por COVID ou coronavirus,
+    considerando apenas faixas com mais de 10000 internacoes?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'Tema: doencas especificas. Metrica: mortality_rate_by_age. Denominador/escopo: internacoes B342/B972
+    por faixa etaria. Usa faixas etarias e filtro HAVING para evitar grupos pequenos.'
+  gold_sql: WITH base AS (SELECT CASE WHEN "IDADE" < 40 THEN '00-39' WHEN "IDADE" BETWEEN 40 AND 49 THEN
+    '40-49' WHEN "IDADE" BETWEEN 50 AND 59 THEN '50-59' WHEN "IDADE" BETWEEN 60 AND 69 THEN '60-69' WHEN
+    "IDADE" BETWEEN 70 AND 79 THEN '70-79' ELSE '80+' END AS faixa_etaria, CASE WHEN "IDADE" < 40 THEN
+    1 WHEN "IDADE" BETWEEN 40 AND 49 THEN 2 WHEN "IDADE" BETWEEN 50 AND 59 THEN 3 WHEN "IDADE" BETWEEN
+    60 AND 69 THEN 4 WHEN "IDADE" BETWEEN 70 AND 79 THEN 5 ELSE 6 END AS ordem, "MORTE" FROM internacoes
+    WHERE "DIAG_PRINC" IN ('B342', 'B972') AND "IDADE" IS NOT NULL) SELECT faixa_etaria, COUNT(*) AS total_internacoes,
+    SUM(CASE WHEN "MORTE" = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN "MORTE" = true
+    THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM base GROUP BY faixa_etaria,
+    ordem HAVING COUNT(*) > 10000 ORDER BY taxa_mortalidade DESC;
+  origem: GT202
+- id: gt_gt203
+  question: Como a taxa de mortalidade por doencas respiratorias compara inverno e fora do inverno por
+    ano? Considere a data de internação (entrada).
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: WITH base AS (SELECT EXTRACT(YEAR FROM "DT_INTER") AS ano, CASE WHEN EXTRACT(MONTH FROM "DT_INTER")
+    IN (6, 7, 8) THEN 'inverno' ELSE 'fora_inverno' END AS periodo, "MORTE" FROM internacoes WHERE "DIAG_PRINC"
+    LIKE 'J%' AND "DT_INTER" IS NOT NULL) SELECT ano, periodo, COUNT(*) AS total_internacoes, SUM(CASE
+    WHEN "MORTE" = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN "MORTE" = true THEN 1
+    ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM base GROUP BY ano, periodo
+    ORDER BY ano, periodo;
+  origem: GT203
+- id: gt_gt204
+  question: Quais sao os 3 CIDs com maior taxa de mortalidade em cada estado MA e RS, considerando CIDs
+    com mais de 1000 internacoes?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'Tema: mortalidade hospitalar. Metrica: top_n_per_group_mortality. Denominador/escopo: CIDs com
+    mais de 1000 internacoes por UF. Usa ROW_NUMBER por UF e HAVING para evitar CIDs raros. | Gold corrigido:
+    JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: WITH agg AS (SELECT m."SG_UF" AS uf, c."DESCRICAO" AS diagnostico, COUNT(*) AS total_internacoes,
+    SUM(CASE WHEN i."MORTE" = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE WHEN i."MORTE" =
+    true THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM internacoes i LEFT
+    JOIN municipios m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID"
+    WHERE m."SG_UF" IN ('MA', 'RS') GROUP BY m."SG_UF", c."DESCRICAO" HAVING COUNT(*) > 1000), ranked
+    AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY uf ORDER BY taxa_mortalidade DESC, total_internacoes
+    DESC) AS rn FROM agg) SELECT uf, diagnostico, total_internacoes, total_mortes, taxa_mortalidade FROM
+    ranked WHERE rn <= 3 ORDER BY uf, rn;
+  origem: GT204
+- id: gt_gt205
+  question: Quais municipios do RS tem taxa de uso de UTI acima da media estadual, considerando apenas
+    municipios com mais de 1000 internacoes?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'Tema: UTI. Metrica: above_average_rate. Denominador/escopo: municipios RS com mais de 1000 internacoes.
+    Calcula taxa municipal de UTI e compara com media ponderada do RS. | Gold corrigido: removido LIMIT
+    que a pergunta não pede'
+  gold_sql: WITH rs AS (SELECT m."NO_MUNICIPIO" AS municipio, COUNT(*) AS total_internacoes, SUM(CASE
+    WHEN i."MARCA_UTI" <> 0 THEN 1 ELSE 0 END) AS internacoes_uti FROM internacoes i LEFT JOIN municipios
+    m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" WHERE m."SG_UF" = 'RS' GROUP BY m."NO_MUNICIPIO"), media
+    AS (SELECT SUM(internacoes_uti) * 100.0 / NULLIF(SUM(total_internacoes), 0) AS taxa_media_rs FROM
+    rs) SELECT rs.municipio, rs.total_internacoes, rs.internacoes_uti, ROUND(rs.internacoes_uti * 100.0
+    / NULLIF(rs.total_internacoes, 0), 2) AS taxa_uti FROM rs, media WHERE rs.total_internacoes > 1000
+    AND rs.internacoes_uti * 100.0 / NULLIF(rs.total_internacoes, 0) > media.taxa_media_rs ORDER BY taxa_uti
+    DESC;
+  origem: GT205
+- id: gt_gt206
+  question: Qual a razao anual entre uso de UTI em pacientes com 65 anos ou mais e pacientes com menos
+    de 65 anos?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: WITH agg AS (SELECT year(DT_SAIDA) AS ano, CASE WHEN "IDADE" >= 65 THEN '65_mais' ELSE 'menor_65'
+    END AS grupo_idade, COUNT(*) AS total_internacoes, SUM(CASE WHEN "MARCA_UTI" <> 0 THEN 1 ELSE 0 END)
+    AS internacoes_uti FROM internacoes WHERE "IDADE" IS NOT NULL AND DT_SAIDA IS NOT NULL GROUP BY ano,
+    grupo_idade), taxas AS (SELECT ano, grupo_idade, internacoes_uti * 1.0 / NULLIF(total_internacoes,
+    0) AS taxa_uti FROM agg) SELECT ano, ROUND(MAX(CASE WHEN grupo_idade = '65_mais' THEN taxa_uti END)
+    / NULLIF(MAX(CASE WHEN grupo_idade = 'menor_65' THEN taxa_uti END), 0), 2) AS razao_uti_65_mais_vs_menor_65
+    FROM taxas GROUP BY ano ORDER BY ano;
+  origem: GT206
+- id: gt_gt207
+  question: Quais diagnosticos tiveram maior custo total de UTI entre internacoes que resultaram em obito?
+    Liste os 10 primeiros.
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: 'Tema: custos. Metrica: sum_cost_deaths. Denominador/escopo: obitos com VAL_UTI positivo por
+    diagnostico. Soma VAL_UTI em obitos por diagnostico com volume minimo. | Gold corrigido: removido
+    LIMIT que a pergunta não pede; JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: 'SELECT c."DESCRICAO" AS diagnostico, COUNT(*) AS total_obitos, ROUND(SUM(i."VAL_UTI"), 2)
+    AS custo_total_uti FROM internacoes i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" WHERE i."MORTE"
+    = true AND i."VAL_UTI" > 0 GROUP BY c."DESCRICAO" HAVING COUNT(*) > 1000 ORDER BY custo_total_uti
+    DESC
+
+    LIMIT 10;'
+  origem: GT207
+- id: gt_gt208
+  question: Quais diagnosticos apresentam maior diferenca de permanencia media entre criancas e adultos,
+    considerando diagnosticos com pelo menos 1000 internacoes em cada grupo? Liste os 10 primeiros.
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'Tema: permanencia. Metrica: difference_avg_los. Denominador/escopo: diagnosticos com >=1000
+    em cada grupo. Usa CTE e pivot condicional para comparar permanencia media criancas vs adultos. |
+    Gold corrigido: removido LIMIT que a pergunta não pede; JOIN cid -> LEFT JOIN (cid tem códigos órfãos
+    no fato)'
+  gold_sql: 'WITH agg AS (SELECT c."DESCRICAO" AS diagnostico, CASE WHEN i."IDADE" < 18 THEN ''criancas''
+    ELSE ''adultos'' END AS grupo_idade, COUNT(*) AS total_internacoes, AVG(i."DIAS_PERM") AS media_dias
+    FROM internacoes i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" WHERE i."IDADE" IS NOT NULL AND i."DIAS_PERM"
+    IS NOT NULL GROUP BY c."DESCRICAO", grupo_idade), piv AS (SELECT diagnostico, MAX(CASE WHEN grupo_idade
+    = ''criancas'' THEN total_internacoes END) AS n_criancas, MAX(CASE WHEN grupo_idade = ''adultos''
+    THEN total_internacoes END) AS n_adultos, MAX(CASE WHEN grupo_idade = ''criancas'' THEN media_dias
+    END) AS media_criancas, MAX(CASE WHEN grupo_idade = ''adultos'' THEN media_dias END) AS media_adultos
+    FROM agg GROUP BY diagnostico) SELECT diagnostico, n_criancas, n_adultos, ROUND(media_criancas, 2)
+    AS media_criancas, ROUND(media_adultos, 2) AS media_adultos, ROUND(ABS(media_adultos - media_criancas),
+    2) AS diferenca_absoluta FROM piv WHERE n_criancas >= 1000 AND n_adultos >= 1000 ORDER BY diferenca_absoluta
+    DESC
+
+    LIMIT 10;'
+  origem: GT208
+- id: gt_gt209
+  question: Qual hospital tem maior taxa de mortalidade por especialidade, considerando apenas combinacoes
+    com mais de 1000 internacoes?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige identificar hospitais; `hospital` está vazia.
+  origem: GT209
+- id: gt_gt210
+  question: Qual procedimento mais frequente em cada capitulo CID?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'Tabela inexistente; usar internacoes.PROC_REA. | Gold corrigido: JOIN cid -> LEFT JOIN (cid
+    tem códigos órfãos no fato)'
+  gold_sql: "SELECT capitulo, procedimento, total FROM (\n  SELECT c.DS_CAPITULO AS capitulo, p.NOME_PROC\
+    \ AS procedimento, COUNT(*) AS total,\n         ROW_NUMBER() OVER (PARTITION BY c.DS_CAPITULO ORDER\
+    \ BY COUNT(*) DESC) rn\n  FROM internacoes i\n  LEFT JOIN cid c ON i.DIAG_PRINC = c.CID\n  JOIN procedimentos\
+    \ p ON i.PROC_REA = p.PROC_REA\n  GROUP BY 1, 2\n)\nWHERE rn = 1\nORDER BY total DESC;"
+  origem: GT210
+- id: gt_gt211
+  question: Qual percentual de internacoes de cada ano entre 2019 e 2023 foi por capitulo CID?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: 'DT_INTER -> DT_SAIDA (convenção da base). | Gold corrigido: JOIN cid -> LEFT JOIN (cid tem códigos
+    órfãos no fato)'
+  gold_sql: WITH agg AS (SELECT year(i.DT_SAIDA) AS ano, c."DS_CAPITULO" AS capitulo_cid, COUNT(*) AS
+    total_internacoes FROM internacoes i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" WHERE year(i.DT_SAIDA)
+    BETWEEN 2019 AND 2023 GROUP BY ano, c."DS_CAPITULO") SELECT ano, capitulo_cid, total_internacoes,
+    ROUND(total_internacoes * 100.0 / SUM(total_internacoes) OVER (PARTITION BY ano), 2) AS percentual_no_ano
+    FROM agg ORDER BY ano, percentual_no_ano DESC;
+  origem: GT211
+- id: gt_gt212
+  question: Em qual combinacao de estado e ano MA/RS ocorreu a maior taxa de mortalidade em internacoes
+    com UTI?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: WITH agg AS (SELECT m."SG_UF" AS uf, year(i.DT_SAIDA) AS ano, COUNT(*) AS total_uti, SUM(CASE
+    WHEN i."MORTE" = true THEN 1 ELSE 0 END) AS mortes_uti, ROUND(SUM(CASE WHEN i."MORTE" = true THEN
+    1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade_uti FROM internacoes i LEFT JOIN
+    municipios m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" WHERE m."SG_UF" IN ('MA', 'RS') AND i."MARCA_UTI"
+    <> 0 AND i.DT_SAIDA IS NOT NULL GROUP BY m."SG_UF", ano) SELECT * FROM agg ORDER BY taxa_mortalidade_uti
+    DESC LIMIT 1;
+  origem: GT212
+- id: gt_gt213
+  question: Como a taxa de mortalidade compara internacoes de urgencia e eletivas por faixa etaria?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: 'Tema: mortalidade hospitalar. Metrica: mortality_rate_cross_tab. Denominador/escopo: internacoes
+    por faixa e carater. Cruzamento faixa etaria x urgencia/eletiva com taxa de mortalidade.'
+  gold_sql: WITH base AS (SELECT CASE WHEN "IDADE" < 18 THEN '<18' WHEN "IDADE" BETWEEN 18 AND 39 THEN
+    '18-39' WHEN "IDADE" BETWEEN 40 AND 59 THEN '40-59' WHEN "IDADE" BETWEEN 60 AND 79 THEN '60-79' ELSE
+    '80+' END AS faixa_etaria, CASE WHEN "IDADE" < 18 THEN 1 WHEN "IDADE" BETWEEN 18 AND 39 THEN 2 WHEN
+    "IDADE" BETWEEN 40 AND 59 THEN 3 WHEN "IDADE" BETWEEN 60 AND 79 THEN 4 ELSE 5 END AS ordem, CASE WHEN
+    "CAR_INT" = 1 THEN 'eletiva' WHEN "CAR_INT" = 2 THEN 'urgencia' ELSE 'outros' END AS carater, "MORTE"
+    FROM internacoes WHERE "IDADE" IS NOT NULL AND "CAR_INT" IN (1, 2)) SELECT faixa_etaria, carater,
+    COUNT(*) AS total_internacoes, SUM(CASE WHEN "MORTE" = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE
+    WHEN "MORTE" = true THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM
+    base GROUP BY faixa_etaria, ordem, carater ORDER BY ordem, carater;
+  origem: GT213
+- id: gt_gt214
+  question: Quais hospitais com mais de 5000 internacoes tem custo medio e taxa de mortalidade acima da
+    media geral?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige identificar hospitais; `hospital` está vazia.
+  origem: GT214
+- id: gt_gt215
+  question: Quais municipios tiveram crescimento de internacoes em todos os anos de 2019 a 2021?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'DT_INTER -> DT_SAIDA (convenção da base). | Gold corrigido: removido LIMIT que a pergunta não
+    pede'
+  gold_sql: WITH anual AS (SELECT m."NO_MUNICIPIO" AS municipio, m."SG_UF" AS uf, year(i.DT_SAIDA) AS
+    ano, COUNT(*) AS total_internacoes FROM internacoes i LEFT JOIN municipios m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D"
+    WHERE year(i.DT_SAIDA) BETWEEN 2019 AND 2021 GROUP BY m."NO_MUNICIPIO", m."SG_UF", ano), piv AS (SELECT
+    municipio, uf, SUM(CASE WHEN ano = 2019 THEN total_internacoes ELSE 0 END) AS total_2019, SUM(CASE
+    WHEN ano = 2020 THEN total_internacoes ELSE 0 END) AS total_2020, SUM(CASE WHEN ano = 2021 THEN total_internacoes
+    ELSE 0 END) AS total_2021 FROM anual GROUP BY municipio, uf) SELECT municipio, uf, total_2019, total_2020,
+    total_2021 FROM piv WHERE total_2020 > total_2019 AND total_2021 > total_2020 ORDER BY total_2021
+    DESC;
+  origem: GT215
+- id: gt_gt216
+  question: Qual a media movel de 3 anos da taxa de mortalidade no RS?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: DT_INTER -> DT_SAIDA (convenção da base).
+  gold_sql: WITH anual AS (SELECT year(i.DT_SAIDA) AS ano, COUNT(*) AS total_internacoes, SUM(CASE WHEN
+    i."MORTE" = true THEN 1 ELSE 0 END) AS total_mortes FROM internacoes i LEFT JOIN municipios m ON i."MUNIC_RES"
+    = m."CO_MUNICIPIO_6D" WHERE m."SG_UF" = 'RS' AND year(i.DT_SAIDA) BETWEEN 2008 AND 2023 GROUP BY ano),
+    taxas AS (SELECT ano, total_internacoes, total_mortes, total_mortes * 100.0 / NULLIF(total_internacoes,
+    0) AS taxa_mortalidade FROM anual) SELECT ano, ROUND(AVG(taxa_mortalidade) OVER (ORDER BY ano ROWS
+    BETWEEN 2 PRECEDING AND CURRENT ROW), 2) AS media_movel_3_anos_taxa_mortalidade FROM taxas ORDER BY
+    ano;
+  origem: GT216
+- id: gt_gt217
+  question: Quais capitulos CID tem custo medio acima da media geral e mais de 100000 internacoes?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'Tema: custos. Metrica: above_average_cost. Denominador/escopo: capitulos com >100000 internacoes.
+    Usa CTE geral e filtro de volume minimo. | Gold corrigido: JOIN cid -> LEFT JOIN (cid tem códigos
+    órfãos no fato)'
+  gold_sql: WITH geral AS (SELECT AVG("VAL_TOT") AS custo_medio_geral FROM internacoes WHERE "VAL_TOT"
+    IS NOT NULL), por_capitulo AS (SELECT c."DS_CAPITULO" AS capitulo_cid, COUNT(*) AS total_internacoes,
+    AVG(i."VAL_TOT") AS custo_medio FROM internacoes i LEFT JOIN cid c ON i."DIAG_PRINC" = c."CID" WHERE
+    i."VAL_TOT" IS NOT NULL GROUP BY c."DS_CAPITULO") SELECT p.capitulo_cid, p.total_internacoes, ROUND(p.custo_medio,
+    2) AS custo_medio FROM por_capitulo p, geral g WHERE p.total_internacoes > 100000 AND p.custo_medio
+    > g.custo_medio_geral ORDER BY p.custo_medio DESC;
+  origem: GT217
+- id: gt_gt218
+  question: Quais diagnosticos tiveram maior crescimento percentual de internacoes do periodo 2015-2019
+    para 2020-2023? Liste os 10 primeiros.
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'DT_INTER -> DT_SAIDA (convenção da base). | Gold corrigido: removido LIMIT que a pergunta não
+    pede; JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: 'WITH p1 AS (SELECT "DIAG_PRINC" AS cid, COUNT(*) AS total_2015_2019 FROM internacoes WHERE
+    year(DT_SAIDA) BETWEEN 2015 AND 2019 GROUP BY "DIAG_PRINC"), p2 AS (SELECT "DIAG_PRINC" AS cid, COUNT(*)
+    AS total_2020_2023 FROM internacoes WHERE year(DT_SAIDA) BETWEEN 2020 AND 2023 GROUP BY "DIAG_PRINC")
+    SELECT c."DESCRICAO" AS diagnostico, p1.total_2015_2019, p2.total_2020_2023, ROUND((p2.total_2020_2023
+    - p1.total_2015_2019) * 100.0 / NULLIF(p1.total_2015_2019, 0), 2) AS crescimento_percentual FROM p1
+    JOIN p2 ON p1.cid = p2.cid LEFT JOIN cid c ON p1.cid = c."CID" WHERE p1.total_2015_2019 >= 1000 ORDER
+    BY crescimento_percentual DESC
+
+    LIMIT 10;'
+  origem: GT218
+- id: gt_gt219
+  question: Quais diagnosticos tiveram maior aumento na taxa de mortalidade entre 2008-2012 e 2019-2023?
+    Liste os 10 primeiros.
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'DT_INTER -> DT_SAIDA (convenção da base). | Gold corrigido: removido LIMIT que a pergunta não
+    pede; JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: 'WITH p1 AS (SELECT "DIAG_PRINC" AS cid, COUNT(*) AS n1, SUM(CASE WHEN "MORTE" = true THEN
+    1 ELSE 0 END) AS m1 FROM internacoes WHERE year(DT_SAIDA) BETWEEN 2008 AND 2012 GROUP BY "DIAG_PRINC"),
+    p2 AS (SELECT "DIAG_PRINC" AS cid, COUNT(*) AS n2, SUM(CASE WHEN "MORTE" = true THEN 1 ELSE 0 END)
+    AS m2 FROM internacoes WHERE year(DT_SAIDA) BETWEEN 2019 AND 2023 GROUP BY "DIAG_PRINC") SELECT c."DESCRICAO"
+    AS diagnostico, n1 AS internacoes_2008_2012, n2 AS internacoes_2019_2023, ROUND(m1 * 100.0 / NULLIF(n1,
+    0), 2) AS taxa_2008_2012, ROUND(m2 * 100.0 / NULLIF(n2, 0), 2) AS taxa_2019_2023, ROUND((m2 * 100.0
+    / NULLIF(n2, 0)) - (m1 * 100.0 / NULLIF(n1, 0)), 2) AS aumento_pontos_percentuais FROM p1 JOIN p2
+    ON p1.cid = p2.cid LEFT JOIN cid c ON p1.cid = c."CID" WHERE n1 >= 1000 AND n2 >= 1000 ORDER BY aumento_pontos_percentuais
+    DESC
+
+    LIMIT 10;'
+  origem: GT219
+- id: gt_gt220
+  question: Qual a distribuicao mensal percentual das internacoes respiratorias e nao respiratorias? Considere
+    a data de internação (entrada).
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: 'Sazonalidade: enunciado explicita a data de entrada.'
+  gold_sql: WITH base AS (SELECT EXTRACT(MONTH FROM "DT_INTER") AS mes, CASE WHEN "DIAG_PRINC" LIKE 'J%'
+    THEN 'respiratoria' ELSE 'nao_respiratoria' END AS grupo, COUNT(*) AS total FROM internacoes WHERE
+    "DT_INTER" IS NOT NULL GROUP BY mes, grupo) SELECT mes, grupo, total, ROUND(total * 100.0 / SUM(total)
+    OVER (PARTITION BY mes), 2) AS percentual_no_mes FROM base ORDER BY mes, grupo;
+  origem: GT220
+- id: gt_gt221
+  question: Quais sao os 5 hospitais por estado MA e RS com maior taxa de mortalidade em internacoes com
+    UTI, considerando mais de 500 internacoes em UTI?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige a UF do hospital; `hospital` está vazia.
+  origem: GT221
+- id: gt_gt222
+  question: Quais municipios tiveram maior taxa de internacao por mil habitantes em 2021?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige população como denominador; `socioeconomico` está vazia.
+  origem: GT222
+- id: gt_gt223
+  question: Como a taxa de internacao por mil habitantes em 2021 varia por quintil de PIB per capita?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige PIB per capita e população; `socioeconomico` está vazia.
+  origem: GT223
+- id: gt_gt224
+  question: Como a taxa de mortalidade hospitalar em 2021 varia por quintil de leitos SUS por mil habitantes?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Exige leitos SUS e população; `socioeconomico` está vazia.
+  origem: GT224
+- id: gt_gt225
+  question: Qual a taxa de mortalidade por sexo e faixa etaria nas internacoes por COVID ou coronavirus?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: 'Tema: doencas especificas. Metrica: mortality_cross_tab. Denominador/escopo: internacoes B342/B972
+    por sexo e faixa. Calcula taxa por sexo e faixa etaria para B342/B972.'
+  gold_sql: WITH base AS (SELECT s."DESCRICAO" AS sexo, CASE WHEN i."IDADE" < 40 THEN '00-39' WHEN i."IDADE"
+    BETWEEN 40 AND 59 THEN '40-59' WHEN i."IDADE" BETWEEN 60 AND 79 THEN '60-79' ELSE '80+' END AS faixa_etaria,
+    CASE WHEN i."IDADE" < 40 THEN 1 WHEN i."IDADE" BETWEEN 40 AND 59 THEN 2 WHEN i."IDADE" BETWEEN 60
+    AND 79 THEN 3 ELSE 4 END AS ordem, i."MORTE" FROM internacoes i JOIN sexo s ON i."SEXO" = s."SEXO"
+    WHERE i."DIAG_PRINC" IN ('B342', 'B972') AND i."IDADE" IS NOT NULL) SELECT sexo, faixa_etaria, COUNT(*)
+    AS total_internacoes, SUM(CASE WHEN "MORTE" = true THEN 1 ELSE 0 END) AS total_mortes, ROUND(SUM(CASE
+    WHEN "MORTE" = true THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0), 2) AS taxa_mortalidade FROM
+    base GROUP BY sexo, faixa_etaria, ordem ORDER BY sexo, ordem;
+  origem: GT225
+- id: gt_gt226
+  question: Quais procedimentos cobrem 80% dos procedimentos em internacoes com UTI?
+  category: agregacao_complexa
+  difficulty: dificil
+  tests: Tabela inexistente; usar internacoes.PROC_REA.
+  gold_sql: "SELECT procedimento, total, pct_acumulado FROM (\n  SELECT p.NOME_PROC AS procedimento, COUNT(*)\
+    \ AS total,\n         ROUND(100.0 * SUM(COUNT(*)) OVER (ORDER BY COUNT(*) DESC)\n               /\
+    \ SUM(COUNT(*)) OVER (), 2) AS pct_acumulado\n  FROM internacoes i\n  JOIN procedimentos p ON i.PROC_REA\
+    \ = p.PROC_REA\n  WHERE i.MARCA_UTI > 0\n  GROUP BY 1\n)\nWHERE pct_acumulado <= 80\nORDER BY total\
+    \ DESC;"
+  origem: GT226
+- id: gt_gt227
+  question: Quais sao os 3 procedimentos mais realizados por sexo e faixa etaria?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: Tabela inexistente; usar internacoes.PROC_REA.
+  gold_sql: "SELECT sexo, faixa_etaria, procedimento, total FROM (\n  SELECT s.DESCRICAO AS sexo,\n  \
+    \       CASE WHEN i.IDADE < 18 THEN '<18' WHEN i.IDADE < 60 THEN '18-59'\n              ELSE '60+'\
+    \ END AS faixa_etaria,\n         p.NOME_PROC AS procedimento, COUNT(*) AS total,\n         ROW_NUMBER()\
+    \ OVER (PARTITION BY s.DESCRICAO,\n           CASE WHEN i.IDADE < 18 THEN '<18' WHEN i.IDADE < 60\
+    \ THEN '18-59'\n                ELSE '60+' END ORDER BY COUNT(*) DESC) rn\n  FROM internacoes i\n\
+    \  JOIN sexo s ON i.SEXO = s.SEXO\n  JOIN procedimentos p ON i.PROC_REA = p.PROC_REA\n  GROUP BY 1,\
+    \ 2, 3\n)\nWHERE rn <= 3\nORDER BY sexo, faixa_etaria, total DESC;"
+  origem: GT227
+- id: gt_gt228
+  question: Quantas internacoes ocorreram com estado de residencia diferente do estado do hospital por
+    ano?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Compara UF de residência com UF do hospital; a segunda não existe.
+  origem: GT228
+- id: gt_gt229
+  question: Quais pares de estado de residencia e estado do hospital tiveram maior volume de internacoes
+    interestaduais?
+  category: irrespondivel
+  difficulty: dificil
+  answerable: false
+  tests: Compara UF de residência com UF do hospital; a segunda não existe.
+  origem: GT229
+- id: gt_gt230
+  question: Qual o custo medio por dia calendario de internacao por especialidade e desfecho de morte?
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: 'Usa dias calendario calculados por DT_INTER/DT_SAIDA + 1 porque DIAS_PERM tem caveat de qualidade
+    documentado. | Gold corrigido: removido LIMIT que a pergunta não pede'
+  gold_sql: "SELECT e.\"DESCRICAO\" AS especialidade,\n       CASE WHEN i.\"MORTE\" = true THEN 'obito'\
+    \ ELSE 'sem_obito' END AS desfecho,\n       COUNT(*) AS total_internacoes,\n       ROUND(AVG(i.\"\
+    VAL_TOT\" / NULLIF(date_diff('day', i.\"DT_INTER\", i.\"DT_SAIDA\") + 1, 0)), 2) AS custo_medio_por_dia_calendario\n\
+    FROM internacoes i\nJOIN especialidade e ON i.\"ESPEC\" = e.\"ESPEC\"\nWHERE i.\"VAL_TOT\" IS NOT\
+    \ NULL\n  AND i.\"DT_INTER\" IS NOT NULL\n  AND i.\"DT_SAIDA\" IS NOT NULL\n  AND date_diff('day',\
+    \ i.\"DT_INTER\", i.\"DT_SAIDA\") >= 0\nGROUP BY e.\"DESCRICAO\", desfecho\nHAVING COUNT(*) > 1000\n\
+    ORDER BY custo_medio_por_dia_calendario DESC;"
+  origem: GT230
+- id: gt_gt231
+  question: Qual percentual de internacoes possui diagnostico secundario preenchido por ano e por desfecho?
+  category: taxa
+  difficulty: dificil
+  tests: Testava `DIAG_SECUN IS NOT NULL AND <> ''`, mas o placeholder é a string '0' — o filtro casava
+    tudo e o percentual dava 100% em todo ano.
+  gold_sql: "SELECT year(DT_SAIDA) AS ano,\n       CASE WHEN MORTE THEN 'obito' ELSE 'sem_obito' END AS\
+    \ desfecho,\n       COUNT(*) AS total_internacoes,\n       COUNT(*) FILTER (WHERE DIAG_SECUN <> '0')\
+    \ AS com_diag_secundario,\n       ROUND(100.0 * COUNT(*) FILTER (WHERE DIAG_SECUN <> '0') / COUNT(*),\
+    \ 2) AS percentual\nFROM internacoes\nGROUP BY 1, 2\nORDER BY 1, 2;"
+  origem: GT231
+- id: gt_gt232
+  question: Quantos registros com idade zero parecem inconsistentes com data de nascimento e data de internacao
+    por ano?
+  category: temporal
+  difficulty: dificil
+  tests: 'Tema: qualidade de dados. Metrica: data_quality_time_series. Denominador/escopo: IDADE=0 com
+    diferenca nascimento-internacao >=365 dias. Conta IDADE=0 inconsistente com NASC/DT_INTER por ano.'
+  gold_sql: SELECT EXTRACT(YEAR FROM "DT_INTER") AS ano, COUNT(*) AS idade_zero_inconsistente FROM internacoes
+    WHERE "IDADE" = 0 AND "NASC" IS NOT NULL AND "DT_INTER" IS NOT NULL AND date_diff('day', "NASC", "DT_INTER")
+    >= 365 GROUP BY ano ORDER BY ano;
+  origem: GT232
+- id: gt_gt233
+  question: Quais codigos de municipio de residencia sem correspondencia aparecem com maior volume de
+    internacoes?
+  category: join_dimensao
+  difficulty: dificil
+  ordered: true
+  tests: 'A cobertura de MUNIC_RES é 100%: não existe município órfão. O chatbot precisa relatar ''nenhum''
+    em vez de inventar linhas. | Gold corrigido: removido LIMIT que a pergunta não pede'
+  gold_sql: SELECT i."MUNIC_RES" AS codigo_municipio_residencia, COUNT(*) AS total_internacoes FROM internacoes
+    i LEFT JOIN municipios m ON i."MUNIC_RES" = m."CO_MUNICIPIO_6D" WHERE i."MUNIC_RES" IS NOT NULL AND
+    m."CO_MUNICIPIO_6D" IS NULL GROUP BY i."MUNIC_RES" ORDER BY total_internacoes DESC;
+  origem: GT233
+  expect_empty: true
+- id: gt_gt234
+  question: Quais capitulos CID concentram mais internacoes de alto custo acima do percentil 99 do valor
+    total?
+  category: agregacao_complexa
+  difficulty: dificil
+  ordered: true
+  tests: 'Tema: custos. Metrica: high_cost_outliers. Denominador/escopo: internacoes acima do P99 de VAL_TOT.
+    Calcula P99 de VAL_TOT e agrega internacoes de alto custo por capitulo CID. | Gold corrigido: removido
+    LIMIT que a pergunta não pede; JOIN cid -> LEFT JOIN (cid tem códigos órfãos no fato)'
+  gold_sql: WITH limite AS (SELECT QUANTILE_CONT("VAL_TOT", 0.99) AS p99_valor FROM internacoes WHERE
+    "VAL_TOT" IS NOT NULL), alto_custo AS (SELECT i."DIAG_PRINC", i."VAL_TOT" FROM internacoes i, limite
+    l WHERE i."VAL_TOT" > l.p99_valor) SELECT c."DS_CAPITULO" AS capitulo_cid, COUNT(*) AS internacoes_alto_custo,
+    ROUND(SUM(a."VAL_TOT"), 2) AS custo_total_alto_custo FROM alto_custo a LEFT JOIN cid c ON a."DIAG_PRINC"
+    = c."CID" GROUP BY c."DS_CAPITULO" ORDER BY internacoes_alto_custo DESC;
+  origem: GT234

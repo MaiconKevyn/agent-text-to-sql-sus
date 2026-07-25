@@ -1,0 +1,43 @@
+# ---------------------------------------------------------------------------
+# Segredos — NUNCA versionar. O .env carrega a OPENAI_API_KEY.
+# ---------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# ---------------------------------------------------------------------------
+# Ambiente e cache
+# ---------------------------------------------------------------------------
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# ---------------------------------------------------------------------------
+# Editor e sistema operacional
+# ---------------------------------------------------------------------------
+.idea/
+.vscode/
+.DS_Store
+
+# ---------------------------------------------------------------------------
+# Banco de dados — o arquivo DuckDB tem 15 GB e mora fora do projeto
+# ---------------------------------------------------------------------------
+*.duckdb
+*.duckdb.wal
+*.parquet
+
+# ---------------------------------------------------------------------------
+# Artefatos de avaliação regeráveis.
+# `gold_snapshot.json` e `validation_228.json` FICAM versionados: são o
+# resultado conferido de cada gold e a auditoria da importação.
+# ---------------------------------------------------------------------------
+eval/eval_report.json
+eval/*.log
+eval/ground_truth_*_backup.yaml
+eval/ground_truth_merged.yaml

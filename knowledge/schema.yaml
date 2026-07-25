@@ -290,6 +290,31 @@ rules:
       `WHERE DIAG_SECUN <> '0'` (6.531.950 linhas).
       As colunas DIAGSEC1..DIAGSEC9 são a exceção: essas usam NULL de verdade.
 
+  - id: cid_morte_e_diag_secun_param_em_2015
+    severity: critica
+    text: |
+      DIAG_SECUN e CID_MORTE PARAM DE SER PREENCHIDOS EM 2015. A cobertura cai
+      de um ano para o outro e nunca volta:
+
+        ano     DIAG_SECUN   CID_MORTE
+        2013        12,3%        3,7%
+        2014        12,0%        3,5%
+        2015         0,0%        0,0%   <- corte
+        2023         0,0%        0,0%
+
+      Consequência: qualquer série temporal baseada nessas colunas despenca a
+      zero em 2015 e parece dizer que o fenômeno acabou. Uma pergunta como
+      "evolução de mortes por câncer ao longo dos anos" respondida com
+      CID_MORTE produz um gráfico que sugere fim dos óbitos por câncer — quando
+      o que acabou foi o preenchimento do campo.
+
+      Regras:
+        - Ao usar CID_MORTE ou DIAG_SECUN, RESTRINJA a 2007-2014 e diga isso.
+        - Nunca faça série temporal dessas colunas cobrindo 2015 em diante.
+        - Para causa de óbito depois de 2014, a única aproximação disponível é
+          DIAG_PRINC das internações com MORTE — que é o motivo da internação,
+          não a causa da morte. Diga a diferença ao usuário.
+
   - id: colunas_sociodemograficas_vazias
     severity: alta
     text: |

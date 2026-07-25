@@ -1,0 +1,207 @@
+{
+ "evolucao_cancer": {
+  "question": "Mostre a evolução de mortes por câncer ao longo dos anos",
+  "sql": "SELECT year(DT_SAIDA) AS ano,\n       COUNT(*) FILTER (WHERE MORTE AND CID_MORTE <> '0' AND CID_MORTE LIKE 'C%') AS mortes_por_cancer\nFROM internacoes\nWHERE year(DT_SAIDA) BETWEEN 2007 AND 2023\nGROUP BY 1\nORDER BY 1\nLIMIT 10000",
+  "answer": "Houve aumento de mortes por câncer de 1.217 em 2007 para pico de 30.001 em 2013, com 29.311 em 2014; a série apresenta 0 mortes registradas em todos os anos de 2015 a 2023. Provavelmente os zeros a partir de 2015 refletem falta de dados ou problema de extração, e não ausência real de óbitos. Atenção: 2007 é ano parcial (ago–dez) e deve ser tratado com cautela em comparações.  \n\nSuposições: \"Mortes por câncer\" = óbitos na internação com CID_MORTE começando por 'C'; ano atribuído por DT_SAIDA.",
+  "columns": [
+   "ano",
+   "mortes_por_cancer"
+  ],
+  "rows": [
+   [
+    2007,
+    1217
+   ],
+   [
+    2008,
+    20479
+   ],
+   [
+    2009,
+    23405
+   ],
+   [
+    2010,
+    25155
+   ],
+   [
+    2011,
+    25751
+   ],
+   [
+    2012,
+    27446
+   ],
+   [
+    2013,
+    30001
+   ],
+   [
+    2014,
+    29311
+   ],
+   [
+    2015,
+    0
+   ],
+   [
+    2016,
+    0
+   ],
+   [
+    2017,
+    0
+   ],
+   [
+    2018,
+    0
+   ],
+   [
+    2019,
+    0
+   ],
+   [
+    2020,
+    0
+   ],
+   [
+    2021,
+    0
+   ],
+   [
+    2022,
+    0
+   ],
+   [
+    2023,
+    0
+   ]
+  ],
+  "nRows": 17
+ },
+ "top5_municipios": {
+  "question": "Top 5 municípios com mais mortes de homens",
+  "sql": "SELECT\n  i.MUNIC_RES AS codigo_municipio,\n  m.NO_MUNICIPIO AS municipio,\n  m.SG_UF AS uf,\n  COUNT(*) AS obitos_homens\nFROM internacoes i\nJOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D\nWHERE i.SEXO = 1\n  AND i.MORTE = TRUE\nGROUP BY 1,2,3\nORDER BY obitos_homens DESC\nLIMIT 5",
+  "answer": "Top 5 municípios de residência com mais óbitos entre homens: Rio de Janeiro (RJ) — 121.805; Belo Horizonte (MG) — 49.222; Salvador (BA) — 48.510; Fortaleza (CE) — 47.123; Brasília (DF) — 45.492.\n\nOs municípios referem‑se ao domicílio de residência do paciente; a consulta considera internacões com saída entre 01/08/2007 e 31/12/2023 (assumido pela query).",
+  "columns": [
+   "codigo_municipio",
+   "municipio",
+   "uf",
+   "obitos_homens"
+  ],
+  "rows": [
+   [
+    330455,
+    "Rio de Janeiro",
+    "RJ",
+    121805
+   ],
+   [
+    310620,
+    "Belo Horizonte",
+    "MG",
+    49222
+   ],
+   [
+    292740,
+    "Salvador",
+    "BA",
+    48510
+   ],
+   [
+    230440,
+    "Fortaleza",
+    "CE",
+    47123
+   ],
+   [
+    530010,
+    "Brasília",
+    "DF",
+    45492
+   ]
+  ],
+  "nRows": 5
+ },
+ "top5_diagnosticos": {
+  "question": "Quais os 5 principais diagnósticos?",
+  "sql": "SELECT\n  i.DIAG_PRINC AS CID,\n  c.DESCRICAO AS diagnostico,\n  COUNT(*) AS internacoes\nFROM internacoes i\nLEFT JOIN cid c ON i.DIAG_PRINC = c.CID\nGROUP BY i.DIAG_PRINC, c.DESCRICAO\nORDER BY internacoes DESC\nLIMIT 5",
+  "answer": "Os cinco principais diagnósticos por número de internações são: O800 — Parto espontaneo cefalico: 10.289.544 internações; J189 — Pneumonia NE: 3.293.713; O809 — Parto unico espontaneo NE: 2.459.872; A09 — Diarreia e gastroenterite orig infecc presum: 2.109.464; N390 — Infecc do trato urinario de localiz NE: 1.886.373. \n\nSuposição: interpretei \"principais\" como os 5 com maior contagem de internações ao agregar sobre toda a base (sem recorte temporal ou geográfico).",
+  "columns": [
+   "CID",
+   "diagnostico",
+   "internacoes"
+  ],
+  "rows": [
+   [
+    "O800",
+    "Parto espontaneo cefalico",
+    10289544
+   ],
+   [
+    "J189",
+    "Pneumonia NE",
+    3293713
+   ],
+   [
+    "O809",
+    "Parto unico espontaneo NE",
+    2459872
+   ],
+   [
+    "A09",
+    "Diarreia e gastroenterite orig infecc presum",
+    2109464
+   ],
+   [
+    "N390",
+    "Infecc do trato urinario de localiz NE",
+    1886373
+   ]
+  ],
+  "nRows": 5
+ },
+ "respiratoria_sexo": {
+  "question": "Mostre a evolução de diagnósticos de doença respiratória por homens e mulheres em 2020, 2021 e 2022",
+  "sql": "SELECT year(i.DT_SAIDA) AS ano,\n       s.DESCRICAO AS sexo,\n       COUNT(*) AS internacoes\nFROM internacoes i\nJOIN sexo s ON i.SEXO = s.SEXO\nWHERE i.DIAG_PRINC LIKE 'J%'\n  AND year(i.DT_SAIDA) IN (2020, 2021, 2022)\n  AND s.DESCRICAO IN ('Masculino', 'Feminino')\nGROUP BY 1, 2\nORDER BY 1, 2\nLIMIT 10000",
+  "answer": "Em 2020 houve 268.814 internações em mulheres e 308.312 em homens; em 2021, 287.430 em mulheres e 331.128 em homens; em 2022, 477.058 em mulheres e 516.837 em homens.  \nEntre 2020 e 2021 as internações aumentaram 6,9% para mulheres e 7,4% para homens; entre 2021 e 2022 o aumento foi de 66,0% para mulheres e 56,1% para homens (2020→2022: +77,5% mulheres, +67,6% homens).  \n\nSuposição: interpretei \"doença respiratória\" como CIDs do capítulo J, usei DT_SAIDA para o ano e contei internações (AIH), não pacientes únicos.",
+  "columns": [
+   "ano",
+   "sexo",
+   "internacoes"
+  ],
+  "rows": [
+   [
+    2020,
+    "Feminino",
+    268814
+   ],
+   [
+    2020,
+    "Masculino",
+    308312
+   ],
+   [
+    2021,
+    "Feminino",
+    287430
+   ],
+   [
+    2021,
+    "Masculino",
+    331128
+   ],
+   [
+    2022,
+    "Feminino",
+    477058
+   ],
+   [
+    2022,
+    "Masculino",
+    516837
+   ]
+  ],
+  "nRows": 6
+ }
+}

@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 812" width="1120" height="812" role="img" aria-label="Arquitetura do agente text-to-SQL do SIH/SUS">
+<defs><marker id="fim" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#a4b0c0"/></marker><marker id="fim-acento" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#1f9fb8"/></marker><marker id="fim-alerta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,1 L9,5 L0,9 z" fill="#c98500"/></marker></defs>
+<rect width="1120" height="812" fill="#0d131b"/>
+<text x="40" y="42" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="20" font-weight="700" fill="#f0f3f7" text-anchor="start" opacity="1.0">Arquitetura</text>
+<text x="40" y="62" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">Pergunta em português → SQL → DuckDB → resposta, gráfico e ressalvas</text>
+<rect x="40" y="88" width="1040" height="74" rx="12" fill="#10303a" stroke="#1f9fb8" stroke-width="1"/>
+<rect x="40" y="88" width="4" height="74" rx="2" fill="#1f9fb8"/>
+<text x="58" y="113" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="700" fill="#1f9fb8" text-anchor="start" opacity="1.0">INTERFACE</text>
+<text x="58" y="130" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">React · TypeScript</text>
+<rect x="188.0" y="102" width="166.8" height="46" rx="8" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<text x="271.4" y="124" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="middle" opacity="1.0">Chat</text>
+<text x="271.4" y="140" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">streaming</text>
+<rect x="364.8" y="102" width="166.8" height="46" rx="8" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<text x="448.20000000000005" y="124" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="middle" opacity="1.0">Gráfico</text>
+<text x="448.20000000000005" y="140" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">ECharts</text>
+<rect x="541.6" y="102" width="166.8" height="46" rx="8" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<text x="625.0" y="124" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="middle" opacity="1.0">Relatório</text>
+<text x="625.0" y="140" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">investigação</text>
+<rect x="718.4000000000001" y="102" width="166.8" height="46" rx="8" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<text x="801.8000000000001" y="124" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="middle" opacity="1.0">Schema</text>
+<text x="801.8000000000001" y="140" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">20 regras</text>
+<rect x="895.2" y="102" width="166.8" height="46" rx="8" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<text x="978.6" y="124" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="middle" opacity="1.0">Debug</text>
+<text x="978.6" y="140" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">trace</text>
+<path d="M560.0,162 L560.0,196" stroke="#1f9fb8" stroke-width="1.6" fill="none" marker-end="url(#fim-acento)"/>
+<rect x="596.0" y="173" width="120.0" height="15" rx="3" fill="#0d131b"/><text x="656.0" y="184" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">Server-Sent Events</text>
+<rect x="40" y="198" width="1040" height="74" rx="12" fill="#10303a" stroke="#1f9fb8" stroke-width="1"/>
+<rect x="40" y="198" width="4" height="74" rx="2" fill="#1f9fb8"/>
+<text x="58" y="223" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="700" fill="#1f9fb8" text-anchor="start" opacity="1.0">API</text>
+<text x="58" y="240" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">FastAPI</text>
+<rect x="188.0" y="212" width="284.6666666666667" height="46" rx="8" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<text x="330.33333333333337" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="middle" opacity="1.0">/api/ask</text>
+<text x="330.33333333333337" y="250" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">1 consulta</text>
+<rect x="482.6666666666667" y="212" width="284.6666666666667" height="46" rx="8" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<text x="625.0" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="middle" opacity="1.0">/api/investigate</text>
+<text x="625.0" y="250" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">N consultas</text>
+<rect x="777.3333333333334" y="212" width="284.6666666666667" height="46" rx="8" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<text x="919.6666666666667" y="234" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="middle" opacity="1.0">/api/schema</text>
+<text x="919.6666666666667" y="250" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">dicionário</text>
+<rect x="40" y="308" width="492.0" height="268" rx="12" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<rect x="40" y="308" width="4" height="268" rx="2" fill="#a4b0c0"/>
+<text x="58" y="334" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="700" fill="#f0f3f7" text-anchor="start" opacity="1.0">AGENTE</text>
+<text x="118" y="334" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">uma hipótese analítica</text>
+<rect x="58" y="354" width="398.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<circle cx="76" cy="372" r="10" fill="#1f9fb8"/>
+<text x="76" y="376" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" opacity="1.0">1</text>
+<text x="94" y="369" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Value linking</text>
+<text x="94" y="383" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">casa termos com códigos reais das dimensões</text>
+<rect x="58" y="397" width="398.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<circle cx="76" cy="415" r="10" fill="#1f9fb8"/>
+<text x="76" y="419" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" opacity="1.0">2</text>
+<text x="94" y="412" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Geração de SQL</text>
+<text x="94" y="426" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">saída estruturada: SQL + suposições + gráfico</text>
+<rect x="58" y="440" width="398.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<circle cx="76" cy="458" r="10" fill="#1f9fb8"/>
+<text x="76" y="462" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" opacity="1.0">3</text>
+<text x="94" y="455" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Validação estática</text>
+<text x="94" y="469" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">só SELECT · um statement · LIMIT · EXPLAIN</text>
+<rect x="58" y="483" width="398.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<circle cx="76" cy="501" r="10" fill="#1f9fb8"/>
+<text x="76" y="505" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" opacity="1.0">4</text>
+<text x="94" y="498" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Execução</text>
+<text x="94" y="512" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">DuckDB read-only, com timeout</text>
+<rect x="58" y="526" width="398.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<circle cx="76" cy="544" r="10" fill="#1f9fb8"/>
+<text x="76" y="548" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11" font-weight="700" fill="#ffffff" text-anchor="middle" opacity="1.0">5</text>
+<text x="94" y="541" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Síntese</text>
+<text x="94" y="555" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">texto com as ressalvas obrigatórias</text>
+<path d="M462.0,501 L502.0,501 C514.0,501 514.0,458 502.0,458 L464.0,458" stroke="#c98500" stroke-width="1.6" fill="none" stroke-dasharray="4 3" marker-end="url(#fim-alerta)"/>
+<text x="494.0" y="479.5" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" fill="#c98500" text-anchor="middle" transform="rotate(-90 494.0 479.5)">erro → auto-reparo 2×</text>
+<rect x="588.0" y="308" width="492.0" height="268" rx="12" fill="#141a24" stroke="#293546" stroke-width="1"/>
+<rect x="588.0" y="308" width="4" height="268" rx="2" fill="#c98500"/>
+<text x="606.0" y="334" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="12" font-weight="700" fill="#f0f3f7" text-anchor="start" opacity="1.0">INVESTIGAÇÃO</text>
+<text x="710.0" y="334" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">várias hipóteses</text>
+<rect x="606.0" y="354" width="456.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<text x="622.0" y="369" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Planejar</text>
+<text x="622.0" y="383" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">quebra em 2-6 etapas autocontidas</text>
+<rect x="606.0" y="397" width="456.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<text x="622.0" y="412" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Executar</text>
+<text x="622.0" y="426" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">em paralelo — cada etapa reusa o AGENTE</text>
+<rect x="606.0" y="440" width="456.0" height="36" rx="7" fill="#2e2510" stroke="#c98500" stroke-width="1"/>
+<text x="622.0" y="455" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Refletir</text>
+<text x="622.0" y="469" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">4 perguntas objetivas; o CÓDIGO decide</text>
+<rect x="606.0" y="483" width="456.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<text x="622.0" y="498" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Aprofundar</text>
+<text x="622.0" y="512" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">1 consulta por defeito encontrado</text>
+<rect x="606.0" y="526" width="456.0" height="36" rx="7" fill="#0d131b" stroke="#293546" stroke-width="1"/>
+<text x="622.0" y="541" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="600" fill="#f0f3f7" text-anchor="start" opacity="1.0">Sintetizar</text>
+<text x="622.0" y="555" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="9.5" font-weight="400" fill="#7d8a9c" text-anchor="start" opacity="1.0">resposta, evidências e limitações</text>
+<path d="M594.0,415 L538.0,415" stroke="#1f9fb8" stroke-width="1.6" fill="none" stroke-dasharray="5 4" marker-end="url(#fim-acento)"/>
+<rect x="40.0" y="600" width="336.0" height="132" rx="12" fill="#33190f" stroke="#d95926" stroke-width="1"/>
+<text x="58.0" y="626" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="700" fill="#d95926" text-anchor="start" opacity="1.0">DICIONÁRIO CURADO</text>
+<text x="58.0" y="643" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">knowledge/schema.yaml</text>
+<text x="58.0" y="668" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">20 regras · 8 críticas</text>
+<text x="58.0" y="685" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">domínios, armadilhas e</text>
+<text x="58.0" y="702" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">colunas inutilizáveis</text>
+<rect x="392.0" y="600" width="336.0" height="132" rx="12" fill="#10303a" stroke="#1f9fb8" stroke-width="1"/>
+<text x="410.0" y="626" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="700" fill="#1f9fb8" text-anchor="start" opacity="1.0">MODELO</text>
+<text x="410.0" y="643" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">OpenAI · saída estruturada</text>
+<text x="410.0" y="668" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">JSON Schema para o plano</text>
+<text x="410.0" y="685" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">streaming para a resposta</text>
+<text x="410.0" y="702" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">o modelo declara, o código executa</text>
+<rect x="744.0" y="600" width="336.0" height="132" rx="12" fill="#0f2c23" stroke="#199e70" stroke-width="1"/>
+<text x="762.0" y="626" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="11.5" font-weight="700" fill="#199e70" text-anchor="start" opacity="1.0">DADOS</text>
+<text x="762.0" y="643" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="10" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">DuckDB · read-only</text>
+<text x="762.0" y="668" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">144.386.772 internações</text>
+<text x="762.0" y="685" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">15,4 GB · 2007-2023</text>
+<text x="762.0" y="702" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10.5" font-weight="400" fill="#a4b0c0" text-anchor="start" opacity="1.0">SIH-RD do DATASUS</text>
+<path d="M208.0,584 L912.0,584" stroke="#293546" stroke-width="1.6" fill="none"/>
+<path d="M286.0,576 L286.0,584" stroke="#293546" stroke-width="1.6" fill="none"/>
+<path d="M834.0,576 L834.0,584" stroke="#293546" stroke-width="1.6" fill="none"/>
+<circle cx="208.0" cy="584" r="3.5" fill="#d95926"/>
+<path d="M208.0,584 L208.0,596" stroke="#d95926" stroke-width="1.6" fill="none" marker-end="url(#fim)"/>
+<circle cx="560.0" cy="584" r="3.5" fill="#a4b0c0"/>
+<path d="M560.0,584 L560.0,596" stroke="#a4b0c0" stroke-width="1.6" fill="none" marker-end="url(#fim)"/>
+<circle cx="912.0" cy="584" r="3.5" fill="#199e70"/>
+<path d="M912.0,584 L912.0,596" stroke="#199e70" stroke-width="1.6" fill="none" marker-end="url(#fim)"/>
+<text x="560.0" y="794" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,Roboto,'Helvetica Neue',Arial,sans-serif" font-size="10" font-weight="400" fill="#7d8a9c" text-anchor="middle" opacity="1.0">O dicionário entra no prompt · o SQL é validado antes de rodar · o gráfico é montado a partir das linhas que o banco devolveu</text>
+</svg>

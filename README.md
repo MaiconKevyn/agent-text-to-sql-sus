@@ -137,7 +137,11 @@ cd frontend && npm install && npm run dev
 
 A interface sobe em `http://localhost:5173`.
 
+<div align="center">
+
 <img src="docs/img/01-inicio.png" alt="Tela inicial com sugestões de pergunta" width="880">
+
+</div>
 
 ---
 
@@ -157,7 +161,11 @@ agente registrou.
 
 ### Explorador do banco
 
+<div align="center">
+
 <img src="docs/img/03-schema.png" alt="Explorador de schema com tabelas, colunas e regras" width="880">
+
+</div>
 
 Tabelas, colunas com descrição e as regras críticas do dicionário. Clicar numa
 tabela insere a referência no campo de pergunta.
@@ -168,7 +176,11 @@ Uma pergunta como *"existe relação entre X e Y?"* não se responde com uma
 consulta só. O agente oferece o modo investigação, que roda várias consultas e
 devolve um relatório navegável.
 
+<div align="center">
+
 <img src="docs/img/05-investigacao.png" alt="Painel de relatório da investigação" width="880">
+
+</div>
 
 ```mermaid
 flowchart TB
@@ -197,7 +209,11 @@ ser usado para isso.**
 
 ### Cada evidência declara o que mediu
 
+<div align="center">
+
 <img src="docs/img/06-evidencia.png" alt="Bloco de evidência com a definição operacional" width="620">
+
+</div>
 
 Todo bloco abre com **"O que foi medido"**: o recorte que a consulta aplicou, em
 português, antes de qualquer número.
@@ -209,7 +225,11 @@ apenas como "câncer". O número estava certo e o rótulo errado, o que num pain
 
 ### Trace de depuração
 
+<div align="center">
+
 <img src="docs/img/04-debug-trace.png" alt="Trace de depuração mostrando o contexto montado" width="880">
+
+</div>
 
 Com o **Debug** ligado, cada resposta expõe o rastro completo: o prompt do
 sistema com o dicionário renderizado (26.824 caracteres), os candidatos que o
@@ -230,6 +250,31 @@ você › Agora quebre por UF.                                → 27 linhas, MG 
 ---
 
 ## Arquitetura
+
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/arquitetura-dark.svg">
+  <img src="docs/img/arquitetura.svg" alt="Arquitetura: interface React sobre API FastAPI com SSE; dois modos — o agente de uma consulta e a investigação de várias — apoiados no dicionário curado, no modelo e no DuckDB read-only" width="1000">
+</picture>
+
+</div>
+
+Três camadas, dois modos e três fundações compartilhadas.
+
+**A interface nunca fala com o banco.** Todo o caminho passa pela API, que
+transmite por Server-Sent Events — uma pergunta leva ~40 s e uma investigação
+passa de dois minutos; sem eventos de progresso a tela ficaria muda.
+
+**Os dois modos compartilham o pipeline.** A fase `Executar` da investigação não
+reimplementa nada: ela chama o mesmo `TextToSQLAgent`, então dicionário, value
+linking e auto-reparo valem igual nas duas entradas.
+
+**As três fundações servem aos dois.** O dicionário entra no prompt de toda
+geração de SQL; o modelo é chamado com saída estruturada em JSON Schema; o
+DuckDB é a mesma conexão read-only, aberta uma vez.
+
+### Estrutura de arquivos
 
 ```
 src/
@@ -371,6 +416,7 @@ desempenho se mantém alto — `armadilha` 10/10, `dado_corrompido` 3/3,
 | [`docs/PROFILING.md`](docs/PROFILING.md) | o levantamento do banco que originou o dicionário |
 | [`knowledge/schema.yaml`](knowledge/schema.yaml) | as 20 regras, cada uma com a evidência que a motivou |
 | [`eval/ground_truth.yaml`](eval/ground_truth.yaml) | os 272 casos com SQL gold |
+| [`docs/gera_arquitetura.py`](docs/gera_arquitetura.py) | gera o diagrama acima, nas versões clara e escura |
 
 ---
 

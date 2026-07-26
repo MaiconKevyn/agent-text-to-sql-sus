@@ -36,7 +36,11 @@ export function formatCell(
 }
 
 /** Duração legível: 340 ms, 1,2 s, 1 min 4 s. */
-export function formatDuration(seconds: number): string {
+export function formatDuration(seconds: number | null | undefined): string {
+  // Um bloco fixado pode não trazer `elapsed` — o tempo de execução não faz
+  // parte do que o usuário guardou, e sem esta guarda a interface mostrava
+  // "NaN min NaN s" no lugar do selo.
+  if (typeof seconds !== "number" || !Number.isFinite(seconds)) return "—";
   if (seconds < 1) return `${Math.round(seconds * 1000)} ms`;
   if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 2 : 1).replace(".", ",")} s`;
   const m = Math.floor(seconds / 60);

@@ -246,3 +246,45 @@ export const noteBlock = (id: string, blocoId: string, note: string) =>
 
 export const defineInTheme = (id: string, d: Partial<ThemeDefinition>) =>
   json<Theme>(`/api/themes/${id}/definitions`, { method: "POST", body: JSON.stringify(d) });
+
+
+/**
+ * Pergunta feita DENTRO de um tema.
+ *
+ * Mesmo formato de evento do `ask`, então a interface do chat não muda — o que
+ * muda é o servidor, que injeta os blocos já fixados e as definições do tema na
+ * geração de SQL. É o que faz "e como isso se divide por sexo?" herdar o
+ * recorte de covid em vez de contar todas as internações.
+ */
+export async function* askInTheme(
+  temaId: string,
+  question: string,
+  { signal, history = [] }: { signal?: AbortSignal; history?: Turn[] } = {},
+): AsyncGenerator<StreamEvent> {
+  const p = new URLSearchParams({ q: question });
+  if (history.length) p.set("history", JSON.stringify(history));
+  let resp: Response;
+  try {
+    resp = await fetch(`${BASE}/api/themes/${temaId}/ask?${p}`, {
+      signal,
+      headers: { Accept: "text/event-stream" },
+    });
+  } catch (causa) {
+    throw new BackendOffline(String(causa));
+  }
+  if (!resp.ok || !resp.body) throw new Error(`A pergunta falhou (HTTP ${resp.status}).`);
+
+  const leitor = resp.body.pipeThrough(new TextDecoderStream()).getReader();
+  let resto = "";
+  while (true) {
+    const { done, value } = await leitor.read();
+    if (done) break;
+    resto += value;
+    const partes = resto.split("\n\n");
+    resto = partes.pop() ?? "";
+    for (const parte of partes) {
+      const linha = parte.split("\n").find((l) => l.startsWith("data:"));
+      if (linha) yield JSON.parse(linha.slice(5).trim()) as StreamEvent;
+    }
+  }
+}

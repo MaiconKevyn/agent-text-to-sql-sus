@@ -34,6 +34,7 @@ export function PinButton({ bloco, temas, ultimo, onPin, onNovo }: Props) {
   }, [aberto]);
 
   async function fixar(temaId?: string) {
+    if (salvando) return;  // dois cliques rápidos gravariam o bloco duas vezes
     setSalvando(true);
     setAberto(false);
     try {

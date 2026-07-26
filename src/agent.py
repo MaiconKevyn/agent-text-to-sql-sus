@@ -235,11 +235,22 @@ class TextToSQLAgent:
         )
 
     def generate_sql(
-        self, question: str, hints: str = "", history: list[Turn] | None = None
+        self,
+        question: str,
+        hints: str = "",
+        history: list[Turn] | None = None,
+        contexto_tema: str = "",
     ) -> dict:
         user = f"Pergunta: {question}"
         if hints:
             user += f"\n\n{hints}"
+        # O contexto do tema entra SÓ aqui, na geração de SQL. Ele nunca chega
+        # à síntese da resposta: se os números dos blocos já coletados
+        # estivessem no prompt que redige o texto, o modelo poderia citar um
+        # deles como se tivesse vindo da consulta atual. Para comparar com um
+        # bloco, a comparação tem de estar no SQL.
+        if contexto_tema:
+            user += f"\n\n{contexto_tema}"
         bloco_historico = self._render_history(history or [])
         user += bloco_historico
         # Sem histórico, o contrato é EXATAMENTE o de antes. A avaliação chama
@@ -395,7 +406,10 @@ class TextToSQLAgent:
 
     # -- streaming de eventos ------------------------------------------------
     def ask_stream(
-        self, question: str, history: list[Turn] | None = None
+        self,
+        question: str,
+        history: list[Turn] | None = None,
+        contexto_tema: str = "",
     ) -> Iterator[dict]:
         """Mesma orquestração de `ask`, emitindo cada evento quando acontece.
 
@@ -425,6 +439,8 @@ class TextToSQLAgent:
         t0 = time.perf_counter()
         yield passo("interpretar", "ativo")
         yield rastro("interpretar", "Pergunta recebida", question)
+        if contexto_tema:
+            yield rastro("interpretar", "Contexto do tema (blocos já fixados)", contexto_tema)
         yield rastro(
             "interpretar",
             "Instruções do sistema (schema + regras críticas)",
@@ -477,7 +493,7 @@ class TextToSQLAgent:
         yield passo("gerar-sql", "ativo")
         t2 = time.perf_counter()
         try:
-            plan = self.generate_sql(question, hints, history)
+            plan = self.generate_sql(question, hints, history, contexto_tema)
         except Exception as exc:  # noqa: BLE001
             yield passo("gerar-sql", "falhou")
             yield {

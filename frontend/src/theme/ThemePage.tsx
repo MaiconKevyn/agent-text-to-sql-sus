@@ -13,6 +13,7 @@ import {
   unpinBlock,
 } from "@/lib/api";
 import type { Theme, ThemeBlock } from "@/lib/types";
+import { ThemeChat } from "./ThemeChat";
 
 const nf = new Intl.NumberFormat("pt-BR");
 
@@ -51,21 +52,33 @@ export default function ThemePage() {
     return () => removeEventListener("popstate", aoVoltar);
   }, []);
 
-  const carregar = useCallback(async () => {
-    setCarregando(true);
-    setErro(null);
-    try {
-      if (id) setTema(await readTheme(id));
-      else setLista(await listThemes());
-    } catch (e) {
-      setErro(String(e));
-    } finally {
-      setCarregando(false);
-    }
-  }, [id]);
+  /**
+   * `primeira` distingue abrir a tela de recarregar depois de uma mudança.
+   *
+   * Sem essa distinção, fixar uma resposta ligava `carregando`, o que desmontava
+   * a subárvore inteira — e junto dela o chat do tema, apagando a conversa que
+   * acabara de produzir o bloco. Recarregar tem de ser silencioso.
+   */
+  const carregar = useCallback(
+    async (primeira = false) => {
+      if (primeira) setCarregando(true);
+      setErro(null);
+      try {
+        if (id) setTema(await readTheme(id));
+        else setLista(await listThemes());
+      } catch (e) {
+        setErro(String(e));
+      } finally {
+        setCarregando(false);
+      }
+    },
+    [id],
+  );
+
+  const recarregar = useCallback(() => void carregar(), [carregar]);
 
   useEffect(() => {
-    void carregar();
+    void carregar(true);
   }, [carregar]);
 
   async function novo() {
@@ -110,7 +123,7 @@ export default function ThemePage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-5 py-6">
+      <main className={id ? "mx-auto max-w-[1500px] px-5 py-6" : "mx-auto max-w-4xl px-5 py-6"}>
         {carregando && (
           <div className="flex justify-center py-16 text-ink-subtle">
             <Loader2 aria-hidden className="h-5 w-5 animate-spin" />
@@ -126,7 +139,7 @@ export default function ThemePage() {
         )}
 
         {!carregando && !erro && id && tema && (
-          <DetalheDoTema tema={tema} onMudou={carregar} />
+          <DetalheDoTema tema={tema} onMudou={recarregar} />
         )}
       </main>
     </div>
@@ -204,8 +217,19 @@ function ListaDeTemas({ temas, onNovo }: { temas: Theme[]; onNovo: () => void })
 function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) {
   const blocos = tema.blocks ?? [];
 
+  // Duas colunas no desktop: o material à esquerda, o chat que o enxerga à
+  // direita. Em tela estreita eles empilham, com o chat primeiro — de nada
+  // adianta o contexto se a caixa de pergunta está no fim de vinte blocos.
   return (
-    <>
+    <div className="flex flex-col gap-5 lg:flex-row-reverse lg:items-start">
+      <aside
+        aria-label="Perguntar neste tema"
+        className="h-[32rem] shrink-0 overflow-hidden rounded-xl border border-line bg-surface lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)] lg:w-[26rem]"
+      >
+        <ThemeChat tema={tema} onFixou={onMudou} />
+      </aside>
+
+      <div className="min-w-0 flex-1">
       {tema.definitions.length > 0 && (
         <section className="mb-5 rounded-xl border border-accent/25 bg-accent-soft px-4 py-3">
           <h2 className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-accent">
@@ -248,7 +272,8 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
           ))}
         </div>
       )}
-    </>
+      </div>
+    </div>
   );
 }
 

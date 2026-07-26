@@ -7,10 +7,11 @@
     arm.fixar(tema.id, Bloco(pergunta="Quantas mortes por covid?", ...))
 """
 
+from . import contexto
 from .models import Bloco, Definicao, Procedencia, Tema, TipoBloco
 from .store import Armazem, TemaInexistente
 
 __all__ = [
-    "Armazem", "Tema", "Bloco", "Definicao",
+    "Armazem", "Tema", "Bloco", "Definicao", "contexto",
     "Procedencia", "TipoBloco", "TemaInexistente",
 ]

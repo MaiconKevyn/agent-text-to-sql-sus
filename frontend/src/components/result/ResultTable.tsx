@@ -55,7 +55,9 @@ export function ResultTable({ result }: ResultTableProps) {
           <Badge tone="accent">
             {nf.format(result.nRows)} {result.nRows === 1 ? "linha" : "linhas"}
           </Badge>
-          <Badge>{formatDuration(result.elapsed)}</Badge>
+          {Number.isFinite(result.elapsed) && (
+            <Badge>{formatDuration(result.elapsed)}</Badge>
+          )}
           {result.truncated && <Badge tone="caution">resultado truncado</Badge>}
         </div>
         <Button

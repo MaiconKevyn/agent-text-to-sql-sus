@@ -27,7 +27,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import concepts
 from .investigation import Investigador
-from .themes import Armazem, Bloco, Definicao, TemaInexistente
+from .themes import Armazem, Bloco, Definicao, TemaInexistente, contexto as ctx_tema
 from .agent import TextToSQLAgent, Turn
 from .config import settings
 from .db import Database
@@ -316,6 +316,54 @@ def remover_definicao(tema_id: str, termo: str) -> JSONResponse:
         return JSONResponse(armazem().remover_definicao(tema_id, termo).para_json(com_blocos=False))
     except TemaInexistente:
         return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
+@app.get("/api/themes/{tema_id}/ask")
+def perguntar_no_tema(
+    tema_id: str,
+    q: str = Query(..., min_length=2, max_length=2000),
+    history: str | None = Query(None),
+) -> StreamingResponse:
+    """Pergunta feita DENTRO de um tema, com os blocos já fixados como contexto.
+
+    É o que separa um tema de uma pasta: sem isto os blocos são arquivos
+    guardados; com isto, "compare com o gráfico de sexo que já está aqui"
+    funciona, porque o modelo sabe o que já foi apurado.
+
+    O contexto vai só para a geração de SQL — nunca para a redação da resposta.
+    Ver src/themes/contexto.py para o porquê.
+    """
+    try:
+        tema = armazem().ler(tema_id)
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+    turnos: list[Turn] = []
+    if history:
+        try:
+            turnos = [
+                Turn(question=h["question"], sql=h.get("sql"))
+                for h in json.loads(history)
+                if h.get("question")
+            ]
+        except Exception:
+            turnos = []
+
+    contexto = ctx_tema.montar(tema)
+
+    def fluxo() -> Iterator[str]:
+        try:
+            for evento in agente().ask_stream(q, turnos, contexto_tema=contexto):
+                yield sse(evento)
+        except Exception as exc:  # noqa: BLE001
+            yield sse({"type": "failure", "kind": "rede", "message": f"Erro: {exc}"})
+            yield sse({"type": "done"})
+
+    return StreamingResponse(
+        fluxo(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/investigate")

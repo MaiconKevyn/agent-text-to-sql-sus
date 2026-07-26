@@ -145,6 +145,16 @@ class Armazem:
         tema.blocos.sort(key=lambda b: (b.y, b.x))
         return self.salvar(tema)
 
+    def pintar(self, id_: str, paleta: str) -> Tema:
+        """Fixa a paleta deste tema. Vazio devolve o tema à paleta do site."""
+        tema = self.ler(id_)
+        # Sem validar contra uma lista: os nomes vivem no frontend, e repeti-los
+        # aqui criaria duas listas para manter em dia. Um id desconhecido cai no
+        # padrão na hora de aplicar, que é o comportamento certo de qualquer
+        # forma.
+        tema.paleta = paleta.strip()[:40]
+        return self.salvar(tema)
+
     def reordenar(self, id_: str, ordem: list[str]) -> Tema:
         """Reordena pelos ids recebidos; o que não vier na lista fica no fim."""
         tema = self.ler(id_)

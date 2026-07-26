@@ -1,12 +1,10 @@
 import { cn } from "@/lib/utils";
-import { PanelLeft, Activity, Moon, PanelRight, Sun, Trash2 } from "lucide-react";
+import { SeletorDePaleta } from "@/components/SeletorDePaleta";
+import { PanelLeft, Activity, PanelRight, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import type { Theme } from "@/hooks/useTheme";
 
 interface AppHeaderProps {
-  theme: Theme;
-  onToggleTheme: () => void;
   debug: boolean;
   onDebugChange: (v: boolean) => void;
   schemaOpen: boolean;
@@ -18,8 +16,6 @@ interface AppHeaderProps {
 }
 
 export function AppHeader({
-  theme,
-  onToggleTheme,
   debug,
   onDebugChange,
   schemaOpen,
@@ -81,18 +77,7 @@ export function AppHeader({
             <PanelLeft aria-hidden className="h-4 w-4" />
           </Button>
 
-          <Button
-            size="icon"
-            onClick={onToggleTheme}
-            aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
-            title={theme === "dark" ? "Tema claro" : "Tema escuro"}
-          >
-            {theme === "dark" ? (
-              <Sun aria-hidden className="h-4 w-4" />
-            ) : (
-              <Moon aria-hidden className="h-4 w-4" />
-            )}
-          </Button>
+          <SeletorDePaleta compacto />
 
           <Button
             size="icon"

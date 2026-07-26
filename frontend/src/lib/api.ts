@@ -310,6 +310,13 @@ export const searchStatus = () =>
 export const searchWeb = (q: string) =>
   json<SearchResult>(`/api/search?q=${encodeURIComponent(q)}`);
 
+/** Paleta própria do tema. String vazia devolve à paleta do site. */
+export const setPalette = (id: string, palette: string) =>
+  json<Theme>(`/api/themes/${id}/palette`, {
+    method: "POST",
+    body: JSON.stringify({ palette }),
+  });
+
 export const setGrid = (
   id: string,
   layout: { id: string; x: number; y: number; width: number; height: number }[],

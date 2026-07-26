@@ -391,6 +391,16 @@ def ajustar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONR
         return JSONResponse({"error": "Não encontrado."}, status_code=404)
 
 
+@app.post("/api/themes/{tema_id}/palette")
+def pintar_tema(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Paleta própria do tema. String vazia volta para a paleta do site."""
+    try:
+        tema = armazem().pintar(tema_id, str(corpo.get("palette") or ""))
+        return JSONResponse(tema.para_json(com_blocos=False))
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
 @app.post("/api/themes/{tema_id}/grid")
 def dispor_grade(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
     """A grade inteira: posição e tamanho de cada bloco, de uma vez só."""

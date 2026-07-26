@@ -13,6 +13,8 @@
  *
  * Resultado (OKLab ×100): claro CVD ΔE 9.1 · normal 19.6; escuro 8.4 · 19.3.
  */
+import { acharPaleta, BASE, PALETA_PADRAO, type Paleta } from "./paletas";
+
 export interface ChartTheme {
   serie: readonly string[];
   sequencial: readonly string[];
@@ -22,30 +24,36 @@ export interface ChartTheme {
   inkSubtle: string;
   line: string;
   surface: string;
+  /** Faixas alternadas do heatmap: sem isto o ECharts usa branco por padrão. */
+  raised: string;
 }
 
-const LIGHT: ChartTheme = {
-  serie: ["#0f8ba3", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"],
-  sequencial: ["#c7e7ef", "#8ecfdf", "#4fb0c8", "#1f92ac", "#0f6f85"],
-  ink: "#1b2430",
-  inkMuted: "#556274",
-  inkSubtle: "#78849a",
-  line: "#e5e9ee",
-  surface: "#ffffff",
-};
+/**
+ * Resolve um token da paleta ativa, com o tema padrão como base.
+ *
+ * Em JavaScript e não lendo o CSS: as variáveis são escritas num efeito, que
+ * roda DEPOIS do render — e `montaOpcao` roda durante. Lendo do CSS, o gráfico
+ * ficava sempre uma paleta atrás: trocar para a paleta creme deixava o eixo com
+ * o cinza-frio da anterior.
+ */
+function token(paleta: Paleta, modo: "claro" | "escuro", nome: string): string {
+  const escolhido = (modo === "escuro" ? paleta.escuro : paleta.claro)?.[nome];
+  return `hsl(${escolhido ?? BASE[modo][nome as keyof (typeof BASE)["claro"]]})`;
+}
 
-const DARK: ChartTheme = {
-  serie: ["#1f9fb8", "#d95926", "#199e70", "#c98500", "#d55181"],
-  sequencial: ["#123a45", "#165a6b", "#1a7d92", "#1f9fb8", "#5cc3d4"],
-  ink: "#f0f3f7",
-  inkMuted: "#a4b0c0",
-  inkSubtle: "#7d8a9c",
-  line: "#232d3b",
-  surface: "#141a24",
-};
-
-export function chartTheme(dark: boolean): ChartTheme {
-  return dark ? DARK : LIGHT;
+export function chartTheme(dark: boolean, paletaId = PALETA_PADRAO): ChartTheme {
+  const p = acharPaleta(paletaId);
+  const modo = dark ? "escuro" : "claro";
+  return {
+    serie: p.serie[modo],
+    sequencial: p.sequencial[modo],
+    ink: token(p, modo, "--ink"),
+    inkMuted: token(p, modo, "--ink-muted"),
+    inkSubtle: token(p, modo, "--ink-subtle"),
+    line: token(p, modo, "--line"),
+    surface: token(p, modo, "--surface"),
+    raised: token(p, modo, "--raised"),
+  };
 }
 
 export const nfBR = new Intl.NumberFormat("pt-BR");

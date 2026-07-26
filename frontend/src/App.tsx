@@ -11,7 +11,6 @@ import { useThemes } from "@/hooks/useThemes";
 import { Sidebar } from "@/components/Sidebar";
 import { useChat } from "@/hooks/useChat";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/hooks/useTheme";
 
 const DEBUG_KEY = "sih-debug";
 const BARRA_KEY = "sih-barra";
@@ -27,7 +26,6 @@ function lerFlag(chave: string, padrao: boolean): boolean {
 }
 
 export default function App() {
-  const { theme, toggle } = useTheme();
   const { messages, busy, send, regenerate, setFeedback, stop, clear, abrir: abrirChat, chatAtual, versao } = useChat();
   const composer = useRef<ComposerHandle>(null);
 
@@ -117,8 +115,6 @@ export default function App() {
     <MotionConfig reducedMotion={reduzirMovimento ? "always" : "never"}>
       <div className="flex h-full flex-col bg-canvas">
         <AppHeader
-          theme={theme}
-          onToggleTheme={toggle}
           debug={debug}
           onDebugChange={setDebug}
           schemaOpen={schemaOpen}

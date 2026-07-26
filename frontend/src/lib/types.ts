@@ -375,6 +375,8 @@ export interface ThemeDefinition {
 
 export interface Theme {
   id: string;
+  /** Paleta própria deste tema; vazio usa a do site. */
+  palette?: string;
   title: string;
   description: string;
   createdAt: string;

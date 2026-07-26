@@ -10,6 +10,7 @@ import { LabelLayout } from "echarts/features";
 import { SVGRenderer } from "echarts/renderers";
 import { useEffect, useMemo, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { usePaletaEfetiva } from "@/hooks/usePaleta";
 import { useIsDark } from "@/hooks/useTheme";
 import { abreviar, chartTheme, nfBR } from "@/lib/chartTheme";
 import type { ChartSpec, QueryResult } from "@/lib/types";
@@ -54,7 +55,13 @@ export function ResultChart({ spec, result, preencher = false }: Props) {
   const host = useRef<HTMLDivElement>(null);
   const inst = useRef<echarts.ECharts>();
 
-  const option = useMemo(() => montaOpcao(spec, result, dark), [spec, result, dark]);
+  // A paleta entra nas dependências: sem ela, trocar de tema deixaria o
+  // gráfico com as cores da paleta anterior até a próxima consulta.
+  const paleta = usePaletaEfetiva();
+  const option = useMemo(
+    () => montaOpcao(spec, result, dark, paleta),
+    [spec, result, dark, paleta],
+  );
 
   useEffect(() => {
     const el = host.current;
@@ -120,8 +127,8 @@ export function ResultChart({ spec, result, preencher = false }: Props) {
 
 const MESES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
-function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean) {
-  const t = chartTheme(dark);
+function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: string) {
+  const t = chartTheme(dark, paleta);
   const ix = res.columns.indexOf(spec.x);
   const iy = res.columns.indexOf(spec.y);
   if (ix < 0 || iy < 0) return null;
@@ -387,7 +394,9 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean) {
         xAxis: {
           ...eixoCat,
           data: categorias,
-          splitArea: { show: true },
+          // Sem cor explícita o ECharts pinta branco alternado — uma faixa
+          // clara atrás do heatmap em qualquer tema escuro.
+          splitArea: { show: true, areaStyle: { color: [t.surface, t.raised] } },
           axisLabel: { ...texto, fontSize: 9.5, interval: categorias.length > 12 ? 1 : 0 },
         },
         yAxis: {

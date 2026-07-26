@@ -1,12 +1,16 @@
 import { ArrowLeft, Bookmark, FileText, Loader2, Plus } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { useTheme } from "@/hooks/useTheme";
+import { SeletorDePaleta } from "@/components/SeletorDePaleta";
 import {
   createTheme,
   listThemes,
   readTheme,
+  setPalette,
 } from "@/lib/api";
+import { PaletaEscopo } from "@/hooks/usePaleta";
+import { useIsDark } from "@/hooks/useTheme";
+import { aplicarPaleta, limparPaleta } from "@/lib/paletas";
 import { LINHA_PX, VAO_PX, type Theme, type ThemeBlock } from "@/lib/types";
 import { ThemeChat } from "./ThemeChat";
 import { AddSource } from "@/components/theme/AddSource";
@@ -37,7 +41,6 @@ function abrir(id: string | null) {
  * foco no último item, investigação é material que se compara lado a lado.
  */
 export default function ThemePage() {
-  const { theme, toggle } = useTheme();
   const [id, setId] = useState<string | null>(idDaUrl);
   const [lista, setLista] = useState<Theme[]>([]);
   const [tema, setTema] = useState<Theme | null>(null);
@@ -84,8 +87,21 @@ export default function ThemePage() {
     abrir(t.id);
   }
 
+  // A paleta do tema vale só dentro desta tela: os tokens vão no contêiner e
+  // cascateiam, e o id desce pelo contexto porque o ECharts não lê CSS.
+  const raiz = useRef<HTMLDivElement>(null);
+  const paletaDoTema = tema?.palette ?? "";
+  const escura = useIsDark();
+  useEffect(() => {
+    const el = raiz.current;
+    if (!el) return;
+    if (paletaDoTema) aplicarPaleta(el, paletaDoTema, escura ? "dark" : "light");
+    else limparPaleta(el);
+  }, [paletaDoTema, escura]);
+
   return (
-    <div className="min-h-full bg-canvas">
+    <PaletaEscopo.Provider value={paletaDoTema || null}>
+    <div ref={raiz} className="min-h-full bg-canvas">
       <header className="sticky top-0 z-10 border-b border-line bg-canvas/90 px-5 py-3 backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           <a
@@ -112,12 +128,16 @@ export default function ThemePage() {
               </p>
             )}
           </div>
-          <button
-            onClick={toggle}
-            className="rounded-lg border border-line px-2.5 py-1 text-[12px] text-ink-muted transition-colors duration-150 hover:text-ink"
-          >
-            {theme === "dark" ? "Tema claro" : "Tema escuro"}
-          </button>
+          {id && tema ? (
+            <SeletorDePaleta
+              doTema={{ atual: tema.palette ?? "", aoEscolher: async (p) => {
+                await setPalette(tema.id, p);
+                recarregar();
+              } }}
+            />
+          ) : (
+            <SeletorDePaleta />
+          )}
         </div>
       </header>
 
@@ -141,6 +161,7 @@ export default function ThemePage() {
         )}
       </main>
     </div>
+    </PaletaEscopo.Provider>
   );
 }
 

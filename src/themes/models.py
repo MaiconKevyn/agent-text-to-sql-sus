@@ -264,6 +264,10 @@ class Tema:
     descricao: str = ""
     criado_em: str = field(default_factory=_agora)
     atualizado_em: str = field(default_factory=_agora)
+    # Paleta própria deste tema. Vazio = usa a escolhida no site. Fica no tema e
+    # não no navegador de propósito: o tema é compartilhável por URL, e a
+    # aparência faz parte de como a investigação foi montada.
+    paleta: str = ""
     definicoes: list[Definicao] = field(default_factory=list)
     blocos: list[Bloco] = field(default_factory=list)
 
@@ -285,6 +289,7 @@ class Tema:
             "description": self.descricao,
             "createdAt": self.criado_em,
             "updatedAt": self.atualizado_em,
+            "palette": self.paleta,
             "definitions": [d.para_json() for d in self.definicoes],
             "blockCount": len(self.blocos),
         }
@@ -304,6 +309,7 @@ class Tema:
             descricao=str(d.get("description") or ""),
             criado_em=str(d.get("createdAt") or _agora()),
             atualizado_em=str(d.get("updatedAt") or _agora()),
+            paleta=str(d.get("palette") or ""),
             definicoes=[Definicao.de_json(x) for x in (d.get("definitions") or [])],
             blocos=blocos,
         )

@@ -18,7 +18,7 @@
 
     --ink: 215 30% 14%;        /* 15.4:1 sobre surface */
     --ink-muted: 215 16% 40%;  /*  7.4:1 sobre surface */
-    --ink-subtle: 215 13% 52%; /*  4.7:1 sobre surface */
+    --ink-subtle: 215 13% 47%; /*  4.7:1 sobre surface — 52% dava 3,9:1 */
 
     --accent: 190 82% 27%;     /*  5.6:1 sobre surface */
     --accent-hover: 190 84% 22%;

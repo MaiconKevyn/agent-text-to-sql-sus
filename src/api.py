@@ -25,7 +25,7 @@ from fastapi import Body, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from . import concepts, websearch
+from . import concepts, roteador, websearch
 from .investigation import Investigador
 from .chats import ChatInexistente, Conversas, Rodada as RodadaChat
 from .themes import Armazem, Bloco, Definicao, TemaInexistente, contexto as ctx_tema
@@ -426,6 +426,11 @@ def perguntar_no_tema(
     guardados; com isto, "compare com o gráfico de sexo que já está aqui"
     funciona, porque o modelo sabe o que já foi apurado.
 
+    Aqui — e só aqui — a pergunta passa antes por um roteador: "busque na
+    internet quantos mortos a covid teve" tem de virar busca, não SQL. Ver
+    src/roteador.py. O /api/ask normal, que é o caminho da avaliação, não tem
+    esse passo.
+
     O contexto vai só para a geração de SQL — nunca para a redação da resposta.
     Ver src/themes/contexto.py para o porquê.
     """
@@ -449,8 +454,32 @@ def perguntar_no_tema(
 
     def fluxo() -> Iterator[str]:
         try:
-            for evento in agente().ask_stream(q, turnos, contexto_tema=contexto):
-                yield sse(evento)
+            rota = roteador.rotear(q, assunto=tema.titulo)
+            yield sse({"type": "route", **rota.para_json()})
+
+            if rota.usa_web:
+                # Primeiro a busca: ela leva segundos e a consulta leva dezenas,
+                # então em "ambos" a tela já tem o que mostrar enquanto o SQL roda.
+                try:
+                    achados = websearch.buscar(rota.consulta_web)
+                    yield sse({"type": "search", **achados.para_json()})
+                except websearch.BuscaIndisponivel as exc:
+                    yield sse({"type": "search_failed", "message": str(exc)})
+
+            if rota.usa_banco:
+                # Em "ambos", vai só a metade que o SIH responde. Mandar a
+                # pergunta inteira faz o gerador de SQL recusar por causa da
+                # outra metade — e aí se perde também o número que ele daria.
+                for evento in agente().ask_stream(
+                    rota.para_o_banco(q), turnos, contexto_tema=contexto
+                ):
+                    yield sse(evento)
+            else:
+                # Os candidatos NÃO viram texto redigido. Um resumo de páginas
+                # de terceiros seria um parágrafo sem fonte única, impossível de
+                # conferir — e o canal por onde uma página injetaria instrução.
+                # O que a tela mostra é trecho, domínio e link.
+                yield sse({"type": "done"})
         except Exception as exc:  # noqa: BLE001
             yield sse({"type": "failure", "kind": "rede", "message": f"Erro: {exc}"})
             yield sse({"type": "done"})

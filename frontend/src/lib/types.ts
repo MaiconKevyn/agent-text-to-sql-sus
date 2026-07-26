@@ -143,6 +143,17 @@ export type StreamEvent =
   | { type: "refused" }
   | { type: "follow-ups"; questions: string[] }
   | { type: "failure"; kind: FailureKind; message: string }
+  // Só no chat do tema: para onde a pergunta foi, e o que a busca trouxe.
+  | {
+      type: "route";
+      destination: "banco" | "web" | "ambos";
+      /** Em "ambos", a metade que foi para o SQL; vazio nos outros destinos. */
+      dbQuestion: string;
+      query: string;
+      reason: string;
+    }
+  | { type: "search"; query: string; domains: string[]; candidates: SearchCandidate[] }
+  | { type: "search_failed"; message: string }
   | { type: "done" };
 
 /* --------------------------------------------------------------------------

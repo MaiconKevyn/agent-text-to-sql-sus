@@ -6,6 +6,7 @@ resto do pipeline.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from typing import Any
 
@@ -14,6 +15,22 @@ from openai import OpenAI
 from .config import settings
 
 _client: OpenAI | None = None
+
+# O modelo as vezes escreve NUL+'e7' onde queria `ç` — um NUL seguido dos
+# dígitos hex soltos. Aconteceu em 1 de 4 chamadas num teste com texto acentuado
+# em português, e o estrago é silencioso: json.loads aceita, o NUL decodifica, e
+# "internações" chega como "interna\x00e7\x00f5es". Numa cláusula SQL com
+# 'São Paulo' isso vira um WHERE que não casa com nada.
+#
+# Um NUL seguido de dois hex nao tem leitura legitima aqui — NUL não aparece
+# em pergunta, SQL ou texto de resposta. Consertar na entrada do JSON é o único
+# lugar onde dá para distinguir o erro da intenção.
+_ESCAPE_QUEBRADO = re.compile(r"\\u0000([0-9a-fA-F]{2})")
+
+
+def _repara_escapes(texto: str) -> str:
+    """No-op para resposta bem formada; conserta o escape quebrado quando vem."""
+    return _ESCAPE_QUEBRADO.sub(lambda m: f"\\u00{m.group(1)}", texto)
 
 
 def client() -> OpenAI:
@@ -49,7 +66,7 @@ def complete(
 
     resp = client().chat.completions.create(**kwargs)
     content = resp.choices[0].message.content or ""
-    return json.loads(content) if schema is not None else content
+    return json.loads(_repara_escapes(content)) if schema is not None else content
 
 
 def complete_streaming(

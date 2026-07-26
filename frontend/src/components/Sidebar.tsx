@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { deleteChat, deleteTheme, listChats, listThemes } from "@/lib/api";
 import type { SavedChat, Theme } from "@/lib/types";
 
-export type Aba = "temas" | "chats";
+export type Aba = "temas" | "chats" | "paineis";
 
 interface Props {
   /** Qual seção mostrar. Vem de fora: quem escolhe é o trilho. */

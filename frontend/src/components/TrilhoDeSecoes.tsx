@@ -1,4 +1,4 @@
-import { Bookmark, MessagesSquare } from "lucide-react";
+import { BarChart3, Bookmark, MessagesSquare } from "lucide-react";
 import type { Aba } from "./Sidebar";
 import { cn } from "@/lib/utils";
 
@@ -14,8 +14,9 @@ interface Props {
 }
 
 const SECOES: { id: Aba; rotulo: string; Icone: typeof Bookmark }[] = [
-  { id: "temas", rotulo: "Temas", Icone: Bookmark },
   { id: "chats", rotulo: "Chats", Icone: MessagesSquare },
+  { id: "temas", rotulo: "Temas", Icone: Bookmark },
+  { id: "paineis", rotulo: "Painéis", Icone: BarChart3 },
 ];
 
 /**

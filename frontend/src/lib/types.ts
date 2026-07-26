@@ -439,3 +439,61 @@ export interface SearchResult {
   domains: string[];
   candidates: SearchCandidate[];
 }
+
+/* --------------------------------------------------------------------------
+   Painel: mostradores com filtros. O oposto do tema — ver src/paineis/models.py.
+   -------------------------------------------------------------------------- */
+
+/** Os filtros que existem, e nada além disso. Cada um mapeia para uma coluna. */
+export type FiltroPainel = "periodo" | "diagnostico" | "uf";
+
+export const ROTULO_FILTRO: Record<FiltroPainel, string> = {
+  periodo: "período",
+  diagnostico: "diagnóstico",
+  uf: "UF",
+};
+
+export interface DashboardFilters {
+  yearFrom: number;
+  yearTo: number;
+  /** Prefixo de CID-10. Vazio significa TUDO, não significa nenhum. */
+  diagnosis: string;
+  uf: string;
+}
+
+export interface DashboardWidget {
+  id: string;
+  title: string;
+  question: string;
+  /** Com marcadores `?`. Só aparece no detalhe — não é o que se lê de relance. */
+  sql: string;
+  /** A quais filtros ESTE widget responde. A interface avisa o que ele ignora. */
+  filters: FiltroPainel[];
+  chart: ChartSpec | null;
+  format: "grafico" | "indicador";
+  assumptions: string[];
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  createdAt: string;
+}
+
+export interface Dashboard {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  filters: DashboardFilters;
+  widgetCount: number;
+  widgets?: DashboardWidget[];
+}
+
+/** O resultado de rodar um widget sob os filtros atuais. */
+export interface WidgetData {
+  id: string;
+  /** Filtros ligados que ESTE widget ignora. Sem isto o painel mente calado. */
+  unapplied: FiltroPainel[];
+  error: string | null;
+  result: QueryResult | null;
+}

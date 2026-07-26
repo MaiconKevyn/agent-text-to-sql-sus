@@ -7,6 +7,7 @@ import {
   createTheme,
   listThemes,
   readTheme,
+  setGrid,
   setPalette,
 } from "@/lib/api";
 import { PaletaEscopo } from "@/hooks/usePaleta";
@@ -111,7 +112,7 @@ export default function ThemePage() {
         aba="temas"
         aberto
         onEscolher={(a) => {
-          location.href = a === "temas" ? "?temas" : "/";
+          location.href = a === "temas" ? "?temas" : a === "paineis" ? "?paineis" : "/";
         }}
       />
       <div className="min-w-0 flex-1">
@@ -249,7 +250,7 @@ function ListaDeTemas({ temas, onNovo }: { temas: Theme[]; onNovo: () => void })
 
 function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) {
   const blocos = tema.blocks ?? [];
-  const painel = usePainel(blocos, tema.id, onMudou);
+  const painel = usePainel(blocos, (l) => setGrid(tema.id, l), onMudou);
 
   // Duas colunas no desktop: o material à esquerda, o chat que o enxerga à
   // direita. Em tela estreita eles empilham, com o chat primeiro — de nada

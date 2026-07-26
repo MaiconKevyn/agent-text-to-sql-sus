@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
+import type { Dashboard, DashboardFilters, WidgetData, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -336,3 +336,52 @@ export const layoutBlock = (
     method: "POST",
     body: JSON.stringify(layout),
   });
+
+/* --------------------------------------------------------------------------
+   Painéis.
+   -------------------------------------------------------------------------- */
+
+export const listDashboards = () => json<Dashboard[]>("/api/dashboards");
+export const readDashboard = (id: string) => json<Dashboard>(`/api/dashboards/${id}`);
+
+export const createDashboard = (title = "") =>
+  json<Dashboard>("/api/dashboards", { method: "POST", body: JSON.stringify({ title }) });
+
+export const deleteDashboard = (id: string) =>
+  json<{ ok: boolean }>(`/api/dashboards/${id}`, { method: "DELETE" });
+
+/**
+ * Monta um widget a partir de uma pergunta. `refused` preenchido é resposta
+ * legítima, não erro: a base pode não ter o dado, ou a consulta pode não passar
+ * nas conferências. Melhor recusar na criação que entregar um widget que só
+ * quebra quando alguém mexe no filtro.
+ */
+export const createWidget = (id: string, question: string) =>
+  json<{ refused: string; dashboard?: Dashboard; widgetId?: string }>(
+    `/api/dashboards/${id}/widgets`,
+    { method: "POST", body: JSON.stringify({ question }) },
+  );
+
+export const deleteWidget = (id: string, widgetId: string) =>
+  json<Dashboard>(`/api/dashboards/${id}/widgets/${widgetId}`, { method: "DELETE" });
+
+export const setFilters = (id: string, filters: Partial<DashboardFilters>) =>
+  json<Dashboard>(`/api/dashboards/${id}/filters`, {
+    method: "POST",
+    body: JSON.stringify(filters),
+  });
+
+export const setDashboardGrid = (
+  id: string,
+  layout: { id: string; x: number; y: number; width: number; height: number }[],
+) =>
+  json<Dashboard>(`/api/dashboards/${id}/grid`, {
+    method: "POST",
+    body: JSON.stringify({ layout }),
+  });
+
+/** Roda os widgets sob os filtros atuais. Sem modelo no caminho. */
+export const dashboardData = (id: string, only?: string[]) =>
+  json<{ data: WidgetData[] }>(
+    `/api/dashboards/${id}/data${only?.length ? `?only=${only.join(",")}` : ""}`,
+  );

@@ -15,16 +15,22 @@ const Lab = lazy(() => import("./lab/Lab"));
 // para não perder nada — e misturá-los faria o chat carregar um ciclo de vida
 // que não é o dele. `lazy` porque a maioria das sessões nunca abre esta tela.
 const ThemePage = lazy(() => import("./theme/ThemePage"));
+const DashboardPage = lazy(() => import("./dashboard/DashboardPage"));
 
 const params = new URLSearchParams(location.search);
 const lab = params.has("lab");
 const investigacao = params.has("temas") || params.has("tema");
+const painel = params.has("paineis") || params.has("painel");
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     {lab ? (
       <Suspense fallback={<div className="p-6 text-ink-muted">Carregando o laboratório…</div>}>
         <Lab />
+      </Suspense>
+    ) : painel ? (
+      <Suspense fallback={<div className="p-6 text-ink-muted">Carregando o painel…</div>}>
+        <DashboardPage />
       </Suspense>
     ) : investigacao ? (
       <Suspense fallback={<div className="p-6 text-ink-muted">Carregando…</div>}>

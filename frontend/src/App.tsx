@@ -136,6 +136,11 @@ export default function App() {
             aba={aba}
             aberto={barraAberta}
             onEscolher={(a) => {
+              // Painéis é outra tela, não outra lista: aqui o trilho navega.
+              if (a === "paineis") {
+                location.href = "?paineis";
+                return;
+              }
               // Na seção já aberta, o clique fecha; nas outras, troca e abre.
               if (barraAberta && a === aba) setBarraAberta(false);
               else {

@@ -1,14 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { setGrid } from "@/lib/api";
-import {
-  ALTURA_MAX,
-  ALTURA_MIN,
-  COLUNAS,
-  LARGURA_MIN,
-  LINHA_PX,
-  VAO_PX,
-  type ThemeBlock,
-} from "@/lib/types";
+import { ALTURA_MAX, ALTURA_MIN, COLUNAS, LARGURA_MIN, LINHA_PX, VAO_PX } from "@/lib/types";
 import { linhasOcupadas, mover, redimensionar, type Celula } from "./grade";
 
 /** Que borda foi pega. `mover` é o arrasto pela alça. */
@@ -46,7 +37,25 @@ interface EmCurso {
  * Nada aqui reposiciona um bloco que o usuário não pegou. Ver theme/grade.ts
  * para o porquê da escolha.
  */
-export function usePainel(blocos: ThemeBlock[], temaId: string, onMudou: () => void) {
+/** O mínimo que a grade precisa saber de um item. Tema e painel servem. */
+export interface Posicionavel {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * `gravar` vem de fora: a grade é a mesma para o tema e para o painel, mas os
+ * dois gravam em endpoints diferentes. Deixar o hook conhecer um deles faria
+ * a segunda tela precisar de uma cópia do arquivo inteiro.
+ */
+export function usePainel(
+  blocos: Posicionavel[],
+  gravar: (layout: Posicionavel[]) => Promise<unknown>,
+  onMudou: () => void,
+) {
   const palco = useRef<HTMLDivElement>(null);
   const [gesto, setGesto] = useState<EmCurso | null>(null);
   // Enquanto se arrasta, a verdade é local: o servidor só é avisado ao soltar.
@@ -162,10 +171,7 @@ export function usePainel(blocos: ThemeBlock[], temaId: string, onMudou: () => v
         setRascunho(null);
         return;
       }
-      await setGrid(
-        temaId,
-        final.map((c) => ({ id: c.id, x: c.x, y: c.y, width: c.w, height: c.h })),
-      );
+      await gravar(final.map((c) => ({ id: c.id, x: c.x, y: c.y, width: c.w, height: c.h })));
       onMudou();
     };
 
@@ -203,10 +209,7 @@ export function usePainel(blocos: ThemeBlock[], temaId: string, onMudou: () => v
         ? redimensionar(celulas, id, c.w + (d.w ?? 0), c.h + (d.h ?? 0))
         : mover(celulas, id, c.x + (d.x ?? 0), c.y + (d.y ?? 0));
     setRascunho(novo);
-    await setGrid(
-      temaId,
-      novo.map((n) => ({ id: n.id, x: n.x, y: n.y, width: n.w, height: n.h })),
-    );
+    await gravar(novo.map((n) => ({ id: n.id, x: n.x, y: n.y, width: n.w, height: n.h })));
     onMudou();
   }
 

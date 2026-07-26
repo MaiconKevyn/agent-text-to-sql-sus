@@ -119,6 +119,32 @@ class Armazem:
             bloco.altura = max(ALTURA_MIN, min(ALTURA_MAX, altura))
         return self.salvar(tema)
 
+    def dispor(self, id_: str, arranjo: list[dict]) -> Tema:
+        """Grava a grade inteira de uma vez.
+
+        Em lote e não bloco a bloco porque um único movimento reposiciona
+        vários: quem estava na vaga desce, e quem ficou com buraco embaixo sobe.
+        Gravar um por vez deixaria o disco passar por estados com blocos
+        sobrepostos — e uma falha no meio congelaria o tema num deles.
+
+        O que não vier no arranjo fica onde está; valor fora da faixa é aparado.
+        """
+        tema = self.ler(id_)
+        por_id = {b.id: b for b in tema.blocos}
+        for item in arranjo:
+            bloco = por_id.get(str(item.get("id")))
+            if bloco is None:
+                continue
+            bloco.largura = max(LARGURA_MIN, min(COLUNAS, int(item.get("width", bloco.largura))))
+            bloco.altura = max(ALTURA_MIN, min(ALTURA_MAX, int(item.get("height", bloco.altura))))
+            bloco.x = max(0, min(COLUNAS - bloco.largura, int(item.get("x", bloco.x))))
+            bloco.y = max(0, int(item.get("y", bloco.y)))
+        # A ordem da lista deixa de ser o arranjo, mas continua sendo a ordem de
+        # leitura do relatório e do contexto do chat. Alinhar as duas evita que
+        # o texto conte a investigação numa ordem e a tela mostre outra.
+        tema.blocos.sort(key=lambda b: (b.y, b.x))
+        return self.salvar(tema)
+
     def reordenar(self, id_: str, ordem: list[str]) -> Tema:
         """Reordena pelos ids recebidos; o que não vier na lista fica no fim."""
         tema = self.ler(id_)

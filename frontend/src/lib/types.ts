@@ -322,15 +322,16 @@ export type BlockKind = "consulta" | "investigacao" | "nota";
  *  número grande ou uma tabela. */
 export type BlockFormat = "auto" | "indicador" | "grafico" | "tabela" | "citacao";
 
-/** A grade do painel. Espelha as constantes de src/themes/models.py — mudar
- *  aqui sem mudar lá deixa o servidor aparando o que a tela desenhou. */
-export const COLUNAS = 12;
-export const LARGURA_MIN = 3;
-export const ALTURA_MIN = 4;
-export const ALTURA_MAX = 40;
-/** Altura de uma unidade de linha, em pixels, e o vão entre blocos. */
-export const LINHA_PX = 30;
-export const VAO_PX = 12;
+/** A grade do painel. Definidas em theme/grade.ts, que não depende de nada e
+ *  por isso roda direto no Node; espelham as constantes de themes/models.py. */
+export {
+  ALTURA_MAX,
+  ALTURA_MIN,
+  COLUNAS,
+  LARGURA_MIN,
+  LINHA_PX,
+  VAO_PX,
+} from "@/theme/grade";
 
 export interface ThemeBlock {
   id: string;
@@ -355,6 +356,10 @@ export interface ThemeBlock {
   /** Quanto ocupa na grade: colunas de LARGURA_MIN a COLUNAS, altura em linhas. */
   width: number;
   height: number;
+  /** Onde fica, em células. Explícito e não deduzido da ordem — é o que deixa
+   *  um bloco parado onde foi solto, mesmo com espaço vazio ao lado. */
+  x: number;
+  y: number;
   /** Quanto ocupa na grade de três colunas. */
   pinnedAt: string;
 }

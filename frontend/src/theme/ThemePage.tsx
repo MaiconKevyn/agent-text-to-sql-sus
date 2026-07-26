@@ -7,13 +7,11 @@ import {
   listThemes,
   readTheme,
 } from "@/lib/api";
-import { COLUNAS, LINHA_PX, VAO_PX, type Theme } from "@/lib/types";
+import { LINHA_PX, VAO_PX, type Theme, type ThemeBlock } from "@/lib/types";
 import { ThemeChat } from "./ThemeChat";
 import { AddSource } from "@/components/theme/AddSource";
 import { BlocoPainel } from "./BlocoPainel";
-import { useRedimensionar } from "./useRedimensionar";
-import { useReflow } from "./useReflow";
-import { useReordenar } from "./useReordenar";
+import { usePainel } from "./usePainel";
 
 const nf = new Intl.NumberFormat("pt-BR");
 
@@ -216,19 +214,7 @@ function ListaDeTemas({ temas, onNovo }: { temas: Theme[]; onNovo: () => void })
 
 function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) {
   const blocos = tema.blocks ?? [];
-  const { ordenados, arrastando, aoPegar, aoMover } = useReordenar(blocos, tema.id, onMudou);
-  const { tamanhoDe, aoPegarBorda, aoAjustar, redimensionando } = useRedimensionar(
-    blocos,
-    tema.id,
-    onMudou,
-  );
-
-  // A assinatura é ordem + tamanhos: é exatamente o que muda a posição de
-  // alguém na grade. Reagir a menos que isso deixaria movimentos sem animação;
-  // a mais, animaria o que não se moveu.
-  const grade = useReflow<HTMLDivElement>(
-    ordenados.map((b) => `${b.id}:${tamanhoDe(b).width}x${tamanhoDe(b).height}`).join(","),
-  );
+  const painel = usePainel(blocos, tema.id, onMudou);
 
   // Duas colunas no desktop: o material à esquerda, o chat que o enxerga à
   // direita. Em tela estreita eles empilham, com o chat primeiro — de nada
@@ -273,44 +259,119 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
           </p>
         </div>
       ) : (
-        // `data-grade` é como o redimensionador acha a largura de uma coluna.
-        // `auto-rows` de altura fixa é o que dá sentido a `grid-row: span N` —
-        // sem isso a linha se ajusta ao conteúdo e puxar a borda de baixo não
-        // muda nada.
-        <div
-          ref={grade}
-          data-grade
-          className="grid"
-          style={{
-            gridTemplateColumns: `repeat(${COLUNAS}, minmax(0, 1fr))`,
-            gridAutoRows: `${LINHA_PX}px`,
-            gap: `${VAO_PX}px`,
-          }}
-        >
-          {ordenados.map((b) => (
-            <BlocoPainel
-              key={b.id}
-              bloco={b}
-              temaId={tema.id}
-              onMudou={onMudou}
-              tamanho={tamanhoDe(b)}
-              manejo={{
-                aoPegar,
-                aoMover,
-                aoPegarBorda,
-                aoAjustar,
-                arrastando,
-                redimensionando,
-              }}
-            />
-          ))}
-        </div>
+        <Palco painel={painel} blocos={blocos} temaId={tema.id} onMudou={onMudou} />
       )}
 
       <div className="mt-3">
         <AddSource temaId={tema.id} onAdicionou={onMudou} />
       </div>
       </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+
+/**
+ * O palco: os blocos vivem aqui em posição absoluta, sobre uma grade desenhada.
+ *
+ * A grade de fundo existe para responder a pergunta que se faz enquanto se
+ * arrasta — "cabe aqui?". Sem ela o painel é um espaço liso e o encaixe vira
+ * tentativa e erro. Fica fraca em repouso, para não competir com o conteúdo, e
+ * ganha presença durante o gesto, quando é a informação que importa.
+ */
+function Palco({
+  painel,
+  blocos,
+  temaId,
+  onMudou,
+}: {
+  painel: ReturnType<typeof usePainel>;
+  blocos: ThemeBlock[];
+  temaId: string;
+  onMudou: () => void;
+}) {
+  const { palco, medidas, comecar, porTeclado, gesto, alturaDoPalco, larguraDaColuna } = painel;
+  const emGesto = gesto !== null;
+  const alvo = gesto ? medidas(gesto.id) : null;
+  const passo = larguraDaColuna() + VAO_PX;
+
+  return (
+    <div
+      ref={palco}
+      className="relative"
+      style={{
+        height: alturaDoPalco,
+        // As duas listras desenham a célula, e o `background-size` no passo
+        // exato da grade faz o padrão coincidir com onde os blocos realmente
+        // encaixam — uma grade decorativa, fora de passo, seria pior que
+        // nenhuma: prometeria um encaixe que não existe.
+        //
+        // Na cor de acento e não no cinza da borda: durante o gesto ela deixa
+        // de ser moldura e vira a informação principal da tela, e um cinza de
+        // 1px simplesmente não é lido.
+        // `hsl(var(--accent) / a)` e não `var(--accent)` direto: os tokens
+        // guardam COMPONENTES HSL ("190 82% 27%"), não cores. Passar o token
+        // cru para um gradiente produz um valor inválido, e o navegador
+        // descarta a declaração inteira em silêncio — a grade simplesmente não
+        // aparece, sem erro nenhum no console.
+        backgroundImage: emGesto
+          ? `linear-gradient(to right, hsl(var(--accent) / 0.28) 1px, transparent 1px),
+             linear-gradient(to bottom, hsl(var(--accent) / 0.28) 1px, transparent 1px)`
+          : undefined,
+        backgroundSize: `${passo}px ${LINHA_PX + VAO_PX}px`,
+        backgroundPosition: `-1px -1px`,
+        transition: "background-color 150ms ease",
+        backgroundColor: emGesto ? "hsl(var(--accent) / 0.04)" : undefined,
+      }}
+    >
+      {/* A vaga de destino, já com colisão e compactação resolvidas: é onde o
+          bloco VAI ficar, não onde o cursor está. */}
+      {alvo && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute rounded-xl border-2 border-dashed border-accent/50 bg-accent-soft/60 transition-[transform,width,height] duration-150 ease-out"
+          style={{
+            transform: `translate(${alvo.celula.x * passo}px, ${alvo.celula.y * (LINHA_PX + VAO_PX)}px)`,
+            width: alvo.w,
+            height: alvo.h,
+          }}
+        />
+      )}
+
+      {blocos.map((b) => {
+        const m = medidas(b.id);
+        if (!m) return null;
+        const ativo = gesto?.id === b.id;
+        return (
+          <div
+            key={b.id}
+            className={ativo ? "absolute z-30" : "absolute z-10"}
+            style={{
+              transform: `translate(${m.x}px, ${m.y}px)`,
+              width: m.w,
+              height: m.h,
+              // Sem transição no bloco em gesto: qualquer suavização entre o
+              // cursor e o bloco vira atraso perceptível. São os vizinhos que
+              // deslizam.
+              transition: ativo
+                ? "none"
+                : "transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1), width 220ms cubic-bezier(0.2, 0.8, 0.2, 1), height 220ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+              willChange: emGesto ? "transform" : undefined,
+            }}
+          >
+            <BlocoPainel
+              bloco={b}
+              temaId={temaId}
+              onMudou={onMudou}
+              celula={m.celula}
+              gesto={ativo ? gesto!.gesto : null}
+              comecar={comecar}
+              porTeclado={porTeclado}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }

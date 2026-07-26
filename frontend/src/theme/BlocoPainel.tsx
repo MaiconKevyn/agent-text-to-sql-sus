@@ -7,7 +7,8 @@ import { SourceBadge } from "@/components/theme/SourceBadge";
 import { layoutBlock, noteBlock, unpinBlock } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { BlockFormat, ThemeBlock } from "@/lib/types";
-import type { Borda, Tamanho } from "./useRedimensionar";
+import type { Celula } from "./grade";
+import type { Gesto } from "./usePainel";
 
 const nf = new Intl.NumberFormat("pt-BR");
 
@@ -50,17 +51,12 @@ interface Props {
   bloco: ThemeBlock;
   temaId: string;
   onMudou: () => void;
-  /** Tamanho a desenhar: durante um arrasto é a prévia, não o que está salvo. */
-  tamanho: Tamanho;
-  /** Ligado pelo painel; ausente, o bloco não se move nem se redimensiona. */
-  manejo?: {
-    aoPegar: (id: string) => void;
-    aoMover: (id: string, passo: -1 | 1) => void;
-    aoPegarBorda: (bloco: ThemeBlock, borda: Borda, e: React.PointerEvent) => void;
-    aoAjustar: (bloco: ThemeBlock, d: Partial<Tamanho>) => void;
-    arrastando: string | null;
-    redimensionando: string | null;
-  };
+  /** A célula que este bloco ocupa agora — durante um gesto, a de destino. */
+  celula: Celula;
+  /** Que gesto está em curso NESTE bloco, se algum. */
+  gesto: Gesto | null;
+  comecar: (id: string, tipo: Gesto, e: React.PointerEvent) => void;
+  porTeclado: (id: string, d: Partial<Celula>) => void;
 }
 
 /**
@@ -76,12 +72,12 @@ interface Props {
  * clique. Num painel que se lê de relance, deixá-lo sempre aberto transforma
  * quatro blocos numa página de rolagem.
  */
-export function BlocoPainel({ bloco, temaId, onMudou, tamanho, manejo }: Props) {
+export function BlocoPainel({ bloco, temaId, onMudou, celula, gesto, comecar, porTeclado }: Props) {
   const [aberto, setAberto] = useState(false);
   const [anotacao, setAnotacao] = useState(bloco.note);
   const formato = formatoEfetivo(bloco);
-  const emMovimento = manejo?.arrastando === bloco.id;
-  const emResize = manejo?.redimensionando === bloco.id;
+  const emMovimento = gesto === "mover";
+  const emResize = gesto !== null && gesto !== "mover";
 
   async function ajustarFormato(format: BlockFormat) {
     await layoutBlock(temaId, bloco.id, { format });
@@ -93,33 +89,23 @@ export function BlocoPainel({ bloco, temaId, onMudou, tamanho, manejo }: Props) 
       // O alvo do arrasto é achado por elementFromPoint; é este atributo que o
       // ponto na tela vira id de bloco.
       data-bloco={bloco.id}
-      style={{
-        gridColumn: `span ${tamanho.width}`,
-        gridRow: `span ${tamanho.height}`,
-      }}
       className={cn(
-        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-surface",
-        "transition-[box-shadow,border-color] duration-150",
+        "group relative flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-surface",
+        "transition-[box-shadow,border-color,opacity] duration-150",
         bloco.provenance === "banco" ? "border-line" : "border-caution/25 bg-caution-soft",
         emResize && "border-accent/50 shadow-lg",
+        // Levantado do painel: sombra forte e leve inclinação de escala dizem
+        // "isto está na mão", que é o que falta quando o bloco só desliza.
+        emMovimento && "scale-[1.02] cursor-grabbing border-accent/60 opacity-90 shadow-2xl",
       )}
     >
-      {/* A sombra do destino: enquanto se arrasta, o bloco vira o contorno da
-          vaga que vai ocupar. O conteúdo sai da frente porque não é ele que
-          está sendo decidido ali — é o lugar e o tamanho. */}
-      {emMovimento && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-accent/60 bg-accent-soft/85 backdrop-blur-[1px]">
-          <span className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-white [font-variant-numeric:tabular-nums]">
-            {tamanho.width} × {tamanho.height}
-          </span>
-        </div>
-      )}
-
-      {/* Durante o redimensionamento o conteúdo continua à vista — é ele que
-          está sendo acomodado —, então o tamanho vai num selo no canto. */}
-      {emResize && (
-        <span className="pointer-events-none absolute bottom-2 right-5 z-20 rounded-md bg-accent px-2 py-0.5 text-[11px] font-medium text-white [font-variant-numeric:tabular-nums]">
-          {tamanho.width} × {tamanho.height}
+      {/* O tamanho, enquanto se mexe. O bloco arrastado continua visível e
+          inteiro — quem marca a vaga é o contorno tracejado no palco, e ele já
+          mostra o resultado da colisão. Esconder o conteúdo aqui seria esconder
+          justamente o que a pessoa está tentando posicionar. */}
+      {(emMovimento || emResize) && (
+        <span className="pointer-events-none absolute bottom-2 right-5 z-20 rounded-md bg-accent px-2 py-0.5 text-[11px] font-medium text-white shadow-sm [font-variant-numeric:tabular-nums]">
+          {celula.w} × {celula.h}
         </span>
       )}
 
@@ -141,25 +127,24 @@ export function BlocoPainel({ bloco, temaId, onMudou, tamanho, manejo }: Props) 
         {/* Os controles só aparecem no hover: num painel, a moldura tem de sumir
             para o conteúdo aparecer. Continuam alcançáveis pelo teclado. */}
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
-          {manejo && (
-            <button
-              onPointerDown={(e) => {
-                // Sem isto o navegador começa a arrastar a imagem do ícone.
-                e.preventDefault();
-                manejo.aoPegar(bloco.id);
-              }}
-              onKeyDown={(e) => {
-                const passo = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
-                if (!passo) return;
-                e.preventDefault();
-                manejo.aoMover(bloco.id, passo);
-              }}
-              aria-label="Reordenar o bloco: arraste, ou use as setas esquerda e direita"
-              className="cursor-grab touch-none rounded p-1 text-ink-subtle transition-colors duration-150 hover:text-ink active:cursor-grabbing"
-            >
-              <GripVertical aria-hidden className="h-3.5 w-3.5" />
-            </button>
-          )}
+          <button
+            onPointerDown={(e) => comecar(bloco.id, "mover", e)}
+            onKeyDown={(e) => {
+              const d =
+                e.key === "ArrowLeft" ? { x: -1 }
+                : e.key === "ArrowRight" ? { x: 1 }
+                : e.key === "ArrowUp" ? { y: -1 }
+                : e.key === "ArrowDown" ? { y: 1 }
+                : null;
+              if (!d) return;
+              e.preventDefault();
+              porTeclado(bloco.id, d);
+            }}
+            aria-label="Mover o bloco: arraste, ou use as setas"
+            className="cursor-grab touch-none rounded p-1 text-ink-subtle transition-colors duration-150 hover:text-ink active:cursor-grabbing"
+          >
+            <GripVertical aria-hidden className="h-3.5 w-3.5" />
+          </button>
           <select
             value={bloco.format}
             onChange={(e) => void ajustarFormato(e.target.value as BlockFormat)}
@@ -301,49 +286,41 @@ export function BlocoPainel({ bloco, temaId, onMudou, tamanho, manejo }: Props) 
 
       {/* ---- as bordas ----
           Faixas invisíveis sobre a borda, largas o bastante para o ponteiro
-          acertar (a borda de 1px não é alvo). Ficam sempre presentes, e não só
-          no hover: quem já sabe que dá para puxar não deveria ter de descobrir
-          de novo a cada bloco. */}
-      {manejo && (
-        <>
-          <span
-            onPointerDown={(e) => manejo.aoPegarBorda(bloco, "direita", e)}
-            className="absolute right-0 top-0 h-full w-2 cursor-ew-resize touch-none opacity-0 transition-opacity duration-150 hover:opacity-100 group-hover:opacity-60"
-            style={{ background: "linear-gradient(to right, transparent, var(--accent))" }}
-            aria-hidden
-          />
-          <span
-            onPointerDown={(e) => manejo.aoPegarBorda(bloco, "baixo", e)}
-            className="absolute bottom-0 left-0 h-2 w-full cursor-ns-resize touch-none opacity-0 transition-opacity duration-150 hover:opacity-100 group-hover:opacity-60"
-            style={{ background: "linear-gradient(to bottom, transparent, var(--accent))" }}
-            aria-hidden
-          />
-          <button
-            onPointerDown={(e) => manejo.aoPegarBorda(bloco, "quina", e)}
-            onKeyDown={(e) => {
-              const d: Partial<Tamanho> =
-                e.key === "ArrowRight"
-                  ? { width: 1 }
-                  : e.key === "ArrowLeft"
-                    ? { width: -1 }
-                    : e.key === "ArrowDown"
-                      ? { height: 1 }
-                      : e.key === "ArrowUp"
-                        ? { height: -1 }
-                        : {};
-              if (!Object.keys(d).length) return;
-              e.preventDefault();
-              void manejo.aoAjustar(bloco, d);
-            }}
-            aria-label="Redimensionar o bloco: arraste a quina, ou use as setas"
-            className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize touch-none rounded-tl-md opacity-0 transition-opacity duration-150 focus:opacity-100 group-hover:opacity-100"
-          >
-            <svg viewBox="0 0 10 10" className="h-full w-full text-ink-subtle" aria-hidden>
-              <path d="M9 3 L3 9 M9 6.5 L6.5 9" stroke="currentColor" strokeWidth="1.2" fill="none" />
-            </svg>
-          </button>
-        </>
-      )}
+          acertar — a borda de 1px não é alvo. Sempre presentes, e não só no
+          hover: quem já sabe que dá para puxar não deveria descobrir de novo a
+          cada bloco. */}
+      <span
+        onPointerDown={(e) => comecar(bloco.id, "direita", e)}
+        className="absolute right-0 top-0 h-full w-2 cursor-ew-resize touch-none opacity-0 transition-opacity duration-150 hover:opacity-100 group-hover:opacity-60"
+        style={{ background: "linear-gradient(to right, transparent, var(--accent))" }}
+        aria-hidden
+      />
+      <span
+        onPointerDown={(e) => comecar(bloco.id, "baixo", e)}
+        className="absolute bottom-0 left-0 h-2 w-full cursor-ns-resize touch-none opacity-0 transition-opacity duration-150 hover:opacity-100 group-hover:opacity-60"
+        style={{ background: "linear-gradient(to bottom, transparent, var(--accent))" }}
+        aria-hidden
+      />
+      <button
+        onPointerDown={(e) => comecar(bloco.id, "quina", e)}
+        onKeyDown={(e) => {
+          const d: Partial<Celula> | null =
+            e.key === "ArrowRight" ? { w: 1 }
+            : e.key === "ArrowLeft" ? { w: -1 }
+            : e.key === "ArrowDown" ? { h: 1 }
+            : e.key === "ArrowUp" ? { h: -1 }
+            : null;
+          if (!d) return;
+          e.preventDefault();
+          porTeclado(bloco.id, d);
+        }}
+        aria-label="Redimensionar o bloco: arraste a quina, ou use as setas"
+        className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize touch-none rounded-tl-md opacity-0 transition-opacity duration-150 focus:opacity-100 group-hover:opacity-100"
+      >
+        <svg viewBox="0 0 10 10" className="h-full w-full text-ink-subtle" aria-hidden>
+          <path d="M9 3 L3 9 M9 6.5 L6.5 9" stroke="currentColor" strokeWidth="1.2" fill="none" />
+        </svg>
+      </button>
     </article>
   );
 }

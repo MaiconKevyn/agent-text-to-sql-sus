@@ -56,6 +56,42 @@ def _largura_de(d: dict) -> int:
     return max(LARGURA_MIN, min(COLUNAS, int(bruto)))
 
 
+def acomodar(blocos: list[Bloco]) -> None:
+    """Dá posição a quem ainda não tem, sem mexer em quem já tem.
+
+    É o que faz um bloco recém-fixado aparecer num lugar razoável, e o que
+    converte os temas salvos antes de existir posição — lá a ordem da lista era
+    o arranjo, então percorrê-la enfileirando reproduz o que a pessoa via.
+
+    Enfileira da esquerda para a direita e desce quando não cabe mais na linha,
+    procurando o primeiro `y` livre. Ineficiente por natureza (varre todos os
+    colocados a cada tentativa) e isso não importa: um tema tem dezenas de
+    blocos, não milhares.
+    """
+    colocados = [b for b in blocos if b.x >= 0 and b.y >= 0]
+
+    def livre(x: int, y: int, w: int, h: int) -> bool:
+        return not any(
+            x < b.x + b.largura and x + w > b.x and y < b.y + b.altura and y + h > b.y
+            for b in colocados
+        )
+
+    for bloco in blocos:
+        if bloco.x >= 0 and bloco.y >= 0:
+            continue
+        largura = min(bloco.largura, COLUNAS)
+        y = 0
+        while True:
+            for x in range(0, COLUNAS - largura + 1):
+                if livre(x, y, largura, bloco.altura):
+                    bloco.x, bloco.y = x, y
+                    colocados.append(bloco)
+                    break
+            if bloco.x >= 0:
+                break
+            y += 1
+
+
 @dataclass
 class Definicao:
     """Um termo resolvido, válido para o tema inteiro.
@@ -126,6 +162,12 @@ class Bloco:
     formato: Formato = "auto"
     largura: int = 4
     altura: int = 8
+    # Posição na grade, em células. -1 significa "ainda não colocado": o tema
+    # acomoda na leitura. Guardar a posição, e não deduzi-la da ordem da lista,
+    # é o que permite deixar um bloco onde ele foi solto — inclusive ao lado de
+    # outro, com espaço vazio embaixo.
+    x: int = -1
+    y: int = -1
     fixado_em: str = field(default_factory=_agora)
 
     def para_json(self) -> dict:
@@ -148,6 +190,8 @@ class Bloco:
             "format": self.formato,
             "width": self.largura,
             "height": self.altura,
+            "x": self.x,
+            "y": self.y,
             "pinnedAt": self.fixado_em,
         }
 
@@ -172,6 +216,8 @@ class Bloco:
             formato=d.get("format") or "auto",
             largura=_largura_de(d),
             altura=max(ALTURA_MIN, min(ALTURA_MAX, int(d.get("height") or 8))),
+            x=int(d.get("x", -1)),
+            y=int(d.get("y", -1)),
             fixado_em=str(d.get("pinnedAt") or _agora()),
         )
 
@@ -248,6 +294,10 @@ class Tema:
 
     @classmethod
     def de_json(cls, d: dict) -> Tema:
+        blocos = [Bloco.de_json(x) for x in (d.get("blocks") or [])]
+        # Na leitura, e não na escrita: assim um tema salvo antes de existir
+        # posição ganha a sua na primeira vez que é aberto, sem migração.
+        acomodar(blocos)
         return cls(
             id=str(d.get("id") or _id("tema")),
             titulo=str(d.get("title") or "Nova investigação"),
@@ -255,5 +305,5 @@ class Tema:
             criado_em=str(d.get("createdAt") or _agora()),
             atualizado_em=str(d.get("updatedAt") or _agora()),
             definicoes=[Definicao.de_json(x) for x in (d.get("definitions") or [])],
-            blocos=[Bloco.de_json(x) for x in (d.get("blocks") or [])],
+            blocos=blocos,
         )

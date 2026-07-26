@@ -99,12 +99,30 @@ export function BlocoPainel({ bloco, temaId, onMudou, tamanho, manejo }: Props) 
       }}
       className={cn(
         "group relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-surface",
-        "transition-[opacity,box-shadow] duration-150",
+        "transition-[box-shadow,border-color] duration-150",
         bloco.provenance === "banco" ? "border-line" : "border-caution/25 bg-caution-soft",
-        emMovimento && "opacity-40",
-        emResize && "ring-2 ring-accent/40",
+        emResize && "border-accent/50 shadow-lg",
       )}
     >
+      {/* A sombra do destino: enquanto se arrasta, o bloco vira o contorno da
+          vaga que vai ocupar. O conteúdo sai da frente porque não é ele que
+          está sendo decidido ali — é o lugar e o tamanho. */}
+      {emMovimento && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-accent/60 bg-accent-soft/85 backdrop-blur-[1px]">
+          <span className="rounded-md bg-accent px-2 py-1 text-[12px] font-medium text-white [font-variant-numeric:tabular-nums]">
+            {tamanho.width} × {tamanho.height}
+          </span>
+        </div>
+      )}
+
+      {/* Durante o redimensionamento o conteúdo continua à vista — é ele que
+          está sendo acomodado —, então o tamanho vai num selo no canto. */}
+      {emResize && (
+        <span className="pointer-events-none absolute bottom-2 right-5 z-20 rounded-md bg-accent px-2 py-0.5 text-[11px] font-medium text-white [font-variant-numeric:tabular-nums]">
+          {tamanho.width} × {tamanho.height}
+        </span>
+      )}
+
       <header className="flex shrink-0 items-start gap-2 px-3.5 pb-1.5 pt-3">
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[12.5px] font-medium leading-snug text-ink">

@@ -39,9 +39,19 @@ const limita = (t: Tamanho): Tamanho => ({
  * useReordenar: um efeito disparado por estado só corre depois do commit, e um
  * arrasto rápido termina antes disso.
  */
-export function useRedimensionar(temaId: string, onMudou: () => void) {
+export function useRedimensionar(blocos: ThemeBlock[], temaId: string, onMudou: () => void) {
   // Enquanto se arrasta, o tamanho da tela sai daqui e não do servidor.
   const [previa, setPrevia] = useState<{ id: string; t: Tamanho } | null>(null);
+
+  // A prévia sobrevive ao soltar, e só sai quando o servidor devolve o mesmo
+  // valor. Limpá-la ao soltar faria o bloco voltar ao tamanho antigo durante o
+  // ida-e-volta da gravação e saltar de novo quando ela chegasse — uma piscada
+  // no fim de todo redimensionamento.
+  useEffect(() => {
+    if (!previa) return;
+    const b = blocos.find((x) => x.id === previa.id);
+    if (b && b.width === previa.t.width && b.height === previa.t.height) setPrevia(null);
+  }, [blocos, previa]);
   const limpar = useRef<(() => void) | null>(null);
   useEffect(() => () => limpar.current?.(), []);
 
@@ -76,8 +86,10 @@ export function useRedimensionar(temaId: string, onMudou: () => void) {
 
     const soltar = async () => {
       limpar.current?.();
-      setPrevia(null);
-      if (ultimo.width === original.width && ultimo.height === original.height) return;
+      if (ultimo.width === original.width && ultimo.height === original.height) {
+        setPrevia(null);
+        return;
+      }
       await layoutBlock(temaId, bloco.id, ultimo);
       onMudou();
     };

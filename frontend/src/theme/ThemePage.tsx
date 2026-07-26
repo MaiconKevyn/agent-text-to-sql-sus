@@ -12,6 +12,7 @@ import { ThemeChat } from "./ThemeChat";
 import { AddSource } from "@/components/theme/AddSource";
 import { BlocoPainel } from "./BlocoPainel";
 import { useRedimensionar } from "./useRedimensionar";
+import { useReflow } from "./useReflow";
 import { useReordenar } from "./useReordenar";
 
 const nf = new Intl.NumberFormat("pt-BR");
@@ -217,8 +218,16 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
   const blocos = tema.blocks ?? [];
   const { ordenados, arrastando, aoPegar, aoMover } = useReordenar(blocos, tema.id, onMudou);
   const { tamanhoDe, aoPegarBorda, aoAjustar, redimensionando } = useRedimensionar(
+    blocos,
     tema.id,
     onMudou,
+  );
+
+  // A assinatura é ordem + tamanhos: é exatamente o que muda a posição de
+  // alguém na grade. Reagir a menos que isso deixaria movimentos sem animação;
+  // a mais, animaria o que não se moveu.
+  const grade = useReflow<HTMLDivElement>(
+    ordenados.map((b) => `${b.id}:${tamanhoDe(b).width}x${tamanhoDe(b).height}`).join(","),
   );
 
   // Duas colunas no desktop: o material à esquerda, o chat que o enxerga à
@@ -269,6 +278,7 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
         // sem isso a linha se ajusta ao conteúdo e puxar a borda de baixo não
         // muda nada.
         <div
+          ref={grade}
           data-grade
           className="grid"
           style={{

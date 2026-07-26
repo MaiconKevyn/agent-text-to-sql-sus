@@ -57,3 +57,4 @@ frontend/test-results/
 # temas de investigação salvos localmente
 data/temas/
 data/chats/
+eval/*.bak

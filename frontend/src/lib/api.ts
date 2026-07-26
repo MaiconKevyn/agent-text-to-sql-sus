@@ -310,6 +310,19 @@ export const searchStatus = () =>
 export const searchWeb = (q: string) =>
   json<SearchResult>(`/api/search?q=${encodeURIComponent(q)}`);
 
+/**
+ * Nova ordem dos blocos no painel.
+ *
+ * Manda a lista inteira de ids, não "moveu de 3 para 1": o servidor ordena pelo
+ * que recebe e o que não vier na lista fica no fim, então uma chamada perdida
+ * no meio de um arrasto não deixa o painel num estado que ninguém pediu.
+ */
+export const reorderBlocks = (id: string, order: string[]) =>
+  json<Theme>(`/api/themes/${id}/reorder`, {
+    method: "POST",
+    body: JSON.stringify({ order }),
+  });
+
 /** Formato e tamanho do bloco no painel. */
 export const layoutBlock = (
   id: string,

@@ -1,4 +1,4 @@
-import { ChevronDown, Maximize2, Minimize2, Trash2 } from "lucide-react";
+import { ChevronDown, GripVertical, Maximize2, Minimize2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ResultChart } from "@/components/result/ResultChart";
 import { ResultTable } from "@/components/result/ResultTable";
@@ -58,6 +58,12 @@ interface Props {
   bloco: ThemeBlock;
   temaId: string;
   onMudou: () => void;
+  /** Ligado pelo painel; ausente, o bloco simplesmente não arrasta. */
+  arrasto?: {
+    aoPegar: (id: string) => void;
+    aoMover: (id: string, passo: -1 | 1) => void;
+    arrastando: string | null;
+  };
 }
 
 /**
@@ -68,9 +74,10 @@ interface Props {
  * quatro blocos numa página de rolagem, que é justamente o que estávamos
  * tentando deixar de ser.
  */
-export function BlocoPainel({ bloco, temaId, onMudou }: Props) {
+export function BlocoPainel({ bloco, temaId, onMudou, arrasto }: Props) {
   const [aberto, setAberto] = useState(false);
   const [anotacao, setAnotacao] = useState(bloco.note);
+  const sendoArrastado = arrasto?.arrastando === bloco.id;
   const formato = formatoEfetivo(bloco);
   const i = TAMANHOS.indexOf(bloco.size);
 
@@ -81,10 +88,15 @@ export function BlocoPainel({ bloco, temaId, onMudou }: Props) {
 
   return (
     <article
+      // O alvo do arrasto é achado por elementFromPoint; é este atributo que o
+      // ponto na tela vira id de bloco.
+      data-bloco={bloco.id}
       className={cn(
         "group relative flex min-w-0 flex-col gap-2.5 rounded-xl border bg-surface px-3.5 py-3",
+        "transition-opacity duration-150",
         SPAN[bloco.size],
         bloco.provenance === "banco" ? "border-line" : "border-caution/25 bg-caution-soft",
+        sendoArrastado && "opacity-40",
       )}
     >
       <header className="flex items-start gap-2">
@@ -105,6 +117,27 @@ export function BlocoPainel({ bloco, temaId, onMudou }: Props) {
         {/* Os controles só aparecem no hover: num painel, a moldura tem de sumir
             para o conteúdo aparecer. Continuam alcançáveis pelo teclado. */}
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
+          {arrasto && (
+            <button
+              onPointerDown={(e) => {
+                // Sem isto o navegador começa a arrastar a imagem do ícone.
+                e.preventDefault();
+                arrasto.aoPegar(bloco.id);
+              }}
+              // Arrastar precisa de um ponteiro. As setas dão o mesmo resultado
+              // a quem navega por teclado.
+              onKeyDown={(e) => {
+                const passo = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
+                if (!passo) return;
+                e.preventDefault();
+                arrasto.aoMover(bloco.id, passo);
+              }}
+              aria-label="Reordenar o bloco: arraste, ou use as setas esquerda e direita"
+              className="cursor-grab touch-none rounded p-1 text-ink-subtle transition-colors duration-150 hover:text-ink active:cursor-grabbing"
+            >
+              <GripVertical aria-hidden className="h-3.5 w-3.5" />
+            </button>
+          )}
           <select
             value={bloco.format}
             onChange={(e) => void ajustar({ format: e.target.value as BlockFormat })}

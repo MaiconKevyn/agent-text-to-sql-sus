@@ -11,6 +11,7 @@ import type { Theme } from "@/lib/types";
 import { ThemeChat } from "./ThemeChat";
 import { AddSource } from "@/components/theme/AddSource";
 import { BlocoPainel } from "./BlocoPainel";
+import { useReordenar } from "./useReordenar";
 
 const nf = new Intl.NumberFormat("pt-BR");
 
@@ -213,6 +214,7 @@ function ListaDeTemas({ temas, onNovo }: { temas: Theme[]; onNovo: () => void })
 
 function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) {
   const blocos = tema.blocks ?? [];
+  const { ordenados, arrastando, aoPegar, aoMover } = useReordenar(blocos, tema.id, onMudou);
 
   // Duas colunas no desktop: o material à esquerda, o chat que o enxerga à
   // direita. Em tela estreita eles empilham, com o chat primeiro — de nada
@@ -258,8 +260,14 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          {blocos.map((b) => (
-            <BlocoPainel key={b.id} bloco={b} temaId={tema.id} onMudou={onMudou} />
+          {ordenados.map((b) => (
+            <BlocoPainel
+              key={b.id}
+              bloco={b}
+              temaId={tema.id}
+              onMudou={onMudou}
+              arrasto={{ aoPegar, aoMover, arrastando }}
+            />
           ))}
         </div>
       )}

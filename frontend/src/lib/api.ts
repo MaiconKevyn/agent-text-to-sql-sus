@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { Dashboard, DashboardFilters, WidgetData, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
+import type { Dashboard, WidgetData, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -365,10 +365,32 @@ export const createWidget = (id: string, question: string) =>
 export const deleteWidget = (id: string, widgetId: string) =>
   json<Dashboard>(`/api/dashboards/${id}/widgets/${widgetId}`, { method: "DELETE" });
 
-export const setFilters = (id: string, filters: Partial<DashboardFilters>) =>
-  json<Dashboard>(`/api/dashboards/${id}/filters`, {
+/**
+ * A caixa do painel: um pedido vira widget ou filtro, conforme a intenção.
+ * `refused` preenchido é resposta legítima — a base pode não ter o recorte.
+ */
+export const askDashboard = (id: string, request: string) =>
+  json<{
+    kind: "widget" | "filtro";
+    refused: string;
+    reason: string;
+    dashboard?: Dashboard;
+    createdId?: string;
+  }>(`/api/dashboards/${id}/ask`, { method: "POST", body: JSON.stringify({ request }) });
+
+export const createFilter = (id: string, request: string) =>
+  json<{ refused: string; dashboard?: Dashboard; filterId?: string }>(
+    `/api/dashboards/${id}/filters`,
+    { method: "POST", body: JSON.stringify({ request }) },
+  );
+
+export const deleteFilter = (id: string, filterId: string) =>
+  json<Dashboard>(`/api/dashboards/${id}/filters/${filterId}`, { method: "DELETE" });
+
+export const selectFilter = (id: string, filterId: string, selection: (string | number)[]) =>
+  json<Dashboard>(`/api/dashboards/${id}/filters/${filterId}/selection`, {
     method: "POST",
-    body: JSON.stringify(filters),
+    body: JSON.stringify({ selection }),
   });
 
 export const setDashboardGrid = (

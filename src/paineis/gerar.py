@@ -1,8 +1,10 @@
 """Gera um widget de painel a partir de uma pergunta em linguagem natural.
 
 A diferença para o agente do chat é uma só, e é toda a razão do painel existir:
-aqui o SQL sai com MARCADORES no lugar dos valores de filtro, e o widget declara
-a quais filtros ele responde.
+aqui o SQL sai com um TOKEN no lugar das condições de filtro. Os filtros do
+painel são criados pelo usuário, então na hora de escrever a consulta não se
+sabe quais serão — o widget reserva o lugar e o código injeta a conjunção do que
+estiver ativo.
 
 A alternativa seria regerar o SQL a cada mudança de filtro. Ela é pior por três
 motivos, em ordem: custa uma chamada de modelo por widget por movimento de
@@ -11,10 +13,11 @@ o mesmo filtro duas vezes pode produzir SQL diferente, e o gráfico muda por
 razão que não é o filtro. Num painel, esse é o defeito mais corrosivo que existe,
 porque a pessoa atribui a mudança ao dado.
 
-O código NÃO confia na declaração do modelo. Confere três coisas antes de aceitar
-o widget: que o SQL passa pelo validador, que a quantidade de marcadores bate com
-os filtros declarados, e que ele EXECUTA com valores reais. Um widget que só
-falha quando alguém mexe no filtro é pior que um widget que nunca foi criado.
+O código NÃO confia no que o modelo escreveu. Confere quatro coisas antes de
+aceitar o widget: que o SQL passa pelo validador, que o token está lá, que o
+fato está aliasado como `i` (senão os fragmentos de filtro não o encontram), e
+que a consulta EXECUTA — sem filtro e com um filtro de mentira. Um widget que só
+falha quando alguém mexe no filtro é pior que um que nunca foi criado.
 """
 
 from __future__ import annotations
@@ -26,12 +29,13 @@ from ..db import Database, UnsafeQueryError, validate_sql
 from ..llm import complete
 from ..config import settings
 from ..schema_context import build_schema_prompt, capability_notes
-from .models import Filtros, MARCADORES, Widget
+from .filtros import TOKEN
+from .models import Widget
 
 ESQUEMA_WIDGET = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["possivel", "titulo", "sql", "filtros", "formato", "chart", "assumptions", "recusa"],
+    "required": ["possivel", "titulo", "sql", "formato", "chart", "assumptions", "recusa"],
     "properties": {
         "possivel": {
             "type": "boolean",
@@ -41,16 +45,8 @@ ESQUEMA_WIDGET = {
         "sql": {
             "type": "string",
             "description": (
-                "SELECT em DuckDB com `?` no lugar de CADA valor de filtro declarado, "
-                "na mesma ordem de `filtros`. Nunca escreva o valor no SQL."
-            ),
-        },
-        "filtros": {
-            "type": "array",
-            "items": {"type": "string", "enum": ["periodo", "diagnostico", "uf"]},
-            "description": (
-                "Os filtros que este widget aplica, na ordem dos `?`. Só liste o que a "
-                "consulta REALMENTE usa. Lista vazia é resposta legítima."
+                "SELECT em DuckDB, com o fato aliasado como `i` e o token dos filtros "
+                "dentro do WHERE. Sem `?` — os filtros trazem os seus."
             ),
         },
         "formato": {
@@ -86,32 +82,28 @@ que vai ser reexecutada muitas vezes, com filtros que mudam.
 
 ## O QUE MUDA EM RELAÇÃO A UMA CONSULTA COMUM
 
-Este SQL vai rodar de novo a cada vez que alguém mexer num filtro. Por isso os \
-valores de filtro NÃO vão escritos na query — vão como `?`, e o código vincula \
-os valores na hora. Você declara em `filtros` quais deles a consulta usa, NA \
-ORDEM EM QUE OS `?` APARECEM.
+Este SQL roda de novo a cada vez que alguém mexe num filtro, e os filtros do \
+painel são criados pelo usuário — você não sabe quais serão. Por isso a consulta \
+NÃO escreve condição de filtro: ela deixa um lugar reservado.
 
-Os três filtros, e o que cada um ocupa:
+Escreva `{token}` dentro do WHERE, no fim das suas próprias condições:
 
-  periodo — DOIS `?`, o ano inicial e o final. Use assim:
-      WHERE year(DT_SAIDA) BETWEEN ? AND ?
+    SELECT year(i.DT_SAIDA) AS ano, COUNT(*) AS n
+    FROM internacoes i
+    WHERE i.DT_SAIDA IS NOT NULL {token}
+    GROUP BY 1 ORDER BY 1
 
-  diagnostico — UM `?`, um prefixo de CID-10 já com o `%`. Use assim:
-      AND DIAG_PRINC LIKE ?
-    O valor chega como 'C%' ou 'C50%' ou '%' (tudo). Não escreva o `%` no SQL,
-    e use LIKE — nunca `=`.
+O código troca o token pela conjunção dos filtros ativos, ou por nada quando \
+não há nenhum. Três regras:
 
-  uf — UM `?`, a sigla. Exige a junção com municipios, e use LIKE, não `=`:
-      JOIN municipios m ON i.MUNIC_RES = m.CO_MUNICIPIO_6D ... AND m.SG_UF LIKE ?
-    O valor chega como 'RS' ou '%' (todas). Com `=`, o caso "todas" não casaria \
-com nada e o widget viria vazio.
+  O TOKEN É OBRIGATÓRIO. Sem ele o widget não responde a filtro nenhum, e um \
+mostrador que ignora os filtros do painel é pior que a ausência dele.
 
-## SÓ LISTE O QUE A CONSULTA USA DE VERDADE
+  SEMPRE DEPOIS DE UM WHERE. Se a consulta não tinha filtro próprio, escreva \
+`WHERE 1=1 {token}`. O token vira ` AND (...)`, então precisa de algo antes.
 
-Se o widget não tem recorte temporal, não liste `periodo` e não ponha os `?`. \
-Uma lista errada é o pior defeito possível aqui: a pessoa move a data, o widget \
-não muda, e ela conclui que o DADO não mudou. A interface avisa quais widgets \
-não respondem a cada filtro — para isso a declaração tem de ser honesta.
+  O FATO TEM DE SE CHAMAR `i`. Escreva `FROM internacoes i`. Os fragmentos de \
+filtro referenciam `i.<coluna>`, e sem esse alias eles não encontram a tabela.
 
 ## O RESTO É COMO SEMPRE
 
@@ -129,22 +121,14 @@ class Resultado:
     recusa: str = ""
 
 
-_MARCADOR = re.compile(r"\?")
-
-
-def _conta_marcadores(sql: str) -> int:
-    """Conta `?` fora de literais de string e de comentários."""
-    limpo = re.sub(r"--[^\n]*", " ", sql)
-    limpo = re.sub(r"/\*.*?\*/", " ", limpo, flags=re.S)
-    limpo = re.sub(r"'(?:''|[^'])*'", "''", limpo)
-    return len(_MARCADOR.findall(limpo))
+_ALIAS_FATO = re.compile(r"\binternacoes\s+(?:as\s+)?i\b", re.I)
 
 
 def gerar(pergunta: str, db: Database) -> Resultado:
     """Cria um widget, ou recusa. Nunca devolve widget que não executa."""
     bruto = complete(
         model=settings.sql_model,
-        system=SISTEMA.format(schema=build_schema_prompt(), capabilities=capability_notes()),
+        system=SISTEMA.format(schema=build_schema_prompt(), capabilities=capability_notes(), token=TOKEN),
         messages=[{"role": "user", "content": f"Widget pedido: {pergunta}"}],
         schema=ESQUEMA_WIDGET,
         schema_name="widget",
@@ -156,44 +140,44 @@ def gerar(pergunta: str, db: Database) -> Resultado:
         return Resultado(recusa=str(bruto.get("recusa") or "A base não responde a isso.")[:400])
 
     sql = str(bruto.get("sql") or "").strip()
-    filtros = [f for f in (bruto.get("filtros") or []) if f in MARCADORES]
 
     try:
         sql = validate_sql(sql)
     except UnsafeQueryError as exc:
         return Resultado(recusa=f"SQL recusado pelo validador: {exc}")
 
-    esperados = sum(MARCADORES[f] for f in filtros)
-    achados = _conta_marcadores(sql)
-    if achados != esperados:
-        # Não tem conserto automático: se sobra marcador, a vinculação erra de
-        # posição e o widget filtra pela coisa errada em silêncio.
+    if TOKEN not in sql:
         return Resultado(
             recusa=(
-                f"A consulta tem {achados} marcador(es) e os filtros declarados "
-                f"({', '.join(filtros) or 'nenhum'}) pedem {esperados}."
+                f"A consulta não reservou lugar para os filtros ({TOKEN} no WHERE). "
+                "Sem ele o widget ignoraria todos os filtros do painel."
+            )
+        )
+    if not _ALIAS_FATO.search(sql):
+        return Resultado(
+            recusa=(
+                "A consulta precisa aliasar o fato como `i` (FROM internacoes i): "
+                "os fragmentos de filtro referenciam `i.<coluna>`."
             )
         )
 
-    # A prova real: roda com valores de verdade. Um widget que só quebra quando
-    # alguém mexe no filtro é pior que um que nunca existiu.
-    padrao = Filtros()
-    valores = [v for f in filtros for v in padrao.valores(f)]
+    # Duas provas: sem filtro nenhum, e com um filtro qualquer no lugar do
+    # token. A segunda pega o caso em que o token ficou fora do WHERE e a
+    # conjunção vira erro de sintaxe só quando alguém cria o primeiro filtro.
     try:
-        res = db.run(sql, params=valores or None, max_rows=1)
+        res = db.run(sql.replace(TOKEN, ""), max_rows=1)
     except Exception as exc:  # noqa: BLE001
         return Resultado(recusa=f"A consulta não executou: {str(exc)[:220]}")
+    try:
+        db.run(sql.replace(TOKEN, " AND (1=1)"), max_rows=1)
+    except Exception as exc:  # noqa: BLE001
+        return Resultado(recusa=f"O token não está num WHERE utilizável: {str(exc)[:200]}")
 
     # Sem filtro nenhum, um widget de painel TEM de devolver linha. Zero aqui
-    # não é "não há dado" — é consulta errada, e o modo mais comum é usar `=`
-    # onde o filtro manda `%`: `SG_UF = '%'` não casa com nada, e o widget
-    # nasceria permanentemente vazio sem nunca dar erro.
+    # não é "não há dado" — é consulta errada.
     if not res.rows:
         return Resultado(
-            recusa=(
-                "A consulta não devolve nenhuma linha sem filtro algum. Costuma ser "
-                "`=` onde deveria ser LIKE nos filtros de diagnóstico ou UF."
-            )
+            recusa="A consulta não devolve nenhuma linha sem filtro algum. Reveja as condições."
         )
 
     chart = bruto.get("chart") or {}
@@ -207,7 +191,6 @@ def gerar(pergunta: str, db: Database) -> Resultado:
             titulo=str(bruto.get("titulo") or pergunta)[:120],
             pergunta=pergunta,
             sql=sql,
-            filtros=filtros,
             chart=chart if formato == "grafico" and chart.get("kind") not in (None, "", "nenhum") else None,
             formato=formato,
             suposicoes=[str(a) for a in (bruto.get("assumptions") or [])][:6],

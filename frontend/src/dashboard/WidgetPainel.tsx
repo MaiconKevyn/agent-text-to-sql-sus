@@ -1,9 +1,9 @@
-import { ChevronDown, GripVertical, Loader2, SlashIcon, Trash2 } from "lucide-react";
+import { ChevronDown, GripVertical, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ResultChart } from "@/components/result/ResultChart";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { cn } from "@/lib/utils";
-import { ROTULO_FILTRO, type DashboardWidget, type WidgetData } from "@/lib/types";
+import type { DashboardWidget, WidgetData } from "@/lib/types";
 import type { Celula } from "@/theme/grade";
 import type { Gesto } from "@/theme/usePainel";
 
@@ -14,6 +14,7 @@ interface Props {
   dados: WidgetData | undefined;
   carregando: boolean;
   onRemover: () => void;
+  onRecriar: () => void;
   celula: Celula;
   gesto: Gesto | null;
   comecar: (id: string, tipo: Gesto, e: React.PointerEvent) => void;
@@ -34,6 +35,7 @@ export function WidgetPainel({
   dados,
   carregando,
   onRemover,
+  onRecriar,
   celula,
   gesto,
   comecar,
@@ -43,7 +45,6 @@ export function WidgetPainel({
   const emMovimento = gesto === "mover";
   const emResize = gesto !== null && gesto !== "mover";
   const res = dados?.result;
-  const ignorados = dados?.unapplied ?? [];
 
   return (
     <article
@@ -64,14 +65,15 @@ export function WidgetPainel({
       <header className="flex shrink-0 items-start gap-2 px-3.5 pb-1.5 pt-3">
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[12.5px] font-medium leading-snug text-ink">{widget.title}</h3>
-          {ignorados.length > 0 && (
-            <p
-              className="mt-1 inline-flex items-center gap-1 rounded border border-caution/30 bg-caution-soft px-1.5 py-px text-[10.5px] text-caution"
-              title="Este widget não usa esse(s) filtro(s), então não muda quando você os altera."
+          {widget.legacy && (
+            <button
+              onClick={onRecriar}
+              className="mt-1 inline-flex items-center gap-1 rounded border border-caution/30 bg-caution-soft px-1.5 py-px text-[10.5px] text-caution transition-colors duration-150 hover:border-caution"
+              title="Criado antes dos filtros configuráveis: não responde a nenhum. Clique para reconstruir a partir da pergunta original."
             >
-              <SlashIcon aria-hidden className="h-3 w-3" />
-              ignora {ignorados.map((f) => ROTULO_FILTRO[f]).join(" e ")}
-            </p>
+              <RefreshCw aria-hidden className="h-3 w-3" />
+              não responde aos filtros — recriar
+            </button>
           )}
         </div>
 
@@ -150,10 +152,7 @@ export function WidgetPainel({
       {aberto && (
         <div className="shrink-0 space-y-2 border-t border-line px-3.5 py-2.5">
           <p className="text-[11px] leading-relaxed text-ink-muted">
-            <span className="font-medium">Responde a:</span>{" "}
-            {widget.filters.length
-              ? widget.filters.map((f) => ROTULO_FILTRO[f]).join(", ")
-              : "nenhum filtro — este widget é fixo"}
+            <span className="font-medium">Pedido:</span> {widget.question}
           </p>
           {widget.assumptions.length > 0 && (
             <p className="text-[11px] leading-relaxed text-ink-subtle">

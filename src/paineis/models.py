@@ -22,16 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Literal
 
-# Os filtros que existem, e nada além disso. Cada um mapeia para uma coluna de
-# semântica conhecida do dicionário de dados. Filtro livre seria armadilha: o
-# usuário pediria "por hospital" e receberia silêncio, porque a base não tem
-# identificação de hospital.
-Filtro = Literal["periodo", "diagnostico", "uf"]
-
-# Quantos `?` cada filtro ocupa no SQL. É o contrato entre o SQL que o modelo
-# escreve e os valores que o código vincula: a ordem de `filtros` no widget é a
-# ordem dos marcadores na query.
-MARCADORES: dict[str, int] = {"periodo": 2, "diagnostico": 1, "uf": 1}
+from .filtros import Filtro, TOKEN
 
 # Um painel só mostra número. Texto e citação são coisa de tema — quem quer
 # guardar o porquê de um achado quer um tema, não um mostrador.
@@ -61,12 +52,10 @@ class Widget:
     titulo: str = ""
     pergunta: str = ""
     sql: str = ""
-    # A quais filtros ESTE widget responde, na ordem em que os `?` aparecem no
-    # SQL. Um widget sem coluna de data não lista "periodo" — e a interface tem
-    # de MOSTRAR isso. Um filtro que silenciosamente vale para metade do painel
-    # é pior que filtro nenhum: a pessoa move a data, vê três gráficos mudarem e
-    # dois não, e conclui que os dois não mudaram por causa do dado.
-    filtros: list[str] = field(default_factory=list)
+    # A declaração de "a quais filtros respondo" morreu com os filtros fixos.
+    # Agora o SQL carrega o token `{{FILTROS}}` onde a conjunção entra, e todo
+    # widget que o tem responde a TODOS os filtros do painel. Quem não tem o
+    # token é widget antigo — ver `legado`.
     chart: dict | None = None
     formato: FormatoWidget = "grafico"
     suposicoes: list[str] = field(default_factory=list)
@@ -76,8 +65,14 @@ class Widget:
     altura: int = 10
     criado_em: str = field(default_factory=_agora)
 
-    def responde_a(self, filtro: str) -> bool:
-        return filtro in self.filtros
+    @property
+    def legado(self) -> bool:
+        """Widget criado antes dos filtros declarados: não tem o token.
+
+        Não é apagado nem consertado por adivinhação — a tela oferece recriá-lo
+        a partir da pergunta original, que ficou guardada justamente para isto.
+        """
+        return TOKEN not in self.sql
 
     def para_json(self) -> dict:
         return {
@@ -85,7 +80,7 @@ class Widget:
             "title": self.titulo,
             "question": self.pergunta,
             "sql": self.sql,
-            "filters": self.filtros,
+            "legacy": self.legado,
             "chart": self.chart,
             "format": self.formato,
             "assumptions": self.suposicoes,
@@ -98,13 +93,11 @@ class Widget:
 
     @classmethod
     def de_json(cls, d: dict) -> Widget:
-        filtros = [f for f in (d.get("filters") or []) if f in MARCADORES]
         return cls(
             id=str(d.get("id") or _id("wgt")),
             titulo=str(d.get("title") or ""),
             pergunta=str(d.get("question") or ""),
             sql=str(d.get("sql") or ""),
-            filtros=filtros,
             chart=d.get("chart"),
             formato=d.get("format") if d.get("format") in ("grafico", "indicador") else "grafico",
             suposicoes=list(d.get("assumptions") or []),
@@ -117,55 +110,6 @@ class Widget:
 
 
 @dataclass
-class Filtros:
-    """Os valores atuais. Vazio significa "tudo" — não significa "nenhum"."""
-
-    ano_ini: int = ANO_MIN
-    ano_fim: int = ANO_MAX
-    # Prefixo de CID-10: "C" pega o capítulo de neoplasias, "C50" a mama,
-    # "" pega tudo. Prefixo e não lista porque é assim que a CID se organiza,
-    # e é o recorte que o dicionário de dados já ensina o modelo a usar.
-    diagnostico: str = ""
-    uf: str = ""
-
-    def valores(self, filtro: str) -> list:
-        """Os valores a vincular, na ordem dos `?` daquele filtro."""
-        if filtro == "periodo":
-            return [self.ano_ini, self.ano_fim]
-        # Vazio significa TUDO, e por isso os dois viram `%` — que só funciona
-        # com LIKE. Com `=`, o vazio viraria `SG_UF = ''`, que não casa com
-        # nada: o widget devolveria zero linhas em qualquer filtro, e zero
-        # linhas parece "não há dado", não parece defeito. Foi o que aconteceu
-        # na primeira versão.
-        if filtro == "diagnostico":
-            return [f"{self.diagnostico}%"]
-        if filtro == "uf":
-            return [self.uf or "%"]
-        return []
-
-    def para_json(self) -> dict:
-        return {
-            "yearFrom": self.ano_ini,
-            "yearTo": self.ano_fim,
-            "diagnosis": self.diagnostico,
-            "uf": self.uf,
-        }
-
-    @classmethod
-    def de_json(cls, d: dict) -> Filtros:
-        ini = max(ANO_MIN, min(ANO_MAX, int(d.get("yearFrom") or ANO_MIN)))
-        fim = max(ANO_MIN, min(ANO_MAX, int(d.get("yearTo") or ANO_MAX)))
-        return cls(
-            ano_ini=min(ini, fim),
-            ano_fim=max(ini, fim),
-            # Só letra e dígito: o valor vai vinculado, não concatenado, mas um
-            # prefixo com `%` no meio viraria um LIKE que ninguém pediu.
-            diagnostico="".join(c for c in str(d.get("diagnosis") or "") if c.isalnum())[:4].upper(),
-            uf="".join(c for c in str(d.get("uf") or "") if c.isalpha())[:2].upper(),
-        )
-
-
-@dataclass
 class Painel:
     id: str = field(default_factory=lambda: _id("dash"))
     titulo: str = "Novo painel"
@@ -173,7 +117,7 @@ class Painel:
     atualizado_em: str = field(default_factory=_agora)
     # Os filtros ficam NO PAINEL, não na sessão: abrir o link do painel tem de
     # mostrar o mesmo recorte para quem abriu e para quem recebeu.
-    filtros: Filtros = field(default_factory=Filtros)
+    filtros: list[Filtro] = field(default_factory=list)
     widgets: list[Widget] = field(default_factory=list)
 
     def toca(self) -> None:
@@ -182,13 +126,16 @@ class Painel:
     def widget(self, id_: str) -> Widget | None:
         return next((w for w in self.widgets if w.id == id_), None)
 
+    def filtro(self, id_: str) -> Filtro | None:
+        return next((f for f in self.filtros if f.id == id_), None)
+
     def para_json(self, *, com_widgets: bool = True) -> dict:
         base = {
             "id": self.id,
             "title": self.titulo,
             "createdAt": self.criado_em,
             "updatedAt": self.atualizado_em,
-            "filters": self.filtros.para_json(),
+            "filters": [f.para_json() for f in self.filtros],
             "widgetCount": len(self.widgets),
         }
         if com_widgets:
@@ -204,7 +151,7 @@ class Painel:
             titulo=str(d.get("title") or "Novo painel"),
             criado_em=str(d.get("createdAt") or _agora()),
             atualizado_em=str(d.get("updatedAt") or _agora()),
-            filtros=Filtros.de_json(d.get("filters") or {}),
+            filtros=[Filtro.de_json(x) for x in (d.get("filters") or [])],
             widgets=widgets,
         )
 

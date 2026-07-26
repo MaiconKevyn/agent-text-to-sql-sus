@@ -1,21 +1,25 @@
 import { ArrowLeft, BarChart3, Loader2, Plus, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SeletorDePaleta } from "@/components/SeletorDePaleta";
 import { TrilhoDeSecoes } from "@/components/TrilhoDeSecoes";
 import { Badge } from "@/components/ui/badge";
 import {
+  askDashboard,
   createDashboard,
+  createFilter,
   createWidget,
   dashboardData,
+  deleteFilter,
   deleteWidget,
   listDashboards,
   readDashboard,
+  selectFilter,
   setDashboardGrid,
-  setFilters,
 } from "@/lib/api";
-import { LINHA_PX, VAO_PX, type Dashboard, type DashboardFilters, type WidgetData } from "@/lib/types";
+import { LINHA_PX, VAO_PX, type Dashboard, type WidgetData } from "@/lib/types";
 import { usePainel } from "@/theme/usePainel";
-import { BarraDeFiltros } from "./BarraDeFiltros";
+import { ControleDeFiltro } from "./ControleDeFiltro";
 import { WidgetPainel } from "./WidgetPainel";
 
 function idDaUrl(): string | null {
@@ -204,13 +208,16 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
   const [dados, setDados] = useState<Record<string, WidgetData>>({});
   const [rodando, setRodando] = useState(false);
   const [pedido, setPedido] = useState("");
-  const [montando, setMontando] = useState(false);
-  const [recusa, setRecusa] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+  const [resposta, setResposta] = useState<{ tipo: string; texto: string } | null>(null);
   const grade = usePainel(widgets, (l) => setDashboardGrid(painel.id, l), onMudou);
 
-  // A assinatura dos filtros: recarrega quando o RECORTE muda, e não a cada
-  // render. Sem isso, mexer no arranjo dispararia varredura no banco.
-  const assinatura = JSON.stringify(painel.filters) + widgets.map((w) => w.id).join(",");
+  // A assinatura é o RECORTE mais a lista de widgets. Sem isso, arrastar um
+  // widget dispararia varredura no banco a cada quadro do gesto.
+  const assinatura =
+    painel.filters.map((f) => `${f.id}:${f.selection.join("|")}`).join(",") +
+    "#" +
+    widgets.map((w) => w.id).join(",");
   const ultima = useRef("");
   useEffect(() => {
     if (!widgets.length || ultima.current === assinatura) return;
@@ -222,78 +229,130 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
       .finally(() => setRodando(false));
   }, [assinatura, painel.id, widgets.length]);
 
-  const ignoram = { periodo: 0, diagnostico: 0, uf: 0 } as Record<string, number>;
-  for (const d of Object.values(dados)) for (const f of d.unapplied) ignoram[f] += 1;
-
-  async function mudarFiltros(f: Partial<DashboardFilters>) {
-    await setFilters(painel.id, { ...painel.filters, ...f });
+  const recarregarTudo = () => {
+    ultima.current = "";
     onMudou();
-  }
+  };
 
-  async function montar() {
+  async function enviar(forcar?: "widget" | "filtro") {
     const q = pedido.trim();
-    if (q.length < 3 || montando) return;
-    setMontando(true);
-    setRecusa("");
+    if (q.length < 3 || ocupado) return;
+    setOcupado(true);
+    setResposta(null);
     try {
-      const r = await createWidget(painel.id, q);
-      if (r.refused) setRecusa(r.refused);
-      else {
+      const r =
+        forcar === "filtro"
+          ? { kind: "filtro" as const, ...(await createFilter(painel.id, q)) }
+          : forcar === "widget"
+            ? { kind: "widget" as const, ...(await createWidget(painel.id, q)) }
+            : await askDashboard(painel.id, q);
+      if (r.refused) {
+        setResposta({ tipo: r.kind, texto: r.refused });
+      } else {
         setPedido("");
-        ultima.current = "";
-        onMudou();
+        setResposta({
+          tipo: r.kind,
+          texto: r.kind === "filtro" ? "Filtro criado." : "Widget acrescentado.",
+        });
+        recarregarTudo();
       }
     } catch (e) {
-      setRecusa(String(e));
+      setResposta({ tipo: "erro", texto: String(e) });
     } finally {
-      setMontando(false);
+      setOcupado(false);
     }
   }
 
+  const ativos = painel.filters.filter((f) => f.active).length;
+
   return (
     <>
-      <BarraDeFiltros
-        filtros={painel.filters}
-        onMudar={(f) => void mudarFiltros(f)}
-        ignoram={ignoram}
-        total={widgets.length}
-        ocupado={rodando}
-      />
-
-      {/* A caixa de montar. Não é chat: não há conversa, não há memória — é um
-          pedido que vira widget ou vira recusa com o motivo. */}
-      <div className="mb-4 rounded-xl border border-line bg-surface px-3 py-2.5">
+      {/* A caixa: um pedido vira widget ou filtro conforme a intenção. Os dois
+          botões ao lado existem para quando a classificação erra — sem eles, um
+          pedido mal classificado seria um beco. */}
+      <div className="mb-3 rounded-xl border border-line bg-surface px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Sparkles aria-hidden className="h-4 w-4 shrink-0 text-accent" />
           <input
             value={pedido}
             onChange={(e) => setPedido(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void montar()}
-            placeholder="Descreva um gráfico ou indicador para acrescentar…"
-            aria-label="Pedido de widget"
+            onKeyDown={(e) => e.key === "Enter" && void enviar()}
+            placeholder="Peça um gráfico ou um filtro — &ldquo;óbitos por ano&rdquo;, &ldquo;filtro por sexo&rdquo;…"
+            aria-label="Pedido ao painel"
             className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-subtle"
           />
           <button
-            onClick={() => void montar()}
-            disabled={pedido.trim().length < 3 || montando}
+            onClick={() => void enviar()}
+            disabled={pedido.trim().length < 3 || ocupado}
             className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-opacity duration-150 disabled:opacity-40"
           >
-            {montando ? <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin" /> : "Montar"}
+            {ocupado ? <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin" /> : "Enviar"}
           </button>
         </div>
-        {recusa && (
-          <p className="mt-2 rounded-lg bg-caution-soft px-3 py-2 text-[11.5px] leading-relaxed text-ink">
-            {recusa}
+        {pedido.trim().length >= 3 && !ocupado && (
+          <div className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-subtle">
+            ou force:
+            <button onClick={() => void enviar("widget")} className="rounded border border-line px-1.5 py-px hover:border-accent/40 hover:text-accent">
+              como gráfico
+            </button>
+            <button onClick={() => void enviar("filtro")} className="rounded border border-line px-1.5 py-px hover:border-accent/40 hover:text-accent">
+              como filtro
+            </button>
+          </div>
+        )}
+        {resposta && (
+          <p
+            className={cn(
+              "mt-2 rounded-lg px-3 py-2 text-[11.5px] leading-relaxed",
+              resposta.texto.endsWith(".") && resposta.texto.length < 40
+                ? "bg-accent-soft text-ink"
+                : "bg-caution-soft text-ink",
+            )}
+          >
+            {resposta.texto}
           </p>
         )}
       </div>
+
+      {/* Os filtros. Valem para TODOS os widgets ao mesmo tempo. */}
+      <section aria-label="Filtros" className="mb-4">
+        <div className="mb-1.5 flex items-baseline gap-2">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+            Filtros
+          </h2>
+          <span className="text-[11px] text-ink-subtle">
+            {painel.filters.length === 0
+              ? "nenhum — peça um acima"
+              : `${ativos} de ${painel.filters.length} recortando · valem para todos os gráficos`}
+          </span>
+        </div>
+        {painel.filters.length > 0 && (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {painel.filters.map((f) => (
+              <ControleDeFiltro
+                key={f.id}
+                filtro={f}
+                onSelecionar={async (sel) => {
+                  await selectFilter(painel.id, f.id, sel);
+                  recarregarTudo();
+                }}
+                onRemover={async () => {
+                  await deleteFilter(painel.id, f.id);
+                  recarregarTudo();
+                }}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {widgets.length === 0 ? (
         <div className="py-16 text-center">
           <BarChart3 aria-hidden className="mx-auto mb-3 h-7 w-7 text-ink-subtle" />
           <p className="text-[13px] text-ink-muted">
-            Painel vazio. Peça um gráfico acima — por exemplo,{" "}
-            <span className="font-medium">&ldquo;óbitos por ano&rdquo;</span>.
+            Painel vazio. Peça acima — por exemplo,{" "}
+            <span className="font-medium">&ldquo;óbitos por ano&rdquo;</span> ou{" "}
+            <span className="font-medium">&ldquo;filtro por sexo&rdquo;</span>.
           </p>
         </div>
       ) : (
@@ -308,9 +367,7 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
             backgroundPosition: "-1px -1px",
           }}
         >
-          {grade.gesto && (
-            <Fantasma grade={grade} />
-          )}
+          {grade.gesto && <Fantasma grade={grade} />}
           {widgets.map((w) => {
             const m = grade.medidas(w.id);
             if (!m) return null;
@@ -334,8 +391,13 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
                   carregando={rodando}
                   onRemover={async () => {
                     await deleteWidget(painel.id, w.id);
-                    ultima.current = "";
-                    onMudou();
+                    recarregarTudo();
+                  }}
+                  onRecriar={async () => {
+                    // A pergunta original ficou guardada justamente para isto.
+                    await createWidget(painel.id, w.question);
+                    await deleteWidget(painel.id, w.id);
+                    recarregarTudo();
                   }}
                   celula={m.celula}
                   gesto={ativo ? grade.gesto!.gesto : null}

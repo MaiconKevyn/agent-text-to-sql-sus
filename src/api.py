@@ -27,7 +27,12 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import concepts, roteador, websearch
 from .paineis import Paineis, PainelInexistente
-from .paineis import executar as executar_painel, gerar as gerar_widget
+from .paineis import (
+    executar as executar_painel,
+    gerar as gerar_widget,
+    gerar_filtro,
+    rotear as rotear_painel,
+)
 from .investigation import Investigador
 from .chats import ChatInexistente, Conversas, Rodada as RodadaChat
 from .themes import (
@@ -587,6 +592,43 @@ def apagar_painel(painel_id: str) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+@app.post("/api/dashboards/{painel_id}/ask")
+def pedir_ao_painel(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """A caixa do painel: um pedido vira widget ou filtro, conforme a intenção.
+
+    Existe para a pessoa não ter de saber de antemão em qual categoria o pedido
+    dela cai. "Quero ver só mulheres" é filtro; "um gráfico por sexo" é widget;
+    a fronteira é sutil e não é trabalho de quem usa.
+    """
+    pedido = str(corpo.get("request") or "").strip()
+    if len(pedido) < 3:
+        return JSONResponse({"error": "Pedido muito curto."}, status_code=400)
+    try:
+        paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+    alvo, motivo = rotear_painel.rotear(pedido)
+    if alvo == "filtro":
+        r = gerar_filtro.gerar(pedido, agente().db)
+        if r.filtro is None:
+            return JSONResponse({"kind": "filtro", "refused": r.recusa, "reason": motivo})
+        painel = paineis().acrescentar_filtro(painel_id, r.filtro)
+        return JSONResponse(
+            {"kind": "filtro", "refused": "", "reason": motivo,
+             "dashboard": painel.para_json(), "createdId": r.filtro.id}
+        )
+
+    rw = gerar_widget.gerar(pedido, agente().db)
+    if rw.widget is None:
+        return JSONResponse({"kind": "widget", "refused": rw.recusa, "reason": motivo})
+    painel = paineis().acrescentar(painel_id, rw.widget)
+    return JSONResponse(
+        {"kind": "widget", "refused": "", "reason": motivo,
+         "dashboard": painel.para_json(), "createdId": rw.widget.id}
+    )
+
+
 @app.post("/api/dashboards/{painel_id}/widgets")
 def criar_widget(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
     """Monta um widget a partir de uma pergunta em linguagem natural.
@@ -618,11 +660,42 @@ def remover_widget(painel_id: str, widget_id: str) -> JSONResponse:
 
 
 @app.post("/api/dashboards/{painel_id}/filters")
-def filtrar_painel(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+def criar_filtro(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Cria um filtro a partir de um pedido em linguagem natural.
+
+    O domínio é lido do banco, não inventado: um filtro de sexo com rótulos
+    escritos à mão erraria, porque nesta base os valores são 1 e 3.
+    """
+    pedido = str(corpo.get("request") or "").strip()
+    if len(pedido) < 3:
+        return JSONResponse({"error": "Pedido muito curto."}, status_code=400)
     try:
-        return JSONResponse(paineis().filtrar(painel_id, corpo).para_json())
+        paineis().ler(painel_id)
     except PainelInexistente:
         return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+    r = gerar_filtro.gerar(pedido, agente().db)
+    if r.filtro is None:
+        return JSONResponse({"refused": r.recusa})
+    painel = paineis().acrescentar_filtro(painel_id, r.filtro)
+    return JSONResponse({"refused": "", "dashboard": painel.para_json(), "filterId": r.filtro.id})
+
+
+@app.delete("/api/dashboards/{painel_id}/filters/{filtro_id}")
+def apagar_filtro(painel_id: str, filtro_id: str) -> JSONResponse:
+    try:
+        return JSONResponse(paineis().remover_filtro(painel_id, filtro_id).para_json())
+    except PainelInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
+@app.post("/api/dashboards/{painel_id}/filters/{filtro_id}/selection")
+def selecionar_filtro(painel_id: str, filtro_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    try:
+        painel = paineis().selecionar(painel_id, filtro_id, list(corpo.get("selection") or []))
+        return JSONResponse(painel.para_json())
+    except PainelInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
 
 
 @app.post("/api/dashboards/{painel_id}/grid")

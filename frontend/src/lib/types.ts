@@ -444,34 +444,41 @@ export interface SearchResult {
    Painel: mostradores com filtros. O oposto do tema — ver src/paineis/models.py.
    -------------------------------------------------------------------------- */
 
-/** Os filtros que existem, e nada além disso. Cada um mapeia para uma coluna. */
-export type FiltroPainel = "periodo" | "diagnostico" | "uf";
+/** Um filtro declarado: ancorado numa coluna real, criado em tempo de uso. */
+export interface FilterOption {
+  value: string | number;
+  label: string;
+  /** Quantas internações têm esse valor. Diz quando uma opção é resíduo. */
+  count: number;
+}
 
-export const ROTULO_FILTRO: Record<FiltroPainel, string> = {
-  periodo: "período",
-  diagnostico: "diagnóstico",
-  uf: "UF",
-};
-
-export interface DashboardFilters {
-  yearFrom: number;
-  yearTo: number;
-  /** Prefixo de CID-10. Vazio significa TUDO, não significa nenhum. */
-  diagnosis: string;
-  uf: string;
+export interface PanelFilter {
+  id: string;
+  label: string;
+  kind: "faixa" | "escolha" | "multipla";
+  /** A expressão booleana com `?`. Só aparece no detalhe. */
+  fragment: string;
+  min: number | null;
+  max: number | null;
+  options: FilterOption[];
+  selection: (string | number)[];
+  /** O que os valores significam nesta base. Nem sempre é adivinhável. */
+  note: string;
+  /** Se está de fato recortando. Seleção completa = inativo. */
+  active: boolean;
 }
 
 export interface DashboardWidget {
   id: string;
   title: string;
   question: string;
-  /** Com marcadores `?`. Só aparece no detalhe — não é o que se lê de relance. */
+  /** Com o token dos filtros. Só aparece no detalhe. */
   sql: string;
-  /** A quais filtros ESTE widget responde. A interface avisa o que ele ignora. */
-  filters: FiltroPainel[];
   chart: ChartSpec | null;
   format: "grafico" | "indicador";
   assumptions: string[];
+  /** Criado antes dos filtros configuráveis: não responde a nenhum. */
+  legacy: boolean;
   x: number;
   y: number;
   width: number;
@@ -484,7 +491,7 @@ export interface Dashboard {
   title: string;
   createdAt: string;
   updatedAt: string;
-  filters: DashboardFilters;
+  filters: PanelFilter[];
   widgetCount: number;
   widgets?: DashboardWidget[];
 }
@@ -492,8 +499,7 @@ export interface Dashboard {
 /** O resultado de rodar um widget sob os filtros atuais. */
 export interface WidgetData {
   id: string;
-  /** Filtros ligados que ESTE widget ignora. Sem isto o painel mente calado. */
-  unapplied: FiltroPainel[];
+  legacy: boolean;
   error: string | null;
   result: QueryResult | null;
 }

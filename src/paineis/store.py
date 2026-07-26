@@ -12,7 +12,8 @@ from pathlib import Path
 
 from ..config import settings
 from ..storage import DocumentoInexistente, Documentos
-from .models import ALTURA_MAX, ALTURA_MIN, COLUNAS, LARGURA_MIN, Filtros, Painel, Widget
+from .filtros import Filtro
+from .models import ALTURA_MAX, ALTURA_MIN, COLUNAS, LARGURA_MIN, Painel, Widget
 
 
 class PainelInexistente(DocumentoInexistente):
@@ -60,10 +61,30 @@ class Paineis:
         painel.widgets = [w for w in painel.widgets if w.id != widget_id]
         return self.salvar(painel)
 
-    def filtrar(self, id_: str, filtros: dict) -> Painel:
-        """Troca os valores dos filtros. Eles ficam no painel, não na sessão."""
+    def acrescentar_filtro(self, id_: str, filtro: Filtro) -> Painel:
         painel = self.ler(id_)
-        painel.filtros = Filtros.de_json(filtros)
+        painel.filtros.append(filtro)
+        return self.salvar(painel)
+
+    def remover_filtro(self, id_: str, filtro_id: str) -> Painel:
+        painel = self.ler(id_)
+        painel.filtros = [f for f in painel.filtros if f.id != filtro_id]
+        return self.salvar(painel)
+
+    def selecionar(self, id_: str, filtro_id: str, selecao: list) -> Painel:
+        """Troca o que está selecionado num filtro. Fica no painel, não na sessão."""
+        painel = self.ler(id_)
+        f = painel.filtro(filtro_id)
+        if f is None:
+            raise PainelInexistente(filtro_id)
+        # Só valores que existem no domínio: um valor inventado não filtraria
+        # nada e pareceria "não há dado".
+        if f.tipo == "faixa":
+            nums = [v for v in selecao if isinstance(v, (int, float))][:2]
+            f.selecao = sorted(int(v) for v in nums) if len(nums) == 2 else f.selecao
+        else:
+            validos = {o.valor for o in f.opcoes}
+            f.selecao = [v for v in selecao if v in validos]
         return self.salvar(painel)
 
     def dispor(self, id_: str, arranjo: list[dict]) -> Painel:

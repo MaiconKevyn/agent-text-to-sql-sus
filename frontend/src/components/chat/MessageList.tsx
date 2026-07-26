@@ -15,6 +15,7 @@ interface MessageListProps {
   onRegenerate: (id: string) => void;
   onFeedback: (id: string, v: Feedback) => void;
   onInvestigate?: (pergunta: string) => void;
+  onCorrectContinuity?: (pergunta: string) => void;
 }
 
 export function MessageList({
@@ -25,6 +26,7 @@ export function MessageList({
   onRegenerate,
   onFeedback,
   onInvestigate,
+  onCorrectContinuity,
 }: MessageListProps) {
   const ultima = messages[messages.length - 1];
   const { ref, atBottom, scrollToBottom } = useAutoScroll<HTMLDivElement>(
@@ -67,6 +69,7 @@ export function MessageList({
                     onRegenerate={onRegenerate}
                     onFeedback={onFeedback}
               onInvestigate={onInvestigate}
+              onCorrectContinuity={onCorrectContinuity}
                   />
                 ),
               )}

@@ -19,7 +19,7 @@ from decimal import Decimal
 
 from .config import settings
 from .db import Database, QueryResult, validate_sql
-from .llm import SQL_SCHEMA, complete, complete_streaming
+from .llm import SQL_SCHEMA, SQL_SCHEMA_COM_HISTORICO, complete, complete_streaming
 from .schema_context import build_schema_prompt, capability_notes
 from .value_linker import _terms as _termos_da_pergunta
 from .value_linker import link_values
@@ -165,6 +165,9 @@ class AgentResult:
     attempts: int = 1
     errors: list[str] = field(default_factory=list)
     value_hints: str = ""
+    # O que o agente fez com a pergunta anterior. `None` quando não houve
+    # histórico — que é sempre o caso na avaliação.
+    continuity: dict | None = None
 
 
 def _clean_sql(sql: str) -> str:
@@ -212,9 +215,22 @@ class TextToSQLAgent:
             return ""
         return (
             "\n\n## CONVERSA ATÉ AQUI\n"
-            "Se a pergunta nova for um acompanhamento (\"e em 2020?\", \"agora só "
-            "para homens\", \"e por UF?\"), parta do SQL anterior e altere apenas o "
-            "que mudou. Se for um assunto novo, ignore este histórico.\n\n"
+            "Se a pergunta nova for um acompanhamento, parta do SQL anterior e "
+            "altere apenas o que mudou. Se for um assunto novo, ignore este "
+            "histórico.\n"
+            "\n"
+            "NÃO decida isso pela gramática. Uma pergunta pode ser uma frase "
+            "completa e ainda assim continuar a anterior: depois de \"quantas "
+            "mortes por covid?\", a pergunta \"em quais estados tiveram mais "
+            "mortes?\" continua falando de covid, mesmo tendo sujeito e verbo "
+            "próprios. O que decide é o ASSUNTO, não a forma.\n"
+            "\n"
+            "Na dúvida, MANTENHA os recortes anteriores: uma resposta que carrega "
+            "um filtro a mais o usuário reconhece; uma que perdeu o filtro parece "
+            "certa e responde outra pergunta.\n"
+            "\n"
+            "Preencha `continuidade` com o que você fez — inclusive o que "
+            "DESCARTOU. É esse campo que o usuário vê para conferir.\n\n"
             + "\n\n".join(blocks[-HISTORY_TURNS:])
         )
 
@@ -224,12 +240,17 @@ class TextToSQLAgent:
         user = f"Pergunta: {question}"
         if hints:
             user += f"\n\n{hints}"
-        user += self._render_history(history or [])
+        bloco_historico = self._render_history(history or [])
+        user += bloco_historico
+        # Sem histórico, o contrato é EXATAMENTE o de antes. A avaliação chama
+        # `ask(question)` sem `history`, então cada caso continua isolado e o
+        # campo `continuidade` nem é pedido ao modelo — a isolação é estrutural.
+        schema = SQL_SCHEMA_COM_HISTORICO if bloco_historico else SQL_SCHEMA
         return complete(
             model=settings.sql_model,
             system=self._system,
             messages=[{"role": "user", "content": user}],
-            schema=SQL_SCHEMA,
+            schema=schema,
             schema_name="geracao_sql",
             reasoning_effort="medium",
         )
@@ -336,6 +357,7 @@ class TextToSQLAgent:
                 reasoning=plan.get("reasoning", ""),
                 assumptions=plan.get("assumptions", []),
                 value_hints=hints,
+                continuity=_continuidade(plan),
             )
 
         res, sql, attempts, errors = self._execute_with_repair(question, plan, hints)
@@ -354,6 +376,7 @@ class TextToSQLAgent:
                 attempts=attempts,
                 errors=errors,
                 value_hints=hints,
+                continuity=_continuidade(plan),
             )
 
         answer = self.synthesize(question, res, plan.get("assumptions", []))
@@ -367,8 +390,8 @@ class TextToSQLAgent:
             attempts=attempts,
             errors=errors,
             value_hints=hints,
+            continuity=_continuidade(plan),
         )
-
 
     # -- streaming de eventos ------------------------------------------------
     def ask_stream(
@@ -495,6 +518,8 @@ class TextToSQLAgent:
             detail=f"{len(sql_gerado.splitlines())} linhas de SQL",
         )
         yield {"type": "sql", "sql": sql_gerado}
+        if cont := _continuidade(plan):
+            yield {"type": "continuity", "continuity": cont}
         if plan.get("assumptions"):
             yield {"type": "assumptions", "assumptions": plan["assumptions"]}
 
@@ -582,6 +607,41 @@ _FORMAS = {
     "heatmap",
     "empilhada_100",
 }
+
+
+def _continuidade(plan: dict) -> dict | None:
+    """Normaliza o campo `continuidade`, quando ele existe.
+
+    Só existe quando houve histórico — sem histórico o schema nem o pede. O
+    evento serve para a interface mostrar o que o agente fez com a pergunta
+    anterior: qual recorte ele manteve e, principalmente, qual descartou. Um
+    filtro descartado em silêncio é como uma resposta sobre outro assunto passa
+    por resposta certa.
+    """
+    bruto = plan.get("continuidade")
+    if not isinstance(bruto, dict):
+        return None
+    tipo = str(bruto.get("tipo") or "").strip()
+    if tipo not in ("acompanhamento", "nova"):
+        return None
+    def limpa(xs) -> list[str]:
+        # O modelo escreve "nenhum — mantive tudo" DENTRO de `descartado` em vez
+        # de deixar a lista vazia. Sem este filtro o chip anuncia
+        # "Não manteve: nenhum — mantive tudo", que diz o contrário do que é.
+        vazio = ("nenhum", "nenhuma", "não descartei", "nao descartei", "n/a", "-")
+        saida = []
+        for x in xs or []:
+            t = str(x).strip()
+            if not t or t.lower().lstrip("—- ").startswith(vazio):
+                continue
+            saida.append(t)
+        return saida
+
+    return {
+        "kind": tipo,
+        "kept": limpa(bruto.get("herdado")),
+        "dropped": limpa(bruto.get("descartado")),
+    }
 
 
 def _valida_chart(bruto: object, res: QueryResult) -> tuple[dict | None, str]:

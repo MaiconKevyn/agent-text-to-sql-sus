@@ -99,6 +99,8 @@ export interface AgentPayload {
   followUps?: string[];
   /** Gráfico declarado pelo agente, quando a forma do resultado permite. */
   chart?: ChartSpec;
+  /** O que o agente fez com a pergunta anterior. Ausente na 1ª pergunta. */
+  continuity?: Continuity;
 }
 
 export type Feedback = "util" | "nao-util";
@@ -136,6 +138,7 @@ export type StreamEvent =
   | { type: "result"; result: QueryResult }
   | { type: "assumptions"; assumptions: string[] }
   | { type: "chart"; chart: ChartSpec }
+  | { type: "continuity"; continuity: Continuity }
   | { type: "token"; text: string }
   | { type: "refused" }
   | { type: "follow-ups"; questions: string[] }
@@ -275,4 +278,21 @@ export interface Concept {
    *  diagnóstico descrevem as mesmas internações. */
   total: number;
   candidates: ConceptCandidate[];
+}
+
+/**
+ * O que o agente fez com a pergunta anterior. Só existe quando havia histórico.
+ *
+ * A decisão "isto continua o assunto anterior?" sempre foi tomada, mas era
+ * invisível — e quando ela erra, a resposta sai igualmente convincente. Depois
+ * de "quantas mortes por covid?", a pergunta "em quais estados tiveram mais
+ * mortes?" devolvia 903.064 (todas as causas) em vez de 38.884 (covid), sem
+ * nenhum sinal de que o filtro tinha sido descartado.
+ */
+export interface Continuity {
+  kind: "acompanhamento" | "nova";
+  /** Recortes da pergunta anterior que foram mantidos. */
+  kept: string[];
+  /** Recortes descartados. É o campo que mais importa ver. */
+  dropped: string[];
 }

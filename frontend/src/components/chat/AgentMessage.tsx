@@ -3,6 +3,7 @@ import { DebugTrace } from "@/components/debug/DebugTrace";
 import { ResultTable } from "@/components/result/ResultTable";
 import { ResultChart } from "@/components/result/ResultChart";
 import { InvestigateChip } from "@/components/chat/InvestigateChip";
+import { ContinuityChip } from "@/components/chat/ContinuityChip";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,8 @@ interface AgentMessageProps {
   onFeedback: (id: string, v: Feedback) => void;
   /** Abre o modo investigação para a pergunta desta mensagem. */
   onInvestigate?: (pergunta: string) => void;
+  /** Refaz a pergunta com a continuidade corrigida. */
+  onCorrectContinuity?: (pergunta: string) => void;
 }
 
 export function AgentMessageBubble({
@@ -39,6 +42,7 @@ export function AgentMessageBubble({
   onRegenerate,
   onFeedback,
   onInvestigate,
+  onCorrectContinuity,
 }: AgentMessageProps) {
   const { status, payload, failure } = message;
   const pensando = status === "pensando";
@@ -106,6 +110,13 @@ export function AgentMessageBubble({
               Esta pergunta está fora do alcance da base
             </p>
           </div>
+        )}
+
+        {payload?.continuity && onCorrectContinuity && (
+          <ContinuityChip
+            continuity={payload.continuity}
+            onCorrect={(instrucao) => onCorrectContinuity(message.sourceQuestion + instrucao)}
+          />
         )}
 
         {message.text && <StreamedText text={message.text} streaming={streaming} />}

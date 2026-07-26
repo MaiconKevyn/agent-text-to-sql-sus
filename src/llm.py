@@ -152,3 +152,52 @@ SQL_SCHEMA: dict[str, Any] = {
         },
     },
 }
+
+
+# O campo `continuidade` só existe quando HÁ histórico. Isso não é elegância:
+# acrescentar um campo ao schema muda o que o modelo produz em toda chamada, e a
+# avaliação roda sempre sem histórico (eval/run_eval.py chama `ask(question)`
+# sem `history`). Mantendo dois schemas, o caminho da avaliação continua
+# recebendo exatamente o mesmo contrato de antes — a garantia é estrutural, não
+# uma promessa.
+SQL_SCHEMA_COM_HISTORICO: dict[str, Any] = {
+    **SQL_SCHEMA,
+    "required": [*SQL_SCHEMA["required"], "continuidade"],
+    "properties": {
+        **SQL_SCHEMA["properties"],
+        "continuidade": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["tipo", "herdado", "descartado"],
+            "properties": {
+                "tipo": {
+                    "type": "string",
+                    "enum": ["acompanhamento", "nova"],
+                    "description": (
+                        "'acompanhamento' se esta pergunta continua a anterior e você "
+                        "partiu do SQL dela; 'nova' se é outro assunto e você começou "
+                        "do zero."
+                    ),
+                },
+                "herdado": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Cada recorte da pergunta anterior que você MANTEVE, em português "
+                        "e com a coluna: \"filtro de covid: DIAG_PRINC = 'B342'\". "
+                        "Vazio quando tipo='nova'."
+                    ),
+                },
+                "descartado": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": (
+                        "Cada recorte da pergunta anterior que você NÃO manteve, e por quê. "
+                        "É o campo mais importante: um filtro descartado em silêncio é "
+                        "como uma resposta sobre outro assunto passa por resposta certa."
+                    ),
+                },
+            },
+        },
+    },
+}

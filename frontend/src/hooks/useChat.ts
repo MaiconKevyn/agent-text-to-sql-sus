@@ -81,6 +81,12 @@ export function useChat() {
             case "result":
               patch(respostaId, (m) => ({ ...m, payload: { ...m.payload, result: ev.result } }));
               break;
+            case "continuity":
+              patch(respostaId, (m) => ({
+                ...m,
+                payload: { ...m.payload, continuity: ev.continuity },
+              }));
+              break;
             case "chart":
               patch(respostaId, (m) => ({ ...m, payload: { ...m.payload, chart: ev.chart } }));
               break;

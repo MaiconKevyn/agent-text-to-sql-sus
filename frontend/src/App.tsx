@@ -124,6 +124,7 @@ export default function App() {
               onRegenerate={regenerate}
               onFeedback={setFeedback}
               onInvestigate={inv.iniciar}
+              onCorrectContinuity={perguntar}
             />
             <div className="border-t border-line bg-canvas/85 px-3 py-3 backdrop-blur-md sm:px-5">
               <div className="mx-auto max-w-3xl">

@@ -1,4 +1,4 @@
-import { Activity, Moon, PanelRight, Sun, Trash2 } from "lucide-react";
+import { Bookmark, Activity, Moon, PanelRight, Sun, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Theme } from "@/hooks/useTheme";
@@ -92,4 +92,12 @@ export function AppHeader({
       </div>
     </header>
   );
-}
+}<a
+            href="?temas"
+            title="Investigações salvas"
+            aria-label="Investigações salvas"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors duration-150 hover:bg-raised hover:text-ink"
+          >
+            <Bookmark aria-hidden className="h-4 w-4" />
+          </a>
+          

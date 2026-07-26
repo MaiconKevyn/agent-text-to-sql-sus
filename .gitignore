@@ -53,3 +53,6 @@ frontend/.vite/
 
 # navegadores baixados pelo playwright (só o script de screenshots usa)
 frontend/test-results/
+
+# temas de investigação salvos localmente
+data/temas/

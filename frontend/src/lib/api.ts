@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate } from "./types";
+import type { DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -201,3 +201,48 @@ export async function countConcept(
   if (!r.ok) throw new Error(`Falha ao contar (HTTP ${r.status}).`);
   return ((await r.json()) as { total: number }).total;
 }
+
+/* --------------------------------------------------------------------------
+   Temas de investigação.
+   -------------------------------------------------------------------------- */
+
+async function json<T>(caminho: string, init?: RequestInit): Promise<T> {
+  const r = await fetch(`${BASE}${caminho}`, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  }).catch((causa) => {
+    throw new BackendOffline(String(causa));
+  });
+  if (!r.ok) throw new Error(`${init?.method ?? "GET"} ${caminho} falhou (HTTP ${r.status}).`);
+  return (await r.json()) as T;
+}
+
+export const listThemes = () => json<Theme[]>("/api/themes");
+export const readTheme = (id: string) => json<Theme>(`/api/themes/${id}`);
+
+export const createTheme = (title: string, description = "") =>
+  json<Theme>("/api/themes", { method: "POST", body: JSON.stringify({ title, description }) });
+
+export const renameTheme = (id: string, title: string, description?: string) =>
+  json<Theme>(`/api/themes/${id}/rename`, {
+    method: "POST",
+    body: JSON.stringify({ title, description }),
+  });
+
+export const deleteTheme = (id: string) => json<{ ok: true }>(`/api/themes/${id}`, { method: "DELETE" });
+
+/** Fixa um bloco. O bloco viaja inteiro — resultado, gráfico e definição. */
+export const pinBlock = (id: string, bloco: Partial<ThemeBlock>) =>
+  json<Theme>(`/api/themes/${id}/blocks`, { method: "POST", body: JSON.stringify(bloco) });
+
+export const unpinBlock = (id: string, blocoId: string) =>
+  json<Theme>(`/api/themes/${id}/blocks/${blocoId}`, { method: "DELETE" });
+
+export const noteBlock = (id: string, blocoId: string, note: string) =>
+  json<Theme>(`/api/themes/${id}/blocks/${blocoId}/note`, {
+    method: "POST",
+    body: JSON.stringify({ note }),
+  });
+
+export const defineInTheme = (id: string, d: Partial<ThemeDefinition>) =>
+  json<Theme>(`/api/themes/${id}/definitions`, { method: "POST", body: JSON.stringify(d) });

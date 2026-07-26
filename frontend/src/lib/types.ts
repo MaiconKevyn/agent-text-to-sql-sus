@@ -296,3 +296,50 @@ export interface Continuity {
   /** Recortes descartados. É o campo que mais importa ver. */
   dropped: string[];
 }
+
+/* --------------------------------------------------------------------------
+   Tema de investigação: espaço que acumula evidência sobre um assunto.
+   Espelha src/themes/models.py.
+   -------------------------------------------------------------------------- */
+
+/** De onde veio o conteúdo. Hoje só "banco"; os outros são o item 4. */
+export type Provenance = "banco" | "web" | "arquivo" | "usuario";
+export type BlockKind = "consulta" | "investigacao" | "nota";
+
+export interface ThemeBlock {
+  id: string;
+  kind: BlockKind;
+  provenance: Provenance;
+  title: string;
+  question: string;
+  text: string;
+  sql: string | null;
+  result: QueryResult | null;
+  chart: ChartSpec | null;
+  definition: string;
+  assumptions: string[];
+  /** Anotação de quem investiga — o porquê de o bloco estar aqui. */
+  note: string;
+  pinnedAt: string;
+}
+
+/** Um termo resolvido, válido para o tema inteiro. */
+export interface ThemeDefinition {
+  term: string;
+  clause: string;
+  codes: { code: string; column: string }[];
+  total: number;
+  createdAt: string;
+}
+
+export interface Theme {
+  id: string;
+  title: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+  definitions: ThemeDefinition[];
+  blockCount: number;
+  /** Ausente na listagem, que não carrega as tabelas de cada bloco. */
+  blocks?: ThemeBlock[];
+}

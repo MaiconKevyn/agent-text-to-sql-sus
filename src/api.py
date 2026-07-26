@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import concepts
 from .investigation import Investigador
+from .themes import Armazem, Bloco, Definicao, TemaInexistente
 from .agent import TextToSQLAgent, Turn
 from .config import settings
 from .db import Database
@@ -42,7 +43,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(5173|5174|5175|4173)",
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -68,6 +69,16 @@ def investigador() -> Investigador:
     if _investigador is None:
         _investigador = Investigador(agente())
     return _investigador
+
+
+_armazem: Armazem | None = None
+
+
+def armazem() -> Armazem:
+    global _armazem
+    if _armazem is None:
+        _armazem = Armazem()
+    return _armazem
 
 
 def sse(evento: dict) -> str:
@@ -203,6 +214,108 @@ def concept_count(selecao: list[dict] = Body(..., embed=False)) -> JSONResponse:
     """
     total = concepts.contar(agente().db, concepts.de_json(selecao))
     return JSONResponse({"total": total})
+
+
+# ---- temas de investigação ------------------------------------------------
+#
+# Um tema é um espaço que acumula evidência sobre um assunto. Fica no servidor,
+# não no navegador, porque o chat do tema precisa dos blocos no prompt e subir
+# tabelas inteiras a cada pergunta seria absurdo — além de o tema sobreviver a
+# limpar o navegador e virar compartilhável por URL.
+
+
+@app.get("/api/themes")
+def listar_temas() -> JSONResponse:
+    """Só os metadados: a lista não precisa carregar as tabelas de cada bloco."""
+    return JSONResponse([t.para_json(com_blocos=False) for t in armazem().listar()])
+
+
+@app.post("/api/themes")
+def criar_tema(corpo: dict = Body(default_factory=dict)) -> JSONResponse:
+    tema = armazem().criar(
+        titulo=str(corpo.get("title") or ""), descricao=str(corpo.get("description") or "")
+    )
+    return JSONResponse(tema.para_json(), status_code=201)
+
+
+@app.get("/api/themes/{tema_id}")
+def ler_tema(tema_id: str) -> JSONResponse:
+    try:
+        return JSONResponse(armazem().ler(tema_id).para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
+@app.post("/api/themes/{tema_id}/rename")
+def renomear_tema(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    try:
+        tema = armazem().renomear(
+            tema_id, str(corpo.get("title") or ""), corpo.get("description")
+        )
+        return JSONResponse(tema.para_json(com_blocos=False))
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
+@app.delete("/api/themes/{tema_id}")
+def apagar_tema(tema_id: str) -> JSONResponse:
+    armazem().apagar(tema_id)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/themes/{tema_id}/blocks")
+def fixar_bloco(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Fixa um bloco vindo do chat ou de um relatório de investigação."""
+    try:
+        tema = armazem().fixar(tema_id, Bloco.de_json(corpo))
+        return JSONResponse(tema.para_json(), status_code=201)
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
+@app.delete("/api/themes/{tema_id}/blocks/{bloco_id}")
+def desafixar_bloco(tema_id: str, bloco_id: str) -> JSONResponse:
+    try:
+        return JSONResponse(armazem().desafixar(tema_id, bloco_id).para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
+@app.post("/api/themes/{tema_id}/blocks/{bloco_id}/note")
+def anotar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """A anotação é o que transforma uma coleção de consultas numa investigação."""
+    try:
+        tema = armazem().anotar(tema_id, bloco_id, str(corpo.get("note") or ""))
+        return JSONResponse(tema.para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
+@app.post("/api/themes/{tema_id}/reorder")
+def reordenar_blocos(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    try:
+        tema = armazem().reordenar(tema_id, [str(x) for x in (corpo.get("order") or [])])
+        return JSONResponse(tema.para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
+@app.post("/api/themes/{tema_id}/definitions")
+def definir_termo(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """A definição vale para o tema inteiro — é o que a torna útil."""
+    try:
+        tema = armazem().definir(tema_id, Definicao.de_json(corpo))
+        return JSONResponse(tema.para_json(com_blocos=False), status_code=201)
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
+@app.delete("/api/themes/{tema_id}/definitions/{termo}")
+def remover_definicao(tema_id: str, termo: str) -> JSONResponse:
+    try:
+        return JSONResponse(armazem().remover_definicao(tema_id, termo).para_json(com_blocos=False))
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
 
 
 @app.get("/api/investigate")

@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { ArrowDown } from "lucide-react";
 import { useAutoScroll } from "@/hooks/useAutoScroll";
 import type { Feedback, Message } from "@/lib/types";
-import { AgentMessageBubble } from "./AgentMessage";
+import { AgentMessageBubble, type TemasProps } from "./AgentMessage";
 import { EmptyState } from "./EmptyState";
 import { FollowUpChips } from "./FollowUpChips";
 import { UserMessageBubble } from "./UserMessage";
@@ -16,6 +16,7 @@ interface MessageListProps {
   onFeedback: (id: string, v: Feedback) => void;
   onInvestigate?: (pergunta: string) => void;
   onCorrectContinuity?: (pergunta: string) => void;
+  temas?: TemasProps;
 }
 
 export function MessageList({
@@ -27,6 +28,7 @@ export function MessageList({
   onFeedback,
   onInvestigate,
   onCorrectContinuity,
+  temas,
 }: MessageListProps) {
   const ultima = messages[messages.length - 1];
   const { ref, atBottom, scrollToBottom } = useAutoScroll<HTMLDivElement>(
@@ -70,6 +72,7 @@ export function MessageList({
                     onFeedback={onFeedback}
               onInvestigate={onInvestigate}
               onCorrectContinuity={onCorrectContinuity}
+              temas={temas}
                   />
                 ),
               )}

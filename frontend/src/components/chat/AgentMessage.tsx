@@ -7,11 +7,21 @@ import { ContinuityChip } from "@/components/chat/ContinuityChip";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { AgentMessage as AgentMsg, FailureKind, Feedback } from "@/lib/types";
+import type { AgentMessage as AgentMsg, FailureKind, Feedback, Theme, ThemeBlock } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { MessageActions } from "./MessageActions";
+import { PinButton } from "@/components/theme/PinButton";
 import { StreamedText } from "./StreamedText";
 import { ThinkingSteps } from "./ThinkingSteps";
+
+/** O que o botão de fixar precisa saber. Definido aqui para não acoplar o
+ *  componente de mensagem ao hook inteiro. */
+export interface TemasProps {
+  temas: Theme[];
+  ultimo: Theme | null;
+  fixar: (bloco: Partial<ThemeBlock>, temaId?: string) => Promise<string>;
+  criar: (titulo: string) => Promise<Theme>;
+}
 
 const FALHAS: Record<
   FailureKind,
@@ -33,6 +43,8 @@ interface AgentMessageProps {
   onInvestigate?: (pergunta: string) => void;
   /** Refaz a pergunta com a continuidade corrigida. */
   onCorrectContinuity?: (pergunta: string) => void;
+  /** Ponte com os temas. Ausente quando a tela não os oferece. */
+  temas?: TemasProps;
 }
 
 export function AgentMessageBubble({
@@ -43,6 +55,7 @@ export function AgentMessageBubble({
   onFeedback,
   onInvestigate,
   onCorrectContinuity,
+  temas,
 }: AgentMessageProps) {
   const { status, payload, failure } = message;
   const pensando = status === "pensando";
@@ -152,6 +165,28 @@ export function AgentMessageBubble({
               onRegenerate={() => onRegenerate(message.id)}
               onFeedback={(v) => onFeedback(message.id, v)}
             />
+            {/* Fixar leva o bloco INTEIRO — pergunta, SQL, resultado, gráfico e
+                a definição usada. Uma referência não bastaria: o bloco tem de
+                continuar legível daqui a um mês. */}
+            {temas && payload?.result && (
+              <PinButton
+                temas={temas.temas}
+                ultimo={temas.ultimo}
+                onPin={temas.fixar}
+                onNovo={temas.criar}
+                bloco={() => ({
+                  kind: "consulta",
+                  provenance: "banco",
+                  title: payload.chart?.title || message.sourceQuestion.slice(0, 80),
+                  question: message.sourceQuestion,
+                  text: message.text,
+                  sql: payload.sql ?? null,
+                  result: payload.result ?? null,
+                  chart: payload.chart ?? null,
+                  assumptions: payload.assumptions ?? [],
+                })}
+              />
+            )}
             {debug && (
               <Badge tone="neutral" className="shrink-0">
                 {message.trace.length} eventos no trace

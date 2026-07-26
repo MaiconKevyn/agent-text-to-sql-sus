@@ -31,6 +31,8 @@ class Settings:
     default_limit: int = int(os.getenv("DEFAULT_LIMIT", "100"))
     # Timeout duro de execução, em segundos.
     query_timeout_s: int = int(os.getenv("QUERY_TIMEOUT_S", "120"))
+    # Onde ficam os temas de investigação. Um JSON por tema.
+    themes_dir: str = os.getenv("THEMES_DIR", "data/temas")
     # Tentativas de auto-correção após erro de SQL.
     max_repair_attempts: int = int(os.getenv("MAX_REPAIR_ATTEMPTS", "2"))
 

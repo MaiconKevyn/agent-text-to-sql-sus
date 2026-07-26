@@ -7,6 +7,7 @@ import { SchemaExplorer } from "@/components/schema/SchemaExplorer";
 import { ReportPanel } from "@/components/report/ReportPanel";
 import { ConceptPanel } from "@/components/concept/ConceptPanel";
 import { useInvestigation } from "@/hooks/useInvestigation";
+import { useThemes } from "@/hooks/useThemes";
 import { useChat } from "@/hooks/useChat";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/useTheme";
@@ -83,6 +84,7 @@ export default function App() {
   );
 
   const inv = useInvestigation();
+  const { temas, ultimo, criar, fixar } = useThemes();
   const [conceitoAberto, setConceitoAberto] = useState(false);
 
   // A definição confirmada é anexada à pergunta, não guardada em estado à
@@ -125,6 +127,7 @@ export default function App() {
               onFeedback={setFeedback}
               onInvestigate={inv.iniciar}
               onCorrectContinuity={perguntar}
+              temas={{ temas, ultimo, fixar, criar }}
             />
             <div className="border-t border-line bg-canvas/85 px-3 py-3 backdrop-blur-md sm:px-5">
               <div className="mx-auto max-w-3xl">

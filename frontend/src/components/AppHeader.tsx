@@ -27,7 +27,25 @@ export function AppHeader({
 }: AppHeaderProps) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-canvas/85 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-3 px-3 sm:px-5">
+      <div className="flex h-14 items-center">
+        {/* Uma coluna da largura do trilho, FORA do contêiner centralizado: é o
+            que põe o botão exatamente sobre a barra que ele recolhe. No grupo
+            da direita, junto com Debug e o painel do banco, ele ficava no canto
+            oposto ao que comanda. */}
+        <div className="hidden w-12 shrink-0 items-center justify-center lg:flex">
+          <Button
+            size="icon"
+            onClick={onToggleSidebar}
+            aria-label={sidebarOpen ? "Recolher a barra lateral" : "Mostrar a barra lateral"}
+            aria-pressed={sidebarOpen}
+            title="Conversas e investigações"
+            className={cn(sidebarOpen && "text-accent")}
+          >
+            <PanelLeft aria-hidden className="h-4 w-4" />
+          </Button>
+        </div>
+
+        <div className="mx-auto flex h-14 min-w-0 max-w-[1400px] flex-1 items-center gap-3 px-3 sm:px-5">
         <span
           aria-hidden
           className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-accent"
@@ -66,17 +84,6 @@ export function AppHeader({
             </Button>
           )}
 
-          <Button
-            size="icon"
-            onClick={onToggleSidebar}
-            aria-label={sidebarOpen ? "Recolher a barra lateral" : "Mostrar a barra lateral"}
-            aria-pressed={sidebarOpen}
-            title="Conversas e investigações"
-            className={cn("hidden lg:inline-flex", sidebarOpen && "text-accent")}
-          >
-            <PanelLeft aria-hidden className="h-4 w-4" />
-          </Button>
-
           <SeletorDePaleta compacto />
 
           <Button
@@ -89,6 +96,7 @@ export function AppHeader({
           >
             <PanelRight aria-hidden className="h-4 w-4" />
           </Button>
+        </div>
         </div>
       </div>
     </header>

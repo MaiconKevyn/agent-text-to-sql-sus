@@ -1,4 +1,5 @@
-import { Bookmark, Activity, Moon, PanelRight, Sun, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { PanelLeft, Activity, Moon, PanelRight, Sun, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Theme } from "@/hooks/useTheme";
@@ -10,6 +11,8 @@ interface AppHeaderProps {
   onDebugChange: (v: boolean) => void;
   schemaOpen: boolean;
   onToggleSchema: () => void;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
   hasMessages: boolean;
   onClear: () => void;
 }
@@ -21,6 +24,8 @@ export function AppHeader({
   onDebugChange,
   schemaOpen,
   onToggleSchema,
+  sidebarOpen,
+  onToggleSidebar,
   hasMessages,
   onClear,
 }: AppHeaderProps) {
@@ -67,6 +72,17 @@ export function AppHeader({
 
           <Button
             size="icon"
+            onClick={onToggleSidebar}
+            aria-label={sidebarOpen ? "Recolher a barra lateral" : "Mostrar a barra lateral"}
+            aria-pressed={sidebarOpen}
+            title="Conversas e investigações"
+            className={cn("hidden lg:inline-flex", sidebarOpen && "text-accent")}
+          >
+            <PanelLeft aria-hidden className="h-4 w-4" />
+          </Button>
+
+          <Button
+            size="icon"
             onClick={onToggleTheme}
             aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
             title={theme === "dark" ? "Tema claro" : "Tema escuro"}
@@ -92,12 +108,4 @@ export function AppHeader({
       </div>
     </header>
   );
-}<a
-            href="?temas"
-            title="Investigações salvas"
-            aria-label="Investigações salvas"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-ink-muted transition-colors duration-150 hover:bg-raised hover:text-ink"
-          >
-            <Bookmark aria-hidden className="h-4 w-4" />
-          </a>
-          
+}

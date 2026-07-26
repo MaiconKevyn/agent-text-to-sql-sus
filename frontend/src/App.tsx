@@ -8,11 +8,13 @@ import { ReportPanel } from "@/components/report/ReportPanel";
 import { ConceptPanel } from "@/components/concept/ConceptPanel";
 import { useInvestigation } from "@/hooks/useInvestigation";
 import { useThemes } from "@/hooks/useThemes";
+import { Sidebar } from "@/components/Sidebar";
 import { useChat } from "@/hooks/useChat";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/hooks/useTheme";
 
 const DEBUG_KEY = "sih-debug";
+const BARRA_KEY = "sih-barra";
 const PAINEL_KEY = "sih-schema-aberto";
 
 function lerFlag(chave: string, padrao: boolean): boolean {
@@ -26,7 +28,7 @@ function lerFlag(chave: string, padrao: boolean): boolean {
 
 export default function App() {
   const { theme, toggle } = useTheme();
-  const { messages, busy, send, regenerate, setFeedback, stop, clear } = useChat();
+  const { messages, busy, send, regenerate, setFeedback, stop, clear, abrir: abrirChat, chatAtual, versao } = useChat();
   const composer = useRef<ComposerHandle>(null);
 
   const [debug, setDebug] = useState(() => lerFlag(DEBUG_KEY, false));
@@ -85,6 +87,15 @@ export default function App() {
 
   const inv = useInvestigation();
   const { temas, ultimo, criar, fixar } = useThemes();
+  const [barraAberta, setBarraAberta] = useState(() => lerFlag(BARRA_KEY, true));
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(BARRA_KEY, barraAberta ? "1" : "0");
+    } catch {
+      /* modo privado: segue sem lembrar */
+    }
+  }, [barraAberta]);
   const [conceitoAberto, setConceitoAberto] = useState(false);
 
   // A definição confirmada é anexada à pergunta, não guardada em estado à
@@ -112,11 +123,39 @@ export default function App() {
           onDebugChange={setDebug}
           schemaOpen={schemaOpen}
           onToggleSchema={() => setSchemaOpen((v) => !v)}
+          sidebarOpen={barraAberta}
+          onToggleSidebar={() => setBarraAberta((v) => !v)}
           hasMessages={messages.length > 0}
           onClear={clear}
         />
 
-        <div className="mx-auto flex w-full min-h-0 max-w-[1400px] flex-1">
+        <div className="mx-auto flex w-full min-h-0 max-w-[1500px] flex-1">
+          {/* A barra é recolhível porque o painel da direita já existe: com os
+              dois lados fixos, o conteúdo central sufoca num laptop de 1280px. */}
+          <aside
+            aria-hidden={!barraAberta}
+            className={cn(
+              "hidden min-h-0 shrink-0 overflow-hidden lg:block",
+              "transition-[width] duration-200 ease-out",
+              barraAberta ? "w-60" : "w-0",
+            )}
+          >
+            <div className="h-full w-60">
+              <Sidebar
+                atual={chatAtual ? { tipo: "chats", id: chatAtual } : null}
+                versao={versao}
+                onNovoChat={clear}
+                onAbrirChat={(id) => void abrirChat(id)}
+                onAbrirTema={(id) => {
+                  location.href = `?tema=${id}`;
+                }}
+                onNovoTema={() => {
+                  location.href = "?temas";
+                }}
+              />
+            </div>
+          </aside>
+
           <main className="flex min-w-0 min-h-0 flex-1 flex-col">
             <MessageList
               messages={messages}

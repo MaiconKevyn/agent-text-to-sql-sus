@@ -1,0 +1,60 @@
+{
+ "id": "chat_2957da10ab66",
+ "title": "Quantas cesarianas aconteceram em 2023?",
+ "createdAt": "2026-07-26T03:26:23+00:00",
+ "updatedAt": "2026-07-26T03:29:05+00:00",
+ "turnCount": 2,
+ "turns": [
+  {
+   "question": "Quantas cesarianas aconteceram em 2023?",
+   "text": "Foram 703.875 cesarianas em 2023.\n\nOs procedimentos foram contados pelos códigos 0411010026, 0411010034 e 0411010042 com data de alta (DT_SAIDA) em 2023; não filtrei por sexo, e cesarianas registradas com outros códigos (por exemplo, apenas códigos de anestesia) não foram incluídas.",
+   "sql": "SELECT COUNT(*) AS total_cesarianas\nFROM internacoes i\nWHERE year(i.DT_SAIDA) = 2023\n  AND i.PROC_REA IN ('0411010026','0411010034','0411010042');",
+   "result": {
+    "columns": [
+     "total_cesarianas"
+    ],
+    "rows": [
+     [
+      703875
+     ]
+    ],
+    "nRows": 1,
+    "elapsed": 0.17,
+    "truncated": false
+   },
+   "chart": null,
+   "assumptions": [
+    "Cesarianas são identificadas pelos códigos de procedimento 0411010026, 0411010034 e 0411010042 (excluí códigos de anestesia).",
+    "Período definido por year(DT_SAIDA) = 2023 (data de alta), conforme regra da base.",
+    "Não aplico filtro por sexo (SEXO) para evitar perda por registros possivelmente miscoded; se desejar, posso restringir a pacientes classificados como Feminino."
+   ],
+   "continuity": null,
+   "at": "2026-07-26T03:26:23+00:00"
+  },
+  {
+   "question": "e em 2022?",
+   "text": "Em 2022 foram registradas 714.225 cesarianas.  \n\nAssumi o mesmo recorte de procedimento pelos códigos PROC_REA fornecidos e que o ano é determinado por DT_SAIDA (ano de alta).",
+   "sql": "SELECT COUNT(*) AS total_cesarianas\nFROM internacoes i\nWHERE year(i.DT_SAIDA) = 2022\n  AND i.PROC_REA IN ('0411010026','0411010034','0411010042');",
+   "result": {
+    "columns": [
+     "total_cesarianas"
+    ],
+    "rows": [
+     [
+      714225
+     ]
+    ],
+    "nRows": 1,
+    "elapsed": 0.148,
+    "truncated": false
+   },
+   "chart": null,
+   "assumptions": [
+    "A pergunta é continuação da anterior e quer o mesmo recorte de procedimento (cesarianas) usando os mesmos códigos PROC_REA.",
+    "O recorte temporal usa DT_SAIDA (ano de alta) conforme a regra da base."
+   ],
+   "continuity": null,
+   "at": "2026-07-26T03:29:05+00:00"
+  }
+ ]
+}

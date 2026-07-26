@@ -343,3 +343,29 @@ export interface Theme {
   /** Ausente na listagem, que não carrega as tabelas de cada bloco. */
   blocks?: ThemeBlock[];
 }
+
+/* --------------------------------------------------------------------------
+   Conversa salva. Rascunho, não artefato — ver src/chats/models.py.
+   -------------------------------------------------------------------------- */
+
+export interface ChatTurn {
+  question: string;
+  text: string;
+  sql: string | null;
+  result: QueryResult | null;
+  chart: ChartSpec | null;
+  assumptions: string[];
+  continuity: Continuity | null;
+  at: string;
+}
+
+export interface SavedChat {
+  id: string;
+  /** Sai da primeira pergunta. Vazio só antes da primeira rodada. */
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  turnCount: number;
+  /** Ausente na listagem. */
+  turns?: ChatTurn[];
+}

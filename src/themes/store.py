@@ -16,23 +16,14 @@ e nunca serão milhares. SQLite aqui seria cerimônia sem benefício.
 
 from __future__ import annotations
 
-import json
-import os
-import re
-import tempfile
-import threading
 from pathlib import Path
 
 from ..config import settings
+from ..storage import DocumentoInexistente, Documentos
 from .models import Bloco, Definicao, Tema
 
-# Só o formato que este módulo emite. Um id que venha do cliente é usado para
-# montar um caminho de arquivo, então tem de ser conferido antes — senão
-# "../../etc/passwd" vira um caminho válido.
-_ID_VALIDO = re.compile(r"^tema_[0-9a-f]{12}$")
 
-
-class TemaInexistente(KeyError):
+class TemaInexistente(DocumentoInexistente):
     pass
 
 
@@ -45,65 +36,39 @@ class Armazem:
     """
 
     def __init__(self, raiz: str | Path | None = None):
-        self.raiz = Path(raiz or getattr(settings, "themes_dir", "data/temas"))
-        self.raiz.mkdir(parents=True, exist_ok=True)
-        # Um lock por processo. O servidor é single-writer na prática, e isto
-        # basta para dois pedidos concorrentes não se sobrescreverem.
-        self._lock = threading.Lock()
+        self._docs: Documentos[Tema] = Documentos(
+            raiz or getattr(settings, "themes_dir", "data/temas"),
+            prefixo="tema",
+            de_json=Tema.de_json,
+            para_json=lambda t: t.para_json(),
+            id_de=lambda t: t.id,
+            chave_ordem=lambda t: t.atualizado_em,
+        )
 
-    # -- caminho ------------------------------------------------------------
-    def _caminho(self, id_: str) -> Path:
-        if not _ID_VALIDO.match(id_):
-            raise TemaInexistente(id_)
-        return self.raiz / f"{id_}.json"
-
-    # -- leitura ------------------------------------------------------------
     def ler(self, id_: str) -> Tema:
-        caminho = self._caminho(id_)
-        if not caminho.exists():
-            raise TemaInexistente(id_)
-        return Tema.de_json(json.loads(caminho.read_text(encoding="utf-8")))
+        try:
+            return self._docs.ler(id_)
+        except DocumentoInexistente as e:
+            raise TemaInexistente(id_) from e
 
     def listar(self) -> list[Tema]:
         """Todos os temas, do mais recente para o mais antigo.
 
-        Lê tudo — inclusive os blocos — e devolve os objetos completos. Quem
-        chama decide se serializa com ou sem blocos; a lista da interface usa
-        `com_blocos=False`.
+        Devolve os objetos completos; quem chama decide se serializa com ou sem
+        blocos. A lista da interface usa `com_blocos=False`.
         """
-        temas: list[Tema] = []
-        for caminho in self.raiz.glob("tema_*.json"):
-            try:
-                temas.append(Tema.de_json(json.loads(caminho.read_text(encoding="utf-8"))))
-            except (json.JSONDecodeError, OSError):
-                # Um arquivo corrompido não pode derrubar a listagem inteira.
-                continue
-        return sorted(temas, key=lambda t: t.atualizado_em, reverse=True)
+        return self._docs.listar()
 
-    # -- escrita ------------------------------------------------------------
     def salvar(self, tema: Tema) -> Tema:
         tema.toca()
-        caminho = self._caminho(tema.id)
-        dados = json.dumps(tema.para_json(), ensure_ascii=False, indent=1)
-        with self._lock:
-            # Escreve ao lado e troca: `os.replace` é atômico no mesmo
-            # sistema de arquivos, então nunca há um JSON pela metade em disco.
-            fd, temporario = tempfile.mkstemp(dir=self.raiz, suffix=".tmp")
-            try:
-                with os.fdopen(fd, "w", encoding="utf-8") as f:
-                    f.write(dados)
-                os.replace(temporario, caminho)
-            except BaseException:
-                Path(temporario).unlink(missing_ok=True)
-                raise
-        return tema
+        return self._docs.salvar(tema)
 
     def criar(self, titulo: str = "", descricao: str = "") -> Tema:
         tema = Tema(titulo=titulo.strip() or "Nova investigação", descricao=descricao.strip())
         return self.salvar(tema)
 
     def apagar(self, id_: str) -> None:
-        self._caminho(id_).unlink(missing_ok=True)
+        self._docs.apagar(id_)
 
     # -- operações sobre o conteúdo -----------------------------------------
     def fixar(self, id_: str, bloco: Bloco) -> Tema:

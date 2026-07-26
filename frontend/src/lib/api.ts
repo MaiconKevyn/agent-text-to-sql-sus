@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition } from "./types";
+import type { DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -288,3 +288,15 @@ export async function* askInTheme(
     }
   }
 }
+
+/* --- conversas salvas ----------------------------------------------------- */
+
+export const listChats = () => json<SavedChat[]>("/api/chats");
+export const readChat = (id: string) => json<SavedChat>(`/api/chats/${id}`);
+export const createChat = () => json<SavedChat>("/api/chats", { method: "POST" });
+export const deleteChat = (id: string) =>
+  json<{ ok: true }>(`/api/chats/${id}`, { method: "DELETE" });
+
+/** Salva uma rodada assim que ela termina — quem fecha a aba não avisa antes. */
+export const appendTurn = (id: string, turn: Partial<ChatTurn>) =>
+  json<SavedChat>(`/api/chats/${id}/turns`, { method: "POST", body: JSON.stringify(turn) });

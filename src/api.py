@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import concepts
 from .investigation import Investigador
+from .chats import ChatInexistente, Conversas, Rodada as RodadaChat
 from .themes import Armazem, Bloco, Definicao, TemaInexistente, contexto as ctx_tema
 from .agent import TextToSQLAgent, Turn
 from .config import settings
@@ -79,6 +80,16 @@ def armazem() -> Armazem:
     if _armazem is None:
         _armazem = Armazem()
     return _armazem
+
+
+_conversas: Conversas | None = None
+
+
+def conversas() -> Conversas:
+    global _conversas
+    if _conversas is None:
+        _conversas = Conversas()
+    return _conversas
 
 
 def sse(evento: dict) -> str:
@@ -214,6 +225,51 @@ def concept_count(selecao: list[dict] = Body(..., embed=False)) -> JSONResponse:
     """
     total = concepts.contar(agente().db, concepts.de_json(selecao))
     return JSONResponse({"total": total})
+
+
+# ---- conversas salvas -----------------------------------------------------
+#
+# O chat é RASCUNHO: salvo para você poder voltar, não para acumular. Quem fecha
+# a aba sem querer deixou de perder a conversa — só isso. A conversa salva NÃO
+# vira contexto de outra conversa; essa propriedade é do tema.
+
+
+@app.get("/api/chats")
+def listar_chats() -> JSONResponse:
+    return JSONResponse([c.para_json(com_rodadas=False) for c in conversas().listar()])
+
+
+@app.post("/api/chats")
+def criar_chat() -> JSONResponse:
+    return JSONResponse(conversas().criar().para_json(), status_code=201)
+
+
+@app.get("/api/chats/{chat_id}")
+def ler_chat(chat_id: str) -> JSONResponse:
+    try:
+        return JSONResponse(conversas().ler(chat_id).para_json())
+    except ChatInexistente:
+        return JSONResponse({"error": "Conversa não encontrada."}, status_code=404)
+
+
+@app.post("/api/chats/{chat_id}/turns")
+def acrescentar_rodada(chat_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Salva uma rodada assim que ela termina.
+
+    Incremental e não ao fechar a aba: quem fecha não avisa antes, e é
+    justamente aí que a conversa se perderia.
+    """
+    try:
+        chat = conversas().acrescentar(chat_id, RodadaChat.de_json(corpo))
+        return JSONResponse(chat.para_json(com_rodadas=False), status_code=201)
+    except ChatInexistente:
+        return JSONResponse({"error": "Conversa não encontrada."}, status_code=404)
+
+
+@app.delete("/api/chats/{chat_id}")
+def apagar_chat(chat_id: str) -> JSONResponse:
+    conversas().apagar(chat_id)
+    return JSONResponse({"ok": True})
 
 
 # ---- temas de investigação ------------------------------------------------

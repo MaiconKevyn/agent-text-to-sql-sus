@@ -373,3 +373,24 @@ export interface SavedChat {
   /** Ausente na listagem. */
   turns?: ChatTurn[];
 }
+
+/* --------------------------------------------------------------------------
+   Busca em fontes confiáveis. Devolve candidatos, nunca respostas.
+   -------------------------------------------------------------------------- */
+
+export interface SearchCandidate {
+  title: string;
+  url: string;
+  /** Trecho da página. É ele que vira a citação — nunca um resumo. */
+  excerpt: string;
+  domain: string;
+  publishedAt: string;
+  score: number;
+}
+
+export interface SearchResult {
+  query: string;
+  /** A lista branca ativa, para o usuário saber onde se buscou. */
+  domains: string[];
+  candidates: SearchCandidate[];
+}

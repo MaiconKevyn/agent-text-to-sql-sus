@@ -25,7 +25,7 @@ from fastapi import Body, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from . import concepts
+from . import concepts, websearch
 from .investigation import Investigador
 from .chats import ChatInexistente, Conversas, Rodada as RodadaChat
 from .themes import Armazem, Bloco, Definicao, TemaInexistente, contexto as ctx_tema
@@ -225,6 +225,34 @@ def concept_count(selecao: list[dict] = Body(..., embed=False)) -> JSONResponse:
     """
     total = concepts.contar(agente().db, concepts.de_json(selecao))
     return JSONResponse({"total": total})
+
+
+# ---- busca em fontes confiáveis -------------------------------------------
+
+
+@app.get("/api/search")
+def buscar(
+    q: str = Query(..., min_length=3, max_length=300, description="O que procurar"),
+) -> JSONResponse:
+    """Busca restrita à lista branca e devolve CANDIDATOS, não respostas.
+
+    A escolha é humana: o candidato escolhido preenche o mesmo formulário de
+    fonte externa que já existe, com o trecho literal e a URL. Nada daqui entra
+    no prompt que gera SQL — a barreira está em themes/contexto.py.
+    """
+    try:
+        return JSONResponse(websearch.buscar(q).para_json())
+    except websearch.BuscaIndisponivel as exc:
+        # 503 e não 500: a busca é um extra: sem ela o resto do produto funciona.
+        return JSONResponse({"error": str(exc)}, status_code=503)
+
+
+@app.get("/api/search/status")
+def status_busca() -> JSONResponse:
+    """Se a interface deve oferecer a busca, e em quais domínios."""
+    return JSONResponse(
+        {"available": websearch.disponivel(), "domains": websearch.dominios_ativos()}
+    )
 
 
 # ---- conversas salvas -----------------------------------------------------

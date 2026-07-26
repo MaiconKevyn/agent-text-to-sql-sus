@@ -1,6 +1,7 @@
-import { Globe, Loader2, Plus, X } from "lucide-react";
-import { useState } from "react";
-import { pinBlock } from "@/lib/api";
+import { Globe, Loader2, Plus, Search, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { pinBlock, searchStatus, searchWeb } from "@/lib/api";
+import type { SearchCandidate } from "@/lib/types";
 
 interface Props {
   temaId: string;
@@ -24,6 +25,48 @@ export function AddSource({ temaId, onAdicionou }: Props) {
   const [url, setUrl] = useState("");
   const [trecho, setTrecho] = useState("");
   const [salvando, setSalvando] = useState(false);
+
+  // Busca: traz CANDIDATOS, nunca fixa nada. Quem escolhe é o usuário, e o
+  // escolhido preenche este mesmo formulário — mesmo padrão do painel de
+  // definição e do plano de investigação.
+  const [buscaAtiva, setBuscaAtiva] = useState(false);
+  const [dominios, setDominios] = useState<string[]>([]);
+  const [termoBusca, setTermoBusca] = useState("");
+  const [candidatos, setCandidatos] = useState<SearchCandidate[] | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const [erroBusca, setErroBusca] = useState<string | null>(null);
+
+  useEffect(() => {
+    void searchStatus()
+      .then((s) => {
+        setBuscaAtiva(s.available);
+        setDominios(s.domains);
+      })
+      .catch(() => setBuscaAtiva(false));
+  }, []);
+
+  async function buscar() {
+    const t = termoBusca.trim();
+    if (t.length < 3 || buscando) return;
+    setBuscando(true);
+    setErroBusca(null);
+    try {
+      setCandidatos((await searchWeb(t)).candidates);
+    } catch (e) {
+      setErroBusca(String(e));
+      setCandidatos(null);
+    } finally {
+      setBuscando(false);
+    }
+  }
+
+  /** O candidato escolhido preenche o formulário; salvar continua sendo um ato. */
+  function escolher(c: SearchCandidate) {
+    setTitulo(c.title);
+    setUrl(c.url);
+    setTrecho(c.excerpt);
+    setCandidatos(null);
+  }
 
   const urlValida = !url.trim() || /^https?:\/\/.+\..+/i.test(url.trim());
   const podeSalvar = trecho.trim().length > 10 && urlValida && !salvando;
@@ -78,6 +121,72 @@ export function AddSource({ temaId, onAdicionou }: Props) {
           <X aria-hidden className="h-3.5 w-3.5" />
         </button>
       </header>
+
+      {buscaAtiva && (
+        <div className="mb-3 space-y-2 border-b border-caution/20 pb-3">
+          <div className="flex gap-2">
+            <input
+              value={termoBusca}
+              onChange={(e) => setTermoBusca(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void buscar()}
+              placeholder="Procurar em fontes confiáveis…"
+              aria-label="Termo de busca"
+              className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-[12.5px] text-ink outline-none transition-colors duration-150 placeholder:text-ink-subtle focus:border-accent"
+            />
+            <button
+              onClick={() => void buscar()}
+              disabled={termoBusca.trim().length < 3 || buscando}
+              aria-label="Buscar"
+              className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-white transition-opacity duration-150 disabled:opacity-40"
+            >
+              {buscando ? (
+                <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Search aria-hidden className="h-3.5 w-3.5" />
+              )}
+            </button>
+          </div>
+
+          {/* Os domínios ficam à vista: quem lê o relatório depois precisa
+              saber onde se buscou, e quem busca precisa saber onde NÃO se
+              buscou. */}
+          <p className="text-[10.5px] leading-snug text-ink-muted">
+            Busca restrita a {dominios.length} domínios: {dominios.slice(0, 4).join(", ")}
+            {dominios.length > 4 && ` e mais ${dominios.length - 4}`}
+          </p>
+
+          {erroBusca && <p className="text-[11px] text-critical">{erroBusca}</p>}
+
+          {candidatos?.length === 0 && (
+            <p className="text-[11.5px] text-ink-muted">
+              Nada encontrado nesses domínios. Você ainda pode colar a fonte à mão abaixo.
+            </p>
+          )}
+
+          {candidatos && candidatos.length > 0 && (
+            <ul className="max-h-64 space-y-1.5 overflow-y-auto">
+              {candidatos.map((c) => (
+                <li key={c.url}>
+                  <button
+                    onClick={() => escolher(c)}
+                    className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-left transition-colors duration-150 hover:border-accent/40"
+                  >
+                    <span className="flex items-baseline gap-2">
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-ink">
+                        {c.title}
+                      </span>
+                      <span className="shrink-0 text-[10.5px] text-ink-subtle">{c.domain}</span>
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-ink-muted">
+                      {c.excerpt}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="space-y-2">
         <input

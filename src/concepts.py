@@ -43,6 +43,9 @@ class Candidato:
     # A proposta do modelo, que o usuário pode desfazer.
     sugerido: bool = False
     motivo: str = ""
+    # O grupo oficial da CID-10 ("O80-O84 Parto"). É a hierarquia que separa o
+    # evento das suas complicações — e ela é autoritativa, não inferida.
+    grupo: str = ""
 
 
 @dataclass
@@ -62,60 +65,67 @@ class Conceito:
 CLASSIFICA_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["itens", "alerta"],
+    "required": ["procedimentos", "grupos", "alerta"],
     "properties": {
-        "itens": {
+        "procedimentos": {
             "type": "array",
+            "description": "Um item por procedimento recebido.",
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "required": ["codigo", "pertence", "motivo"],
                 "properties": {
-                    "codigo": {"type": "string", "description": "O código exato, como veio."},
-                    "pertence": {
-                        "type": "boolean",
-                        "description": "Este código É o conceito perguntado, ou apenas o menciona?",
-                    },
-                    "motivo": {
-                        "type": "string",
-                        "description": "Meia linha. Vazio quando pertence=true e é óbvio.",
-                    },
+                    "codigo": {"type": "string"},
+                    "pertence": {"type": "boolean"},
+                    "motivo": {"type": "string", "description": "Meia linha; vazio se óbvio."},
                 },
             },
         },
-        "alerta": {
-            "type": "string",
-            "description": (
-                "Uma frase, só se houver armadilha conhecida neste termo nesta base "
-                "(código oficial ausente, conceito que abrange mais do que o nome sugere). "
-                "Vazio se não houver."
-            ),
+        "grupos": {
+            "type": "array",
+            "description": "Um item por grupo da CID-10 recebido.",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["grupo", "pertence", "motivo"],
+                "properties": {
+                    "grupo": {"type": "string", "description": "O nome do grupo, exatamente como veio."},
+                    "pertence": {"type": "boolean"},
+                    "motivo": {"type": "string"},
+                },
+            },
         },
+        "alerta": {"type": "string", "description": "Armadilha desta base neste termo, ou vazio."},
     },
 }
 
 CLASSIFICA_PROMPT = """\
-Você separa, numa lista de códigos do SIH/SUS, quais SÃO o conceito perguntado e
-quais apenas o MENCIONAM.
+Você decide, para um conceito clínico, o que faz parte dele no SIH/SUS.
 
-A distinção é entre ser e citar:
-- "PARTO NORMAL" É um parto. "ANALGESIA OBSTETRICA P/ PARTO NORMAL" não é: é a
-  anestesia de um parto. "TRATAMENTO DE TRAUMATISMO DE PARTO NO NEONATO" não é:
-  é a internação do bebê.
-- "PARTO CESARIANO C/ LAQUEADURA TUBARIA" É um parto — a laqueadura é um
-  adicional, o procedimento principal continua sendo o parto.
-- Cadastro, licenciamento, inspeção sanitária e incentivo financeiro NUNCA são o
-  procedimento clínico.
+São duas listas com regras diferentes.
 
-Na dúvida entre incluir e excluir, INCLUA e explique no motivo. Quem pergunta vê
-a lista e desmarca; o que ele não vê, não desmarca.
+GRUPOS DA CID-10 — decida pelo NOME DO GRUPO, que é oficial.
+A CID-10 já separa o evento das suas complicações, e essa separação vale mais
+que qualquer julgamento seu sobre os códigos individuais:
+  "O80-O84 Parto"                                       → É parto
+  "O60-O75 Complicações do trabalho de parto e do parto" → NÃO é parto
+  "O10-O16 Edema, proteinúria e transtornos hipertensivos" → NÃO é parto
+Um grupo cujo nome diz "complicações de X", "assistência por motivos ligados a
+X" ou "afecções associadas a X" NÃO é X. É o que acompanha X.
 
-O campo `alerta` é para armadilha desta base, não para observação genérica.
-Exemplos do que merece alerta:
-- o código oficial do conceito não existe aqui e ele foi registrado em outro;
-- o conjunto marcado abrange bem mais do que o nome sugere (por exemplo,
-  "neoplasias" incluindo tumor benigno quando a pessoa perguntou "câncer").
-Se não houver nada assim, devolva vazio.
+PROCEDIMENTOS — não têm hierarquia, então decida pelo nome, entre ser e citar:
+  "PARTO NORMAL" É um parto.
+  "ANALGESIA OBSTETRICA P/ PARTO NORMAL" não é: é a anestesia de um parto.
+  "TRATAMENTO DE TRAUMATISMO DE PARTO NO NEONATO" não é: é o recém-nascido.
+  "PARTO CESARIANO C/ LAQUEADURA TUBARIA" É um parto — a laqueadura é adicional.
+Cadastro, licenciamento, inspeção e incentivo financeiro nunca são o
+procedimento clínico.
+
+Na dúvida, EXCLUA e explique. Uma marca a mais o usuário não confere — vê o ✓ e
+confia. Uma a menos ele vê na lista, ordenada por volume, e acrescenta.
+
+`alerta` só para armadilha real desta base (o código oficial do conceito não
+existe aqui; o conjunto abrange bem mais do que o nome sugere). Senão, vazio.
 """
 
 
@@ -231,26 +241,26 @@ def _candidatos_cid(db: Database, padrao: str) -> list[Candidato]:
     """
     sql = f"""
     WITH achados AS (
-        SELECT CID, DESCRICAO, TP_NIVEL FROM cid
+        SELECT CID, DESCRICAO, TP_NIVEL, DS_GRUPO FROM cid
         WHERE regexp_matches(strip_accents(lower(DESCRICAO)), '\\b({padrao})')
     ), contados AS (
-        SELECT a.CID, a.DESCRICAO, a.TP_NIVEL,
+        SELECT a.CID, a.DESCRICAO, a.TP_NIVEL, a.DS_GRUPO,
                COUNT(i.DIAG_PRINC) AS n
         FROM achados a
         LEFT JOIN internacoes i
                ON i.DIAG_PRINC = a.CID
                OR (a.TP_NIVEL = 'CAT' AND LEFT(i.DIAG_PRINC, 3) = a.CID)
-        GROUP BY 1, 2, 3
+        GROUP BY 1, 2, 3, 4
     )
-    SELECT CID, DESCRICAO, TP_NIVEL, n FROM contados
+    SELECT CID, DESCRICAO, TP_NIVEL, DS_GRUPO, n FROM contados
     WHERE n > 0 ORDER BY n DESC LIMIT {LIMITE_POR_FONTE}
     """
     saida = []
-    for cod, desc, nivel, n in db.run(sql, add_limit=False).rows:
+    for cod, desc, nivel, grupo, n in db.run(sql, add_limit=False).rows:
         # Categoria filtra pelos 3 primeiros dígitos; subcategoria, pelo código
         # inteiro. A coluna carrega essa diferença para a cláusula final.
         coluna = "DIAG_PRINC_CAT" if nivel == "CAT" else "DIAG_PRINC"
-        saida.append(Candidato("cid", coluna, cod, desc, int(n)))
+        saida.append(Candidato("cid", coluna, cod, desc, int(n), grupo=(grupo or "").strip()))
     return saida
 
 
@@ -263,9 +273,23 @@ def _classifica(termo: str, candidatos: list[Candidato]) -> tuple[list[Candidato
     if not candidatos:
         return candidatos, ""
 
-    listagem = "\n".join(
-        f"{c.codigo} | {c.descricao} | {c.internacoes} internações" for c in candidatos
+    procs = [c for c in candidatos if c.fonte == "procedimento"]
+    grupos: dict[str, int] = {}
+    for c in candidatos:
+        if c.fonte == "cid":
+            grupos[c.grupo or "(sem grupo)"] = grupos.get(c.grupo or "(sem grupo)", 0) + c.internacoes
+
+    bloco_p = (
+        "\n".join(f"{c.codigo} | {c.descricao} | {c.internacoes}" for c in procs) or "(nenhum)"
     )
+    bloco_g = (
+        "\n".join(
+            f"{g} | {n} internações"
+            for g, n in sorted(grupos.items(), key=lambda kv: -kv[1])
+        )
+        or "(nenhum)"
+    )
+    listagem = f"PROCEDIMENTOS:\n{bloco_p}\n\nGRUPOS DA CID-10:\n{bloco_g}"
     try:
         r = complete(
             model=settings.sql_model,
@@ -275,17 +299,24 @@ def _classifica(termo: str, candidatos: list[Candidato]) -> tuple[list[Candidato
             ],
             schema=CLASSIFICA_SCHEMA,
             schema_name="classifica_conceito",
-            reasoning_effort="low",
+            # `low` fazia a classificação variar entre execuções: uma marcou os
+            # seis procedimentos de parto corretamente, a seguinte marcou
+            # "obstrução do trabalho de parto" e perdeu as cesarianas.
+            reasoning_effort="medium",
         )
     except Exception:  # noqa: BLE001
         for c in candidatos:
             c.sugerido = True
         return candidatos, ""
 
-    por_codigo = {str(i.get("codigo", "")).strip(): i for i in r.get("itens", [])}
+    por_codigo = {str(i.get("codigo", "")).strip(): i for i in r.get("procedimentos", [])}
+    por_grupo = {str(i.get("grupo", "")).strip(): i for i in r.get("grupos", [])}
+
     for c in candidatos:
-        item = por_codigo.get(c.codigo)
-        c.sugerido = bool(item.get("pertence")) if item else True
+        item = por_codigo.get(c.codigo) if c.fonte == "procedimento" else por_grupo.get(c.grupo)
+        # Sem veredito, fica de fora: melhor um código a menos, visível na
+        # lista, do que um a mais que o usuário não confere.
+        c.sugerido = bool(item.get("pertence")) if item else False
         c.motivo = str(item.get("motivo", "") if item else "").strip()
     return candidatos, str(r.get("alerta", "")).strip()
 

@@ -40,21 +40,38 @@ from .config import settings
 # contexto vem de fora, e separar em duas perguntas seria trabalho do usuário.
 Destino = Literal["tema", "banco", "web", "ambos"]
 
+# O que a pergunta quer do tema. "Explique este tema" e "quantos óbitos por
+# câncer" são atos diferentes: o primeiro pede a investigação inteira descrita, o
+# segundo pede um número de um bloco. Tratá-los igual foi o que produziu, para
+# "explique esse tema", um despejo de números que ninguém pediu.
+Escopo = Literal["pontual", "panorama"]
+
 ESQUEMA_ROTA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["destino", "blocos", "pergunta_banco", "consulta_web", "motivo"],
+    "required": ["destino", "escopo", "blocos", "pergunta_banco", "consulta_web", "motivo"],
     "properties": {
         "destino": {
             "type": "string",
             "enum": ["tema", "banco", "web", "ambos"],
         },
+        "escopo": {
+            "type": "string",
+            "enum": ["pontual", "panorama"],
+            "description": (
+                "Só quando o destino é 'tema'. 'panorama' quando a pergunta é SOBRE a "
+                "investigação — 'explique este tema', 'o que já sabemos', 'resuma', "
+                "'o que falta'. 'pontual' quando pede um fato específico. Em qualquer "
+                "outro destino, 'pontual'."
+            ),
+        },
         "blocos": {
             "type": "array",
             "items": {"type": "string"},
             "description": (
-                "Só quando o destino é 'tema': os ids dos blocos que contêm a "
-                "resposta, copiados do catálogo. Lista vazia nos outros destinos."
+                "Só quando o destino é 'tema' e o escopo é 'pontual': os ids dos blocos "
+                "que contêm a resposta, copiados do catálogo. Em 'panorama' deixe vazio "
+                "— um panorama usa o tema inteiro. Lista vazia nos outros destinos."
             ),
         },
         "pergunta_banco": {
@@ -98,6 +115,15 @@ regra de preenchimento, literatura.
 destino = "tema"
   A resposta JÁ ESTÁ num bloco fixado, do jeito que a pergunta pede. Escolha os ids no catálogo que vem junto com a pergunta.
 
+  ATENÇÃO: uma pergunta que por acaso repete o título do tema continua sendo \
+pontual. O que decide é a forma da pergunta, não a semelhança com o título.
+
+  Inclui as perguntas SOBRE a investigação — "explique este tema", "o que já \
+descobrimos", "resuma o que temos", "o que ainda falta". Para essas, escopo = \
+"panorama" e a lista de blocos vai VAZIA: um panorama se faz com o tema inteiro, \
+não com três blocos escolhidos a dedo.
+
+  Para fato específico, escopo = "pontual" e escolha os ids.
   Só quando o bloco responde DIRETO. Se a pergunta pede outro ano, outro recorte, outra quebra, ou exige somar ou dividir blocos, NÃO é `tema` — é `banco`, porque isso é consulta nova. Reaproveitar um bloco de recorte parecido é o erro caro aqui: devolve um número com ar de certo que responde outra pergunta.
 
 destino = "banco"
@@ -129,6 +155,7 @@ existe, e palavra a mais só dilui o que importa."""
 @dataclass
 class Rota:
     destino: Destino
+    escopo: Escopo = "pontual"
     blocos: list[str] = field(default_factory=list)
     pergunta_banco: str = ""
     consulta_web: str = ""
@@ -136,7 +163,8 @@ class Rota:
 
     @property
     def usa_tema(self) -> bool:
-        return self.destino == "tema" and bool(self.blocos)
+        # Um panorama não precisa de blocos escolhidos: usa o tema inteiro.
+        return self.destino == "tema" and (self.escopo == "panorama" or bool(self.blocos))
 
     @property
     def usa_banco(self) -> bool:
@@ -153,6 +181,7 @@ class Rota:
     def para_json(self) -> dict:
         return {
             "destination": self.destino,
+            "scope": self.escopo,
             "blocks": self.blocos,
             "dbQuestion": self.pergunta_banco,
             "query": self.consulta_web,
@@ -167,7 +196,16 @@ def rotear(pergunta: str, *, assunto: str = "", catalogo: str = "") -> Rota:
     virar uma consulta de busca que faça sentido sozinha. `catalogo` é o índice
     dos blocos, sem os dados — é o que permite escolher `tema` sabendo o que há.
     """
-    contexto = f"Tema da investigação: {assunto}\n\n" if assunto else ""
+    # Rotulado, e não "Tema: X". O título é gerado da primeira pergunta fixada,
+    # então costuma SER uma pergunta — e quando a pergunta nova coincide com ele,
+    # apresentá-lo como assunto fazia o roteador ler "estão perguntando sobre o
+    # tema" e escolher panorama para um fato pontual.
+    contexto = (
+        f"Título salvo do tema (gerado da primeira pergunta fixada, não é "
+        f"necessariamente o assunto): {assunto}\n\n"
+        if assunto
+        else ""
+    )
     if catalogo:
         contexto += f"## BLOCOS JÁ FIXADOS NESTE TEMA\n{catalogo}\n\n"
     try:
@@ -187,10 +225,11 @@ def rotear(pergunta: str, *, assunto: str = "", catalogo: str = "") -> Rota:
     if destino not in ("tema", "banco", "web", "ambos"):
         destino = "banco"
 
+    escopo = bruto.get("escopo") if bruto.get("escopo") in ("pontual", "panorama") else "pontual"
     blocos = [str(b) for b in (bruto.get("blocos") or [])] if destino == "tema" else []
     # Destino `tema` sem bloco nenhum não é executável — cai para o banco, que
     # responde de qualquer jeito.
-    if destino == "tema" and not blocos:
+    if destino == "tema" and escopo == "pontual" and not blocos:
         destino = "banco"
 
     consulta = " ".join(str(bruto.get("consulta_web") or "").split())[:300]
@@ -201,6 +240,7 @@ def rotear(pergunta: str, *, assunto: str = "", catalogo: str = "") -> Rota:
 
     return Rota(
         destino=destino,  # type: ignore[arg-type]
+        escopo=escopo,  # type: ignore[arg-type]
         blocos=blocos,
         # A metade do banco só faz sentido em "ambos": em "banco" a pergunta
         # inteira já é dela, e reescrevê-la só daria chance de perder detalhe.

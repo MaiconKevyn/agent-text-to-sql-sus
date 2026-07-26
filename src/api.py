@@ -499,8 +499,16 @@ def perguntar_no_tema(
             # pergunta ao banco em vez de espremer uma resposta do material
             # errado — ver src/themes/resposta.py.
             if rota.usa_tema:
-                escolhidos = [b for b in tema.blocos if b.id in rota.blocos]
-                do_tema = resposta_tema.responder(q, escolhidos, assunto=tema.titulo)
+                # Panorama usa o tema inteiro: explicar a investigação com três
+                # blocos escolhidos a dedo descreveria outra investigação.
+                escolhidos = (
+                    tema.blocos
+                    if rota.escopo == "panorama"
+                    else [b for b in tema.blocos if b.id in rota.blocos]
+                )
+                do_tema = resposta_tema.responder(
+                    q, escolhidos, assunto=tema.titulo, escopo=rota.escopo
+                )
                 if do_tema.respondeu:
                     yield sse({"type": "theme_answer", **do_tema.para_json()})
                     yield sse({"type": "token", "text": do_tema.texto})

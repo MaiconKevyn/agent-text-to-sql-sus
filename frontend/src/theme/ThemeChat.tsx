@@ -26,6 +26,8 @@ interface Rodada {
   fixados: string[];
   /** A resposta veio dos blocos do tema, e não de uma consulta nova. */
   doTema: boolean;
+  /** Espera enquanto o tema é lido — curta, mas não instantânea. */
+  lendoTema: boolean;
   /** O tema foi tentado e não bastou — a pergunta seguiu para o banco. */
   temaNaoBastou: string;
 }
@@ -45,6 +47,7 @@ const RODADA_VAZIA: Omit<Rodada, "pergunta"> = {
   buscaErro: null,
   fixados: [],
   doTema: false,
+  lendoTema: false,
   temaNaoBastou: "",
 };
 
@@ -83,19 +86,24 @@ export function ThemeChat({ tema, onFixou }: { tema: Theme; onFixou: () => void 
       for await (const ev of askInTheme(tema.id, pergunta, { history: historico.current })) {
         switch (ev.type) {
           case "route":
-            // Marca a espera assim que se sabe que vai haver busca: ela leva
-            // segundos, e sem isto a tela fica parada sem dizer por quê.
-            if (ev.destination !== "banco") {
+            // Só quando vai MESMO à web. Escrito como `!== "banco"` quando os
+            // destinos eram três, isto passou a anunciar "buscando em fontes
+            // oficiais" para uma resposta tirada do próprio tema.
+            if (ev.destination === "web" || ev.destination === "ambos") {
               atualiza(i, (r) => ({ ...r, buscando: true, buscaConsulta: ev.query }));
+            }
+            if (ev.destination === "tema") {
+              atualiza(i, (r) => ({ ...r, lendoTema: true }));
             }
             break;
           case "search":
             atualiza(i, (r) => ({ ...r, buscando: false, candidatos: ev.candidates }));
             break;
           case "theme_answer":
-            atualiza(i, (r) => ({ ...r, doTema: true }));
+            atualiza(i, (r) => ({ ...r, doTema: true, lendoTema: false }));
             break;
           case "theme_miss":
+            atualiza(i, (r) => ({ ...r, lendoTema: false }));
             // Vale mostrar: sem isto, a pergunta some por dois segundos e volta
             // como consulta ao banco sem explicar por quê.
             atualiza(i, (r) => ({ ...r, temaNaoBastou: ev.reason }));
@@ -129,7 +137,7 @@ export function ThemeChat({ tema, onFixou }: { tema: Theme; onFixou: () => void 
                   { question: pergunta, sql: r.sql },
                 ].slice(-HISTORICO);
               }
-              return { ...r, pronta: true, buscando: false };
+              return { ...r, pronta: true, buscando: false, lendoTema: false };
             });
             break;
         }
@@ -232,6 +240,12 @@ export function ThemeChat({ tema, onFixou }: { tema: Theme; onFixou: () => void 
                 <>
                   {/* O que veio de fora do banco, antes da resposta do banco:
                       em "ambos", a busca chega primeiro. */}
+                  {r.lendoTema && !r.doTema && (
+                    <p className="flex items-center gap-1.5 px-1 text-[11.5px] text-ink-muted">
+                      <Bookmark aria-hidden className="h-3.5 w-3.5 animate-pulse text-accent" />
+                      lendo o que já está fixado neste tema
+                    </p>
+                  )}
                   {r.buscando && (
                     <p className="flex items-center gap-1.5 px-1 text-[11.5px] text-ink-muted">
                       <Globe aria-hidden className="h-3.5 w-3.5 animate-pulse text-caution" />
@@ -322,7 +336,8 @@ export function ThemeChat({ tema, onFixou }: { tema: Theme; onFixou: () => void 
                     // Sem o `!r.buscando`, uma pergunta que foi para a web
                     // mostra dois indicadores de espera dizendo a mesma coisa.
                     !r.pronta &&
-                    !r.buscando && (
+                    !r.buscando &&
+                    !r.lendoTema && (
                       <Loader2
                         aria-hidden
                         className="mx-1 h-4 w-4 animate-spin text-ink-subtle"

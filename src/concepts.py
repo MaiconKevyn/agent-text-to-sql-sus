@@ -290,6 +290,25 @@ def _classifica(termo: str, candidatos: list[Candidato]) -> tuple[list[Candidato
     return candidatos, str(r.get("alerta", "")).strip()
 
 
+def _colapsa_subcategorias(candidatos: list[Candidato]) -> None:
+    """Desmarca a subcategoria quando a categoria dela já está marcada.
+
+    `LEFT(DIAG_PRINC,3) IN ('O80')` já cobre O800, O801, O808 e O809. Marcar os
+    cinco não muda a contagem — o OR é idempotente — mas enche a definição de
+    códigos redundantes e faz o usuário achar que precisa conferir cada um.
+
+    A subcategoria continua na lista, desmarcada e com o motivo à vista: quem
+    quiser um recorte mais estreito desmarca a categoria e marca só o que quer.
+    """
+    categorias = {c.codigo for c in candidatos if c.coluna == "DIAG_PRINC_CAT" and c.sugerido}
+    if not categorias:
+        return
+    for c in candidatos:
+        if c.coluna == "DIAG_PRINC" and c.sugerido and c.codigo[:3] in categorias:
+            c.sugerido = False
+            c.motivo = f"já coberto pela categoria {c.codigo[:3]}"
+
+
 def resolve(db: Database, termo: str) -> Conceito:
     """Resolve o termo nos códigos que ele significa, com contagem e proposta."""
     radicais = _radicais(_expande(termo))
@@ -301,6 +320,7 @@ def resolve(db: Database, termo: str) -> Conceito:
     # Códigos que nunca aparecem no fato não ajudam a decidir nada.
     candidatos = [c for c in candidatos if c.internacoes > 0]
     candidatos, alerta = _classifica(termo, candidatos)
+    _colapsa_subcategorias(candidatos)
     conceito = Conceito(termo=termo, candidatos=candidatos, alerta=alerta)
     conceito.total = contar(db, [c for c in candidatos if c.sugerido])
     return conceito

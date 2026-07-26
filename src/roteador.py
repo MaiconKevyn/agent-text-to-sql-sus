@@ -1,4 +1,4 @@
-"""Para onde vai uma pergunta feita dentro de um tema: banco, web, ou os dois.
+"""Para onde vai uma pergunta feita dentro de um tema: o próprio tema, o banco, a web.
 
 Existe porque a alternativa é pior. Sem roteamento, "busque na internet quantos
 mortos a covid teve em 2020" vira SQL — e o agente responde com um número do
@@ -25,25 +25,37 @@ Duas regras que valem a pena guardar:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from . import llm
 from .config import settings
 
+# `tema` é o caso de "quantos óbitos por câncer eu já apurei aqui?": a resposta
+# está num bloco fixado, e reconsultar o banco por ela é varrer 144 milhões de
+# linhas para reproduzir um número que está na tela.
+#
 # `ambos` é o caso de "quantas internações por covid tivemos, e o que o
 # Ministério dizia sobre notificação naquele ano?": o número vem do banco, o
 # contexto vem de fora, e separar em duas perguntas seria trabalho do usuário.
-Destino = Literal["banco", "web", "ambos"]
+Destino = Literal["tema", "banco", "web", "ambos"]
 
 ESQUEMA_ROTA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["destino", "pergunta_banco", "consulta_web", "motivo"],
+    "required": ["destino", "blocos", "pergunta_banco", "consulta_web", "motivo"],
     "properties": {
         "destino": {
             "type": "string",
-            "enum": ["banco", "web", "ambos"],
+            "enum": ["tema", "banco", "web", "ambos"],
+        },
+        "blocos": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "Só quando o destino é 'tema': os ids dos blocos que contêm a "
+                "resposta, copiados do catálogo. Lista vazia nos outros destinos."
+            ),
         },
         "pergunta_banco": {
             "type": "string",
@@ -83,8 +95,13 @@ notificados, população para calcular taxa por habitante, vacinação, atendime
 ambulatorial, rede privada sem SUS, portarias, notas técnicas, mudanças de \
 regra de preenchimento, literatura.
 
+destino = "tema"
+  A resposta JÁ ESTÁ num bloco fixado, do jeito que a pergunta pede. Escolha os ids no catálogo que vem junto com a pergunta.
+
+  Só quando o bloco responde DIRETO. Se a pergunta pede outro ano, outro recorte, outra quebra, ou exige somar ou dividir blocos, NÃO é `tema` — é `banco`, porque isso é consulta nova. Reaproveitar um bloco de recorte parecido é o erro caro aqui: devolve um número com ar de certo que responde outra pergunta.
+
 destino = "banco"
-  O padrão. Qualquer coisa contável nos campos acima. Na dúvida, banco.
+  O padrão. Qualquer coisa contável nos campos acima que o tema ainda não tenha. Na dúvida, banco: reconsultar custa tempo, responder do bloco errado custa a confiança no número.
 
 destino = "web"
   A pessoa pediu a internet de forma explícita ("busque na internet", \
@@ -112,9 +129,14 @@ existe, e palavra a mais só dilui o que importa."""
 @dataclass
 class Rota:
     destino: Destino
+    blocos: list[str] = field(default_factory=list)
     pergunta_banco: str = ""
     consulta_web: str = ""
     motivo: str = ""
+
+    @property
+    def usa_tema(self) -> bool:
+        return self.destino == "tema" and bool(self.blocos)
 
     @property
     def usa_banco(self) -> bool:
@@ -131,19 +153,23 @@ class Rota:
     def para_json(self) -> dict:
         return {
             "destination": self.destino,
+            "blocks": self.blocos,
             "dbQuestion": self.pergunta_banco,
             "query": self.consulta_web,
             "reason": self.motivo,
         }
 
 
-def rotear(pergunta: str, *, assunto: str = "") -> Rota:
+def rotear(pergunta: str, *, assunto: str = "", catalogo: str = "") -> Rota:
     """Classifica a pergunta. Qualquer falha vira `banco` — o caminho de sempre.
 
     `assunto` é o título do tema: sem ele, "e no ano seguinte?" não tem como
-    virar uma consulta de busca que faça sentido sozinha.
+    virar uma consulta de busca que faça sentido sozinha. `catalogo` é o índice
+    dos blocos, sem os dados — é o que permite escolher `tema` sabendo o que há.
     """
     contexto = f"Tema da investigação: {assunto}\n\n" if assunto else ""
+    if catalogo:
+        contexto += f"## BLOCOS JÁ FIXADOS NESTE TEMA\n{catalogo}\n\n"
     try:
         bruto = llm.complete(
             model=settings.sql_model,
@@ -158,7 +184,13 @@ def rotear(pergunta: str, *, assunto: str = "") -> Rota:
 
     assert isinstance(bruto, dict)
     destino = bruto.get("destino")
-    if destino not in ("banco", "web", "ambos"):
+    if destino not in ("tema", "banco", "web", "ambos"):
+        destino = "banco"
+
+    blocos = [str(b) for b in (bruto.get("blocos") or [])] if destino == "tema" else []
+    # Destino `tema` sem bloco nenhum não é executável — cai para o banco, que
+    # responde de qualquer jeito.
+    if destino == "tema" and not blocos:
         destino = "banco"
 
     consulta = " ".join(str(bruto.get("consulta_web") or "").split())[:300]
@@ -169,6 +201,7 @@ def rotear(pergunta: str, *, assunto: str = "") -> Rota:
 
     return Rota(
         destino=destino,  # type: ignore[arg-type]
+        blocos=blocos,
         # A metade do banco só faz sentido em "ambos": em "banco" a pergunta
         # inteira já é dela, e reescrevê-la só daria chance de perder detalhe.
         pergunta_banco=(

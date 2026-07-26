@@ -1,5 +1,6 @@
 import { ArrowUp, Bookmark, Globe, Loader2, MessagesSquare } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
+import { TextoComCitacoes } from "@/components/theme/TextoComCitacoes";
 import { ResultChart } from "@/components/result/ResultChart";
 import { ResultTable } from "@/components/result/ResultTable";
 import { SqlBlock } from "@/components/result/SqlBlock";
@@ -23,6 +24,10 @@ interface Rodada {
   buscaErro: string | null;
   // URLs já fixadas nesta rodada — o botão de cada candidato lembra do clique.
   fixados: string[];
+  /** A resposta veio dos blocos do tema, e não de uma consulta nova. */
+  doTema: boolean;
+  /** O tema foi tentado e não bastou — a pergunta seguiu para o banco. */
+  temaNaoBastou: string;
 }
 
 const RODADA_VAZIA: Omit<Rodada, "pergunta"> = {
@@ -39,6 +44,8 @@ const RODADA_VAZIA: Omit<Rodada, "pergunta"> = {
   candidatos: null,
   buscaErro: null,
   fixados: [],
+  doTema: false,
+  temaNaoBastou: "",
 };
 
 const HISTORICO = 3;
@@ -84,6 +91,14 @@ export function ThemeChat({ tema, onFixou }: { tema: Theme; onFixou: () => void 
             break;
           case "search":
             atualiza(i, (r) => ({ ...r, buscando: false, candidatos: ev.candidates }));
+            break;
+          case "theme_answer":
+            atualiza(i, (r) => ({ ...r, doTema: true }));
+            break;
+          case "theme_miss":
+            // Vale mostrar: sem isto, a pergunta some por dois segundos e volta
+            // como consulta ao banco sem explicar por quê.
+            atualiza(i, (r) => ({ ...r, temaNaoBastou: ev.reason }));
             break;
           case "search_failed":
             atualiza(i, (r) => ({ ...r, buscando: false, buscaErro: ev.message }));
@@ -284,10 +299,25 @@ export function ThemeChat({ tema, onFixou }: { tema: Theme; onFixou: () => void 
                     </div>
                   )}
 
-                  {r.texto ? (
-                    <p className="whitespace-pre-wrap px-1 text-[12.5px] leading-relaxed text-ink">
-                      {r.texto}
+                  {r.doTema && (
+                    <p className="flex items-center gap-1.5 px-1 text-[11px] text-ink-muted">
+                      <Bookmark aria-hidden className="h-3 w-3 text-accent" />
+                      respondido com o que já está fixado neste tema
                     </p>
+                  )}
+                  {r.temaNaoBastou && (
+                    <p className="px-1 text-[11px] leading-snug text-ink-subtle">
+                      O tema não respondia: {r.temaNaoBastou} — consultando o banco.
+                    </p>
+                  )}
+                  {r.texto ? (
+                    r.doTema ? (
+                      <TextoComCitacoes texto={r.texto} blocos={tema.blocks ?? []} />
+                    ) : (
+                      <p className="whitespace-pre-wrap px-1 text-[12.5px] leading-relaxed text-ink">
+                        {r.texto}
+                      </p>
+                    )
                   ) : (
                     // Sem o `!r.buscando`, uma pergunta que foi para a web
                     // mostra dois indicadores de espera dizendo a mesma coisa.

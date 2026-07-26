@@ -146,13 +146,19 @@ export type StreamEvent =
   // Só no chat do tema: para onde a pergunta foi, e o que a busca trouxe.
   | {
       type: "route";
-      destination: "banco" | "web" | "ambos";
+      destination: "tema" | "banco" | "web" | "ambos";
+      /** Em "tema", os blocos escolhidos como fonte. */
+      blocks: string[];
       /** Em "ambos", a metade que foi para o SQL; vazio nos outros destinos. */
       dbQuestion: string;
       query: string;
       reason: string;
     }
   | { type: "search"; query: string; domains: string[]; candidates: SearchCandidate[] }
+  /** A resposta veio dos blocos já fixados, com os ids que ela cita. */
+  | { type: "theme_answer"; answered: boolean; text: string; cited: string[]; reason: string }
+  /** O tema foi tentado e não respondeu — a pergunta segue para o banco. */
+  | { type: "theme_miss"; reason: string }
   | { type: "search_failed"; message: string }
   | { type: "done" };
 

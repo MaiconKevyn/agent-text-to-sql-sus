@@ -28,7 +28,15 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from . import concepts, roteador, websearch
 from .investigation import Investigador
 from .chats import ChatInexistente, Conversas, Rodada as RodadaChat
-from .themes import Armazem, Bloco, Definicao, TemaInexistente, contexto as ctx_tema
+from .themes import (
+    Armazem,
+    Bloco,
+    Definicao,
+    TemaInexistente,
+    contexto as ctx_tema,
+    indice as ind_tema,
+    resposta as resposta_tema,
+)
 from .agent import TextToSQLAgent, Turn
 from .config import settings
 from .db import Database
@@ -478,8 +486,27 @@ def perguntar_no_tema(
 
     def fluxo() -> Iterator[str]:
         try:
-            rota = roteador.rotear(q, assunto=tema.titulo)
+            rota = roteador.rotear(
+                q, assunto=tema.titulo, catalogo=ind_tema.indexar(tema)
+            )
             yield sse({"type": "route", **rota.para_json()})
+
+            # O TEMA COMO FONTE. Antes de consultar o banco: se a resposta já
+            # está num bloco fixado, reconsultar varreria 144 milhões de linhas
+            # para reproduzir um número que está na tela.
+            #
+            # A recusa é o que torna isso seguro. `respondeu=False` devolve a
+            # pergunta ao banco em vez de espremer uma resposta do material
+            # errado — ver src/themes/resposta.py.
+            if rota.usa_tema:
+                escolhidos = [b for b in tema.blocos if b.id in rota.blocos]
+                do_tema = resposta_tema.responder(q, escolhidos, assunto=tema.titulo)
+                if do_tema.respondeu:
+                    yield sse({"type": "theme_answer", **do_tema.para_json()})
+                    yield sse({"type": "token", "text": do_tema.texto})
+                    yield sse({"type": "done"})
+                    return
+                yield sse({"type": "theme_miss", "reason": do_tema.motivo})
 
             if rota.usa_web:
                 # Primeiro a busca: ela leva segundos e a consulta leva dezenas,
@@ -490,7 +517,7 @@ def perguntar_no_tema(
                 except websearch.BuscaIndisponivel as exc:
                     yield sse({"type": "search_failed", "message": str(exc)})
 
-            if rota.usa_banco:
+            if rota.usa_banco or rota.usa_tema:
                 # Em "ambos", vai só a metade que o SIH responde. Mandar a
                 # pergunta inteira faz o gerador de SQL recusar por causa da
                 # outra metade — e aí se perde também o número que ele daria.

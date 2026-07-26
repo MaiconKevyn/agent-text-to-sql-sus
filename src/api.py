@@ -26,6 +26,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from . import concepts, roteador, websearch
+from .paineis import Paineis, PainelInexistente
+from .paineis import executar as executar_painel, gerar as gerar_widget
 from .investigation import Investigador
 from .chats import ChatInexistente, Conversas, Rodada as RodadaChat
 from .themes import (
@@ -548,6 +550,102 @@ def perguntar_no_tema(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------- painéis
+_paineis: Paineis | None = None
+
+
+def paineis() -> Paineis:
+    global _paineis
+    if _paineis is None:
+        _paineis = Paineis()
+    return _paineis
+
+
+@app.get("/api/dashboards")
+def listar_paineis() -> JSONResponse:
+    return JSONResponse([p.para_json(com_widgets=False) for p in paineis().listar()])
+
+
+@app.post("/api/dashboards")
+def criar_painel(corpo: dict = Body(default={})) -> JSONResponse:
+    return JSONResponse(paineis().criar(str(corpo.get("title") or "")).para_json())
+
+
+@app.get("/api/dashboards/{painel_id}")
+def ler_painel(painel_id: str) -> JSONResponse:
+    try:
+        return JSONResponse(paineis().ler(painel_id).para_json())
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+
+@app.delete("/api/dashboards/{painel_id}")
+def apagar_painel(painel_id: str) -> JSONResponse:
+    paineis().apagar(painel_id)
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/dashboards/{painel_id}/widgets")
+def criar_widget(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Monta um widget a partir de uma pergunta em linguagem natural.
+
+    A recusa é resposta legítima e vem com o motivo: um widget que só falha
+    quando alguém mexe no filtro é pior que um widget que nunca foi criado.
+    """
+    pergunta = str(corpo.get("question") or "").strip()
+    if len(pergunta) < 3:
+        return JSONResponse({"error": "Pergunta muito curta."}, status_code=400)
+    try:
+        paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+    r = gerar_widget.gerar(pergunta, agente().db)
+    if r.widget is None:
+        return JSONResponse({"refused": r.recusa}, status_code=200)
+    painel = paineis().acrescentar(painel_id, r.widget)
+    return JSONResponse({"refused": "", "dashboard": painel.para_json(), "widgetId": r.widget.id})
+
+
+@app.delete("/api/dashboards/{painel_id}/widgets/{widget_id}")
+def remover_widget(painel_id: str, widget_id: str) -> JSONResponse:
+    try:
+        return JSONResponse(paineis().remover(painel_id, widget_id).para_json())
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+
+@app.post("/api/dashboards/{painel_id}/filters")
+def filtrar_painel(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    try:
+        return JSONResponse(paineis().filtrar(painel_id, corpo).para_json())
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+
+@app.post("/api/dashboards/{painel_id}/grid")
+def dispor_painel(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    try:
+        return JSONResponse(paineis().dispor(painel_id, list(corpo.get("layout") or [])).para_json())
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+
+@app.get("/api/dashboards/{painel_id}/data")
+def dados_do_painel(painel_id: str, only: str | None = Query(None)) -> JSONResponse:
+    """Roda os widgets sob os filtros atuais. Sem modelo no caminho.
+
+    `only` limita aos ids pedidos: um painel de vinte widgets seriam vinte
+    varreduras a cada arrasto de slider, e o que está fora da tela pode esperar.
+    """
+    try:
+        painel = paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+    ids = [s for s in (only or "").split(",") if s] or None
+    return JSONResponse({"data": executar_painel.executar_painel(painel, agente().db, ids)})
 
 
 @app.get("/api/investigate")

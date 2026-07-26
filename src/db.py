@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 import threading
 from dataclasses import dataclass, field
+from collections.abc import Sequence
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -151,10 +152,20 @@ class Database:
         self,
         sql: str,
         *,
+        params: Sequence[Any] | None = None,
         validate: bool = True,
         add_limit: bool = True,
         max_rows: int | None = None,
     ) -> QueryResult:
+        """Executa a query. `params` vincula os `?` — nunca concatene valor no SQL.
+
+        A vinculação existe para o painel, cujos widgets guardam um SQL com
+        marcadores e trocam só os valores quando o filtro muda. Mas o ganho maior
+        é de segurança e vale para qualquer chamador: um valor vindo da interface
+        deixa de poder virar sintaxe. Concatenar `WHERE ano = {v}` com v vindo de
+        fora é a definição de injeção — o validador barra `DROP` no SQL do
+        modelo, e não barraria um valor de filtro que carregasse um.
+        """
         import time
 
         applied_limit: int | None = None
@@ -170,7 +181,7 @@ class Database:
             timer = threading.Timer(settings.query_timeout_s, cur.interrupt)
             timer.start()
             try:
-                cur.execute(sql)
+                cur.execute(sql, list(params)) if params else cur.execute(sql)
                 columns = [d[0] for d in cur.description] if cur.description else []
                 rows = cur.fetchall()
             finally:

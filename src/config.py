@@ -35,6 +35,8 @@ class Settings:
     themes_dir: str = os.getenv("THEMES_DIR", "data/temas")
     # Conversas salvas. Rascunho, não artefato — ver src/chats/models.py.
     chats_dir: str = os.getenv("CHATS_DIR", "data/chats")
+    # Painéis: mostradores com filtros, o oposto do tema. Ver src/paineis/models.py.
+    dashboards_dir: str = os.getenv("DASHBOARDS_DIR", "data/paineis")
     # Tentativas de auto-correção após erro de SQL.
     max_repair_attempts: int = int(os.getenv("MAX_REPAIR_ATTEMPTS", "2"))
 

@@ -9,7 +9,7 @@ import {
   VAO_PX,
   type ThemeBlock,
 } from "@/lib/types";
-import { compactar, linhasOcupadas, mover, redimensionar, type Celula } from "./grade";
+import { linhasOcupadas, mover, redimensionar, type Celula } from "./grade";
 
 /** Que borda foi pega. `mover` é o arrasto pela alça. */
 export type Gesto = "mover" | "direita" | "baixo" | "quina";
@@ -41,7 +41,10 @@ interface EmCurso {
  *     movimento do ponteiro, isso é a diferença entre fluido e arrastado.
  *
  * O bloco em gesto tem `transition: none` — qualquer suavização entre o cursor
- * e o bloco vira atraso perceptível. Quem suaviza são os vizinhos.
+ * e o bloco vira atraso perceptível.
+ *
+ * Nada aqui reposiciona um bloco que o usuário não pegou. Ver theme/grade.ts
+ * para o porquê da escolha.
  */
 export function usePainel(blocos: ThemeBlock[], temaId: string, onMudou: () => void) {
   const palco = useRef<HTMLDivElement>(null);
@@ -129,10 +132,7 @@ export function usePainel(blocos: ThemeBlock[], temaId: string, onMudou: () => v
       const dCol = Math.round(dx / passoX);
       const dLin = Math.round(dy / passoY);
 
-      // Compactação completa já durante o gesto, o bloco em movimento
-      // incluído: assim o contorno tracejado mostra onde ele REALMENTE vai
-      // pousar, e não uma vaga que a soltura ainda vai mudar.
-      ultimo = compactar(
+      ultimo =
         tipo === "mover"
           ? mover(base, id, inicial.x + dCol, inicial.y + dLin)
           : redimensionar(
@@ -140,8 +140,7 @@ export function usePainel(blocos: ThemeBlock[], temaId: string, onMudou: () => v
               id,
               tipo === "baixo" ? inicial.w : inicial.w + dCol,
               tipo === "direita" ? inicial.h : inicial.h + dLin,
-            ),
-      );
+            );
 
       setRascunho(ultimo);
       setGesto({ id, gesto: tipo, dx, dy, origemX, origemY });
@@ -149,8 +148,9 @@ export function usePainel(blocos: ThemeBlock[], temaId: string, onMudou: () => v
 
     const soltar = async () => {
       limpar.current?.();
-      // Nada a resolver aqui: o arranjo já vem compactado de cada movimento,
-      // então o que está desenhado no contorno é o que vai para o disco.
+      // O que está desenhado no contorno é o que vai para o disco: soltar não
+      // corrige, não sobe e não empurra. É o que faz "onde eu larguei" e "onde
+      // ficou" serem a mesma coisa.
       const final = ultimo;
       setRascunho(final);
       setGesto(null);
@@ -198,11 +198,10 @@ export function usePainel(blocos: ThemeBlock[], temaId: string, onMudou: () => v
   async function porTeclado(id: string, d: Partial<Celula>) {
     const c = porId.get(id);
     if (!c) return;
-    const novo = compactar(
+    const novo =
       d.w !== undefined || d.h !== undefined
         ? redimensionar(celulas, id, c.w + (d.w ?? 0), c.h + (d.h ?? 0))
-        : mover(celulas, id, c.x + (d.x ?? 0), c.y + (d.y ?? 0)),
-    );
+        : mover(celulas, id, c.x + (d.x ?? 0), c.y + (d.y ?? 0));
     setRascunho(novo);
     await setGrid(
       temaId,

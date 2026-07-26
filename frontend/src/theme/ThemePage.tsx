@@ -299,30 +299,30 @@ function Palco({
   return (
     <div
       ref={palco}
-      className="relative"
+      className="relative rounded-lg"
       style={{
         height: alturaDoPalco,
-        // As duas listras desenham a célula, e o `background-size` no passo
-        // exato da grade faz o padrão coincidir com onde os blocos realmente
-        // encaixam — uma grade decorativa, fora de passo, seria pior que
-        // nenhuma: prometeria um encaixe que não existe.
+        // A grade fica SEMPRE à vista, não só durante o gesto: ela é a régua do
+        // painel. Quem vai fixar um bloco precisa saber, antes de arrastar,
+        // quantos quadrados cabem — e uma grade que só aparece com o gesto na
+        // mão chega tarde para essa decisão.
         //
-        // Na cor de acento e não no cinza da borda: durante o gesto ela deixa
-        // de ser moldura e vira a informação principal da tela, e um cinza de
-        // 1px simplesmente não é lido.
-        // `hsl(var(--accent) / a)` e não `var(--accent)` direto: os tokens
-        // guardam COMPONENTES HSL ("190 82% 27%"), não cores. Passar o token
-        // cru para um gradiente produz um valor inválido, e o navegador
-        // descarta a declaração inteira em silêncio — a grade simplesmente não
-        // aparece, sem erro nenhum no console.
-        backgroundImage: emGesto
-          ? `linear-gradient(to right, hsl(var(--accent) / 0.28) 1px, transparent 1px),
-             linear-gradient(to bottom, hsl(var(--accent) / 0.28) 1px, transparent 1px)`
-          : undefined,
+        // `hsl(var(--...) / a)` e não o token cru: eles guardam COMPONENTES HSL
+        // ("190 82% 27%"), não cores, e passar um direto para um gradiente
+        // produz valor inválido — o navegador descarta a declaração inteira em
+        // silêncio, sem erro no console.
+        //
+        // A cor da tinta com alfa, e não a da borda: `--line` é um cinza claro
+        // fixo, que no tema escuro vira linha clara sobre fundo claro. A tinta
+        // inverte junto com o tema, então a grade tem o mesmo peso nos dois.
+        backgroundImage: `linear-gradient(to right, ${emGesto ? "hsl(var(--accent) / 0.32)" : "hsl(var(--ink) / 0.09)"} 1px, transparent 1px),
+           linear-gradient(to bottom, ${emGesto ? "hsl(var(--accent) / 0.32)" : "hsl(var(--ink) / 0.09)"} 1px, transparent 1px)`,
+        // Uma célula por quadrado: o passo é o mesmo que o de um bloco 1×1, e é
+        // isso que permite contar com os olhos quantos cabem numa vaga.
         backgroundSize: `${passo}px ${LINHA_PX + VAO_PX}px`,
-        backgroundPosition: `-1px -1px`,
-        transition: "background-color 150ms ease",
+        backgroundPosition: "-1px -1px",
         backgroundColor: emGesto ? "hsl(var(--accent) / 0.04)" : undefined,
+        transition: "background-color 150ms ease",
       }}
     >
       {/* A vaga de destino, já com colisão e compactação resolvidas: é onde o

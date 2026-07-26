@@ -3,24 +3,37 @@
  *
  *   node --experimental-strip-types frontend/scripts/testa_grade.mjs
  *
- * O motor da grade decide onde cada bloco fica quando outro é movido ou
- * redimensionado, e erra em silêncio: um arranjo com blocos sobrepostos não
- * quebra nada, só fica errado na tela. Arrastar à mão para conferir cobre um
- * caso por vez; aqui dá para varrer centenas.
+ * O painel é de posição livre: um bloco fica onde foi solto e nenhum outro se
+ * mexe por causa dele. Isso é fácil de quebrar sem perceber — basta uma
+ * "correção" bem-intencionada num caso de borda para o arranjo do usuário
+ * começar a se rearranjar sozinho, que é exatamente o que não se quer.
  *
- * As duas invariantes que importam, e que a bateria aleatória checa em todas as
- * combinações: nenhum par de blocos se sobrepõe, e nenhum bloco sai da grade.
+ * As invariantes checadas em todas as combinações da bateria aleatória:
+ *   1. quem não foi tocado fica IDÊNTICO;
+ *   2. quem foi tocado vai para o pedido, aparado só para caber na grade.
  */
-import { colide, compactar, mover, redimensionar, ALTURA_MIN, COLUNAS, LARGURA_MIN } from "../src/theme/grade.ts";
+import {
+  ALTURA_MAX,
+  ALTURA_MIN,
+  COLUNAS,
+  LARGURA_MIN,
+  colide,
+  limitar,
+  linhasOcupadas,
+  mover,
+  redimensionar,
+} from "../src/theme/grade.ts";
 
-const mostra = (cs) =>
-  cs
-    .slice()
-    .sort((a, b) => (a.id < b.id ? -1 : 1))
-    .map((c) => `${c.id}(${c.x},${c.y} ${c.w}x${c.h})`)
-    .join(" ");
-const sobrepoe = (cs) => cs.some((a) => cs.some((b) => colide(a, b)));
+const chave = (c) => `${c.id}(${c.x},${c.y} ${c.w}x${c.h})`;
+const mostra = (cs) => cs.map(chave).join(" ");
 const vaza = (cs) => cs.some((c) => c.x < 0 || c.y < 0 || c.x + c.w > COLUNAS);
+/** Todos menos `id`, para comparar antes e depois. */
+const resto = (cs, id) =>
+  cs
+    .filter((c) => c.id !== id)
+    .map(chave)
+    .sort()
+    .join(" ");
 
 let falhas = 0;
 const ok = (nome, cond, extra = "") => {
@@ -28,63 +41,88 @@ const ok = (nome, cond, extra = "") => {
   if (!cond) falhas++;
 };
 
-let g = [
+const g = [
   { id: "a", x: 0, y: 0, w: 6, h: 6 },
   { id: "b", x: 6, y: 0, w: 6, h: 6 },
+  { id: "c", x: 0, y: 20, w: 4, h: 5 },
 ];
 
-ok("mover para vaga ocupada empurra o ocupante", !sobrepoe(mover(g, "a", 6, 0)), mostra(mover(g, "a", 6, 0)));
-ok("lado a lado permanece lado a lado", compactar(g).every((c) => c.y === 0), mostra(compactar(g)));
-ok("movimento nulo é inócuo", mostra(mover(g, "a", 0, 0)) === mostra(g));
-ok("apara nas bordas", !vaza(mover(g, "a", 99, -5)), mostra(mover(g, "a", 99, -5)));
+// --- o que o usuário pediu -------------------------------------------------
+let r = mover(g, "a", 3, 9);
+ok("o bloco vai exatamente para onde foi solto", chave(r.find((c) => c.id === "a")) === "a(3,9 6x6)", mostra(r));
+ok("mover não mexe em mais ninguém", resto(r, "a") === resto(g, "a"));
 
-let r = compactar([
-  { id: "a", x: 0, y: 0, w: 6, h: 6 },
-  { id: "b", x: 0, y: 20, w: 6, h: 6 },
-]);
-ok("compacta o buraco", r.find((c) => c.id === "b").y === 6, mostra(r));
+r = mover(g, "a", 6, 0);
+ok(
+  "soltar em cima de outro NÃO empurra o outro",
+  chave(r.find((c) => c.id === "b")) === "b(6,0 6x6)",
+  mostra(r),
+);
+ok("sobreposição é permitida", r.some((p) => r.some((q) => colide(p, q))));
 
-g = [
-  { id: "a", x: 0, y: 0, w: 6, h: 6 },
-  { id: "b", x: 0, y: 6, w: 6, h: 6 },
-];
-r = redimensionar(g, "a", 6, 10);
-ok("crescer empurra o de baixo", !sobrepoe(r) && r.find((c) => c.id === "b").y === 10, mostra(r));
+r = mover(g, "c", 0, 20);
+ok("espaço vazio acima NÃO faz o bloco subir", chave(r.find((c) => c.id === "c")) === "c(0,20 4x5)");
+
+r = redimensionar(g, "a", 12, 30);
+ok("crescer não desloca o de baixo", resto(r, "a") === resto(g, "a"), mostra(r));
+
+// --- os limites da grade ---------------------------------------------------
+r = mover(g, "a", 99, -5);
+ok("apara para dentro da grade", chave(r.find((c) => c.id === "a")) === "a(6,0 6x6)", mostra(r));
 
 r = redimensionar(g, "a", 1, 1);
 const a = r.find((c) => c.id === "a");
-ok("mínimos respeitados", a.w === LARGURA_MIN && a.h === ALTURA_MIN, mostra(r));
+ok("tamanho mínimo respeitado", a.w === LARGURA_MIN && a.h === ALTURA_MIN, mostra(r));
 
-r = mover(
-  [
-    { id: "a", x: 0, y: 0, w: 12, h: 4 },
-    { id: "b", x: 0, y: 4, w: 12, h: 4 },
-    { id: "c", x: 0, y: 8, w: 12, h: 4 },
-  ],
-  "c",
-  0,
-  0,
+r = redimensionar(g, "a", 99, 999);
+const a2 = r.find((c) => c.id === "a");
+ok("tamanho máximo respeitado", a2.w === COLUNAS && a2.h === ALTURA_MAX, mostra(r));
+
+ok(
+  "o palco tem folga para soltar abaixo de tudo",
+  linhasOcupadas(g) > Math.max(...g.map((c) => c.y + c.h)),
+  `${linhasOcupadas(g)} linhas`,
 );
-ok("cascata de três", !sobrepoe(r) && new Set(r.map((c) => c.y)).size === 3, mostra(r));
 
-// Bateria aleatória. A semente é fixa: uma falha aqui tem de ser reproduzível.
+// --- bateria aleatória -----------------------------------------------------
+// Semente fixa: uma falha aqui tem de ser reproduzível.
 let semente = 7;
 const rnd = (n) => (semente = (semente * 1103515245 + 12345) % 2147483648) % n;
-let ruins = 0;
+let mexeuEmOutro = 0;
+let vazou = 0;
+let naoObedeceu = 0;
 const RODADAS = 800;
+
 for (let i = 0; i < RODADAS; i++) {
-  let cs = [0, 1, 2, 3, 4].map((k) => {
+  const antes = [0, 1, 2, 3, 4].map((k) => {
     const w = LARGURA_MIN + rnd(COLUNAS - LARGURA_MIN + 1);
     return { id: "b" + k, x: rnd(COLUNAS - w + 1), y: rnd(20), w, h: ALTURA_MIN + rnd(8) };
   });
-  cs = compactar(cs);
   const alvo = "b" + rnd(5);
-  cs = rnd(2)
-    ? mover(cs, alvo, rnd(COLUNAS), rnd(20))
-    : redimensionar(cs, alvo, LARGURA_MIN + rnd(9), ALTURA_MIN + rnd(10));
-  if (sobrepoe(cs) || vaza(cs)) ruins++;
+  const original = antes.find((c) => c.id === alvo);
+
+  let depois;
+  let esperado;
+  if (rnd(2)) {
+    const x = rnd(COLUNAS);
+    const y = rnd(30);
+    depois = mover(antes, alvo, x, y);
+    esperado = limitar({ ...original, x, y });
+  } else {
+    const w = LARGURA_MIN + rnd(12);
+    const h = ALTURA_MIN + rnd(40);
+    depois = redimensionar(antes, alvo, w, h);
+    esperado = limitar({ ...original, w, h });
+  }
+
+  if (resto(depois, alvo) !== resto(antes, alvo)) mexeuEmOutro++;
+  if (vaza(depois)) vazou++;
+  if (chave(depois.find((c) => c.id === alvo)) !== chave(esperado)) naoObedeceu++;
 }
-ok(`${RODADAS} arranjos aleatórios sem sobreposição nem vazamento`, ruins === 0, `${ruins} ruins`);
+
+ok(`${RODADAS} operações: nenhum vizinho se moveu`, mexeuEmOutro === 0, `${mexeuEmOutro} moveram`);
+ok(`${RODADAS} operações: o alvo foi para onde foi pedido`, naoObedeceu === 0, `${naoObedeceu} desobedeceram`);
+ok(`${RODADAS} operações: nada saiu da grade`, vazou === 0, `${vazou} vazaram`);
 
 console.log(falhas ? `\n${falhas} FALHA(S)` : "\ntudo passou");
 process.exit(falhas ? 1 : 0);

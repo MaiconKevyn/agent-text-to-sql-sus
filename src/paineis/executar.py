@@ -23,7 +23,15 @@ MAX_LINHAS = 400
 
 def executar(widget: Widget, filtros: list[Filtro], db: Database) -> dict:
     """Executa um widget sob os filtros ativos. Erro vira campo, não exceção."""
-    base = {"id": widget.id, "legacy": widget.legado}
+    # `dispensados` são os filtros ATIVOS que este widget não aplica. A lupa da
+    # tela mostra isso; sem esse campo, a pessoa veria um gráfico parado sem
+    # saber se é por escolha dela ou porque o dado é plano.
+    ativos = {f.id for f in filtros if f.ativo}
+    base = {
+        "id": widget.id,
+        "legacy": widget.legado,
+        "dispensados": sorted(ativos & set(widget.excluidos)),
+    }
     if widget.legado:
         # Widget de antes dos filtros declarados. Não é consertado por
         # adivinhação: a tela oferece recriá-lo a partir da pergunta original.
@@ -36,7 +44,7 @@ def executar(widget: Widget, filtros: list[Filtro], db: Database) -> dict:
             "result": None,
         }
 
-    sql, valores = aplicar(widget.sql, filtros)
+    sql, valores = aplicar(widget.sql, filtros, widget.excluidos)
     try:
         res = db.run(sql, params=valores or None, max_rows=MAX_LINHAS)
     except Exception as exc:  # noqa: BLE001

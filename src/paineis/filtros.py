@@ -119,13 +119,14 @@ class Filtro:
         )
 
 
-def montar_clausula(filtros: list[Filtro]) -> tuple[str, list]:
+def montar_clausula(filtros: list[Filtro], excluidos: list[str] | None = None) -> tuple[str, list]:
     """A conjunção dos filtros ATIVOS, e os valores na ordem dos `?`.
 
     Devolve string vazia quando nada está ativo — e aí o token some do SQL sem
     deixar `AND` solto. É o caminho mais comum e o mais fácil de quebrar.
     """
-    ativos = [f for f in filtros if f.ativo and f.fragmento]
+    fora = set(excluidos or [])
+    ativos = [f for f in filtros if f.ativo and f.fragmento and f.id not in fora]
     if not ativos:
         return "", []
     partes = " AND ".join(f"({f.fragmento})" for f in ativos)
@@ -133,9 +134,11 @@ def montar_clausula(filtros: list[Filtro]) -> tuple[str, list]:
     return f" AND {partes}", valores
 
 
-def aplicar(sql: str, filtros: list[Filtro]) -> tuple[str, list]:
+def aplicar(
+    sql: str, filtros: list[Filtro], excluidos: list[str] | None = None
+) -> tuple[str, list]:
     """Troca o token pela conjunção. SQL sem token não recebe filtro nenhum."""
-    clausula, valores = montar_clausula(filtros)
+    clausula, valores = montar_clausula(filtros, excluidos)
     if TOKEN not in sql:
         return sql, []
     return sql.replace(TOKEN, clausula), valores

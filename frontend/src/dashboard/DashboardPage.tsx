@@ -16,6 +16,7 @@ import {
   readDashboard,
   selectFilter,
   setDashboardGrid,
+  toggleWidgetFilter,
 } from "@/lib/api";
 import { LINHA_PX, VAO_PX, type Dashboard, type WidgetData } from "@/lib/types";
 import { usePainel } from "@/theme/usePainel";
@@ -217,7 +218,7 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
   const assinatura =
     painel.filters.map((f) => `${f.id}:${f.selection.join("|")}`).join(",") +
     "#" +
-    widgets.map((w) => w.id).join(",");
+    widgets.map((w) => `${w.id}:${w.excluded.join("|")}`).join(",");
   const ultima = useRef("");
   useEffect(() => {
     if (!widgets.length || ultima.current === assinatura) return;
@@ -397,6 +398,11 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
                     // A pergunta original ficou guardada justamente para isto.
                     await createWidget(painel.id, w.question);
                     await deleteWidget(painel.id, w.id);
+                    recarregarTudo();
+                  }}
+                  filtros={painel.filters}
+                  onAlternarFiltro={async (fid) => {
+                    await toggleWidgetFilter(painel.id, w.id, fid);
                     recarregarTudo();
                   }}
                   celula={m.celula}

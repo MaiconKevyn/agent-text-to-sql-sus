@@ -8,7 +8,7 @@ base os valores são 1 e 3 — e podem existir 0 e 9 que ninguém previu.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..config import settings
 from ..db import Database, UnsafeQueryError, validate_sql
@@ -19,7 +19,7 @@ from .filtros import Filtro, Opcao
 ESQUEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["possivel", "rotulo", "tipo", "fragmento", "dominio_sql", "nota", "recusa"],
+    "required": ["possivel", "rotulo", "tipo", "fragmento", "dominio_sql", "nota", "apenas", "recusa"],
     "properties": {
         "possivel": {"type": "boolean", "description": "false se a base não tem essa coluna."},
         "rotulo": {"type": "string", "description": "Nome do filtro na tela. Curto: 'Sexo', 'Idade'."},
@@ -59,6 +59,15 @@ ESQUEMA = {
                 "óbvio — ex.: 'SEXO: 1 masculino, 3 feminino'. Vira dica na tela."
             ),
         },
+        "apenas": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": (
+                "Os ids dos widgets em que este filtro deve valer, copiados do catálogo, "
+                "e SÓ quando o pedido restringe explicitamente ('aplique só no gráfico "
+                "de óbitos'). Lista vazia — o normal — significa que vale para todos."
+            ),
+        },
         "recusa": {"type": "string", "description": "Se possivel=false, o que falta."},
     },
 }
@@ -83,6 +92,13 @@ onde você explica o que significam.
 Para 'faixa', ponha na consulta o recorte de sanidade que a base exige: idade \
 tem registro de 0 a 120 que é plausível, e valores fora disso são lixo.
 
+## POR PADRÃO O FILTRO VALE PARA TODOS OS GRÁFICOS
+
+Só devolva `apenas` preenchido quando o pedido restringir de forma explícita — \
+"esse filtro só no gráfico de óbitos", "aplique apenas no total". Um filtro que \
+nasce restrito sem ninguém pedir surpreende: a pessoa cria o recorte, vê metade \
+da tela parada, e não tem como saber por quê.
+
 ## RECUSE QUANDO NÃO DER
 
 Filtro por hospital, por nome de médico, por raça se a coluna não existir: \
@@ -94,14 +110,30 @@ dele, porque a pessoa acredita que aplicou."""
 class Resultado:
     filtro: Filtro | None = None
     recusa: str = ""
+    apenas: list[str] = field(default_factory=list)
 
 
-def gerar(pedido: str, db: Database) -> Resultado:
+@dataclass
+class Restricao:
+    """Widgets em que o filtro deve valer. Vazio = todos."""
+
+    apenas: list[str] = field(default_factory=list)
+
+
+def gerar(pedido: str, db: Database, catalogo: str = "") -> Resultado:
     """Declara, lê o domínio no banco, e prova que o fragmento executa."""
     bruto = complete(
         model=settings.sql_model,
         system=SISTEMA.format(schema=build_schema_prompt()),
-        messages=[{"role": "user", "content": f"Filtro pedido: {pedido}"}],
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    (f"## WIDGETS DO PAINEL\n{catalogo}\n\n" if catalogo else "")
+                    + f"Filtro pedido: {pedido}"
+                ),
+            }
+        ],
         schema=ESQUEMA,
         schema_name="filtro",
         reasoning_effort="medium",
@@ -169,4 +201,4 @@ def gerar(pedido: str, db: Database) -> Resultado:
     except Exception as exc:  # noqa: BLE001
         return Resultado(recusa=f"O fragmento não executa: {str(exc)[:200]}")
 
-    return Resultado(filtro=filtro)
+    return Resultado(filtro=filtro, apenas=[str(x) for x in (bruto.get("apenas") or [])])

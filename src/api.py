@@ -610,10 +610,17 @@ def pedir_ao_painel(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
 
     alvo, motivo = rotear_painel.rotear(pedido)
     if alvo == "filtro":
-        r = gerar_filtro.gerar(pedido, agente().db)
+        atual = paineis().ler(painel_id)
+        catalogo = "\n".join(f"- {w.id} | {w.titulo}" for w in atual.widgets)
+        r = gerar_filtro.gerar(pedido, agente().db, catalogo)
         if r.filtro is None:
             return JSONResponse({"kind": "filtro", "refused": r.recusa, "reason": motivo})
         painel = paineis().acrescentar_filtro(painel_id, r.filtro)
+        # "Aplique só no gráfico X": a restrição vive nos widgets, não no
+        # filtro — assim um widget novo nasce obedecendo, que é o padrão certo.
+        validos = [w for w in r.apenas if atual.widget(w) is not None]
+        if validos:
+            painel = paineis().restringir_filtro(painel_id, r.filtro.id, validos)
         return JSONResponse(
             {"kind": "filtro", "refused": "", "reason": motivo,
              "dashboard": painel.para_json(), "createdId": r.filtro.id}
@@ -679,6 +686,16 @@ def criar_filtro(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
         return JSONResponse({"refused": r.recusa})
     painel = paineis().acrescentar_filtro(painel_id, r.filtro)
     return JSONResponse({"refused": "", "dashboard": painel.para_json(), "filterId": r.filtro.id})
+
+
+@app.post("/api/dashboards/{painel_id}/widgets/{widget_id}/filters/{filtro_id}")
+def alternar_filtro_do_widget(painel_id: str, widget_id: str, filtro_id: str) -> JSONResponse:
+    """Liga ou desliga um filtro naquele widget. É o que a lupa controla."""
+    try:
+        painel = paineis().alternar_filtro_do_widget(painel_id, widget_id, filtro_id)
+        return JSONResponse(painel.para_json())
+    except PainelInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
 
 
 @app.delete("/api/dashboards/{painel_id}/filters/{filtro_id}")

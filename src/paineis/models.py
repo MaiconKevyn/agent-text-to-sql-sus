@@ -52,10 +52,16 @@ class Widget:
     titulo: str = ""
     pergunta: str = ""
     sql: str = ""
-    # A declaração de "a quais filtros respondo" morreu com os filtros fixos.
-    # Agora o SQL carrega o token `{{FILTROS}}` onde a conjunção entra, e todo
-    # widget que o tem responde a TODOS os filtros do painel. Quem não tem o
-    # token é widget antigo — ver `legado`.
+    # Os filtros que ESTE widget dispensa. Vazio — o padrão — significa que ele
+    # obedece a todos, que é o que se espera de um painel: criar um filtro e ver
+    # a tela inteira responder.
+    #
+    # A exceção existe porque nem todo recorte faz sentido em todo lugar: num
+    # painel com "óbitos por sexo" ao lado de "total geral", filtrar o primeiro
+    # por sexo o reduz a uma barra. Guardar a EXCEÇÃO, e não a lista do que
+    # obedece, é o que faz um filtro novo já valer em todo widget sem que
+    # ninguém precise marcá-lo um por um.
+    excluidos: list[str] = field(default_factory=list)
     chart: dict | None = None
     formato: FormatoWidget = "grafico"
     suposicoes: list[str] = field(default_factory=list)
@@ -81,6 +87,7 @@ class Widget:
             "question": self.pergunta,
             "sql": self.sql,
             "legacy": self.legado,
+            "excluded": self.excluidos,
             "chart": self.chart,
             "format": self.formato,
             "assumptions": self.suposicoes,
@@ -101,6 +108,7 @@ class Widget:
             chart=d.get("chart"),
             formato=d.get("format") if d.get("format") in ("grafico", "indicador") else "grafico",
             suposicoes=list(d.get("assumptions") or []),
+            excluidos=[str(x) for x in (d.get("excluded") or [])],
             x=int(d.get("x", -1)),
             y=int(d.get("y", -1)),
             largura=max(LARGURA_MIN, min(COLUNAS, int(d.get("width") or 6))),

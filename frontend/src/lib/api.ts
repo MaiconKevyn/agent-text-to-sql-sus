@@ -384,6 +384,12 @@ export const createFilter = (id: string, request: string) =>
     { method: "POST", body: JSON.stringify({ request }) },
   );
 
+/** Liga ou desliga um filtro naquele widget — o que a lupa controla. */
+export const toggleWidgetFilter = (id: string, widgetId: string, filterId: string) =>
+  json<Dashboard>(`/api/dashboards/${id}/widgets/${widgetId}/filters/${filterId}`, {
+    method: "POST",
+  });
+
 export const deleteFilter = (id: string, filterId: string) =>
   json<Dashboard>(`/api/dashboards/${id}/filters/${filterId}`, { method: "DELETE" });
 

@@ -87,6 +87,35 @@ class Paineis:
             f.selecao = [v for v in selecao if v in validos]
         return self.salvar(painel)
 
+    def alternar_filtro_do_widget(self, id_: str, widget_id: str, filtro_id: str) -> Painel:
+        """Liga ou desliga um filtro NAQUELE widget."""
+        painel = self.ler(id_)
+        w = painel.widget(widget_id)
+        if w is None or painel.filtro(filtro_id) is None:
+            raise PainelInexistente(f"{widget_id}/{filtro_id}")
+        if filtro_id in w.excluidos:
+            w.excluidos.remove(filtro_id)
+        else:
+            w.excluidos.append(filtro_id)
+        return self.salvar(painel)
+
+    def restringir_filtro(self, id_: str, filtro_id: str, apenas: list[str]) -> Painel:
+        """Faz um filtro valer só nos widgets pedidos, excluindo-o dos demais.
+
+        É o caminho de "aplique esse filtro só no gráfico de óbitos": o filtro
+        continua sendo do painel, e a restrição vive nos widgets — assim um
+        widget novo nasce obedecendo, que é o padrão certo.
+        """
+        painel = self.ler(id_)
+        alvo = set(apenas)
+        for w in painel.widgets:
+            if w.id in alvo:
+                if filtro_id in w.excluidos:
+                    w.excluidos.remove(filtro_id)
+            elif filtro_id not in w.excluidos:
+                w.excluidos.append(filtro_id)
+        return self.salvar(painel)
+
     def dispor(self, id_: str, arranjo: list[dict]) -> Painel:
         """A grade inteira de uma vez — mesma razão do tema: um movimento
         reposiciona vários, e gravar um por vez passaria por estados

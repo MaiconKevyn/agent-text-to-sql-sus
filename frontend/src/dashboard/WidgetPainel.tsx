@@ -3,7 +3,8 @@ import { useState } from "react";
 import { ResultChart } from "@/components/result/ResultChart";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { cn } from "@/lib/utils";
-import type { DashboardWidget, WidgetData } from "@/lib/types";
+import type { DashboardWidget, PanelFilter, WidgetData } from "@/lib/types";
+import { LupaDeFiltros } from "./LupaDeFiltros";
 import type { Celula } from "@/theme/grade";
 import type { Gesto } from "@/theme/usePainel";
 
@@ -15,6 +16,8 @@ interface Props {
   carregando: boolean;
   onRemover: () => void;
   onRecriar: () => void;
+  filtros: PanelFilter[];
+  onAlternarFiltro: (filtroId: string) => void;
   celula: Celula;
   gesto: Gesto | null;
   comecar: (id: string, tipo: Gesto, e: React.PointerEvent) => void;
@@ -36,6 +39,8 @@ export function WidgetPainel({
   carregando,
   onRemover,
   onRecriar,
+  filtros,
+  onAlternarFiltro,
   celula,
   gesto,
   comecar,
@@ -65,6 +70,14 @@ export function WidgetPainel({
       <header className="flex shrink-0 items-start gap-2 px-3.5 pb-1.5 pt-3">
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[12.5px] font-medium leading-snug text-ink">{widget.title}</h3>
+          {(dados?.dispensados?.length ?? 0) > 0 && (
+            <p className="mt-1 text-[10.5px] text-caution">
+              dispensa{" "}
+              {dados!.dispensados
+                .map((id) => filtros.find((f) => f.id === id)?.label ?? id)
+                .join(", ")}
+            </p>
+          )}
           {widget.legacy && (
             <button
               onClick={onRecriar}
@@ -76,6 +89,16 @@ export function WidgetPainel({
             </button>
           )}
         </div>
+
+        {/* A lupa fica SEMPRE visível, ao contrário dos outros controles: ela
+            não é uma ação, é um estado — quantos filtros este widget dispensa. */}
+        {!widget.legacy && (
+          <LupaDeFiltros
+            filtros={filtros}
+            excluidos={widget.excluded}
+            onAlternar={onAlternarFiltro}
+          />
+        )}
 
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
           <button

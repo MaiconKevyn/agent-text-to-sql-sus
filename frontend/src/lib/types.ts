@@ -479,6 +479,8 @@ export interface DashboardWidget {
   assumptions: string[];
   /** Criado antes dos filtros configuráveis: não responde a nenhum. */
   legacy: boolean;
+  /** Filtros do painel que ESTE widget dispensa. Vazio = obedece a todos. */
+  excluded: string[];
   x: number;
   y: number;
   width: number;
@@ -500,6 +502,9 @@ export interface Dashboard {
 export interface WidgetData {
   id: string;
   legacy: boolean;
+  /** Filtros ATIVOS que este widget dispensou. Sem isto, um gráfico parado não
+   *  se distingue de um dado plano. */
+  dispensados: string[];
   error: string | null;
   result: QueryResult | null;
 }

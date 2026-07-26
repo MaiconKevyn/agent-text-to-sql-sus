@@ -22,7 +22,7 @@ from urllib.parse import urlparse
 
 from ..config import settings
 from ..storage import DocumentoInexistente, Documentos
-from .models import Bloco, Definicao, Tema
+from .models import ALTURA_MAX, ALTURA_MIN, Bloco, COLUNAS, Definicao, LARGURA_MIN, Tema
 
 
 class TemaInexistente(DocumentoInexistente):
@@ -93,13 +93,19 @@ class Armazem:
         return self.salvar(tema)
 
     def formatar(
-        self, id_: str, bloco_id: str, *, formato: str | None = None, tamanho: str | None = None
+        self,
+        id_: str,
+        bloco_id: str,
+        *,
+        formato: str | None = None,
+        largura: int | None = None,
+        altura: int | None = None,
     ) -> Tema:
         """Ajusta a apresentação de um bloco no painel.
 
-        Valores fora dos previstos são ignorados em silêncio em vez de virarem
-        erro: o pedido vem do cliente, e um valor desconhecido é ruído, não
-        motivo para recusar a operação inteira.
+        Valor inválido é ignorado em silêncio e tamanho fora da faixa é
+        aparado, em vez de virar erro: o pedido vem de um arrasto, e um pixel a
+        mais na borda não é motivo para recusar a operação inteira.
         """
         tema = self.ler(id_)
         bloco = tema.bloco(bloco_id)
@@ -107,8 +113,10 @@ class Armazem:
             raise TemaInexistente(bloco_id)
         if formato in ("auto", "indicador", "grafico", "tabela", "citacao"):
             bloco.formato = formato  # type: ignore[assignment]
-        if tamanho in ("p", "m", "g"):
-            bloco.tamanho = tamanho  # type: ignore[assignment]
+        if isinstance(largura, int):
+            bloco.largura = max(LARGURA_MIN, min(COLUNAS, largura))
+        if isinstance(altura, int):
+            bloco.altura = max(ALTURA_MIN, min(ALTURA_MAX, altura))
         return self.salvar(tema)
 
     def reordenar(self, id_: str, ordem: list[str]) -> Tema:

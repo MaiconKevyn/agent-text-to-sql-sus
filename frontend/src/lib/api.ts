@@ -323,11 +323,11 @@ export const reorderBlocks = (id: string, order: string[]) =>
     body: JSON.stringify({ order }),
   });
 
-/** Formato e tamanho do bloco no painel. */
+/** Formato e tamanho do bloco no painel. `width`/`height` são células da grade. */
 export const layoutBlock = (
   id: string,
   blocoId: string,
-  layout: { format?: string; size?: string },
+  layout: { format?: string; width?: number; height?: number },
 ) =>
   json<Theme>(`/api/themes/${id}/blocks/${blocoId}/layout`, {
     method: "POST",

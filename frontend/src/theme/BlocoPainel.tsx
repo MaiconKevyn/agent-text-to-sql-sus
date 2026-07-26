@@ -1,4 +1,4 @@
-import { ChevronDown, GripVertical, Maximize2, Minimize2, Trash2 } from "lucide-react";
+import { ChevronDown, GripVertical, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { ResultChart } from "@/components/result/ResultChart";
 import { ResultTable } from "@/components/result/ResultTable";
@@ -6,18 +6,10 @@ import { SqlBlock } from "@/components/result/SqlBlock";
 import { SourceBadge } from "@/components/theme/SourceBadge";
 import { layoutBlock, noteBlock, unpinBlock } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { BlockFormat, BlockSize, ThemeBlock } from "@/lib/types";
+import type { BlockFormat, ThemeBlock } from "@/lib/types";
+import type { Borda, Tamanho } from "./useRedimensionar";
 
 const nf = new Intl.NumberFormat("pt-BR");
-
-/** Ordem dos tamanhos, para os botões de aumentar e diminuir. */
-const TAMANHOS: BlockSize[] = ["p", "m", "g"];
-
-const SPAN: Record<BlockSize, string> = {
-  p: "md:col-span-1",
-  m: "md:col-span-2",
-  g: "md:col-span-3",
-};
 
 const FORMATOS: { valor: BlockFormat; rotulo: string }[] = [
   { valor: "auto", rotulo: "Automático" },
@@ -58,31 +50,41 @@ interface Props {
   bloco: ThemeBlock;
   temaId: string;
   onMudou: () => void;
-  /** Ligado pelo painel; ausente, o bloco simplesmente não arrasta. */
-  arrasto?: {
+  /** Tamanho a desenhar: durante um arrasto é a prévia, não o que está salvo. */
+  tamanho: Tamanho;
+  /** Ligado pelo painel; ausente, o bloco não se move nem se redimensiona. */
+  manejo?: {
     aoPegar: (id: string) => void;
     aoMover: (id: string, passo: -1 | 1) => void;
+    aoPegarBorda: (bloco: ThemeBlock, borda: Borda, e: React.PointerEvent) => void;
+    aoAjustar: (bloco: ThemeBlock, d: Partial<Tamanho>) => void;
     arrastando: string | null;
+    redimensionando: string | null;
   };
 }
 
 /**
- * Um bloco do painel: muda de forma e de tamanho sem mudar de conteúdo.
+ * Um bloco do painel: muda de forma, de tamanho e de lugar sem mudar de
+ * conteúdo.
+ *
+ * A altura vem da grade, não do conteúdo — é o que permite puxar a borda de
+ * baixo. Em troca, o corpo tem de caber: ele rola dentro do bloco, e o gráfico
+ * se estica para ocupar o que sobrar. Sem isso, um bloco baixo cortaria o
+ * gráfico pela metade em vez de encolhê-lo.
  *
  * O detalhe — SQL, tabela completa, suposições, anotação — vive atrás de um
  * clique. Num painel que se lê de relance, deixá-lo sempre aberto transforma
- * quatro blocos numa página de rolagem, que é justamente o que estávamos
- * tentando deixar de ser.
+ * quatro blocos numa página de rolagem.
  */
-export function BlocoPainel({ bloco, temaId, onMudou, arrasto }: Props) {
+export function BlocoPainel({ bloco, temaId, onMudou, tamanho, manejo }: Props) {
   const [aberto, setAberto] = useState(false);
   const [anotacao, setAnotacao] = useState(bloco.note);
-  const sendoArrastado = arrasto?.arrastando === bloco.id;
   const formato = formatoEfetivo(bloco);
-  const i = TAMANHOS.indexOf(bloco.size);
+  const emMovimento = manejo?.arrastando === bloco.id;
+  const emResize = manejo?.redimensionando === bloco.id;
 
-  async function ajustar(mudanca: { format?: BlockFormat; size?: BlockSize }) {
-    await layoutBlock(temaId, bloco.id, mudanca);
+  async function ajustarFormato(format: BlockFormat) {
+    await layoutBlock(temaId, bloco.id, { format });
     onMudou();
   }
 
@@ -91,15 +93,19 @@ export function BlocoPainel({ bloco, temaId, onMudou, arrasto }: Props) {
       // O alvo do arrasto é achado por elementFromPoint; é este atributo que o
       // ponto na tela vira id de bloco.
       data-bloco={bloco.id}
+      style={{
+        gridColumn: `span ${tamanho.width}`,
+        gridRow: `span ${tamanho.height}`,
+      }}
       className={cn(
-        "group relative flex min-w-0 flex-col gap-2.5 rounded-xl border bg-surface px-3.5 py-3",
-        "transition-opacity duration-150",
-        SPAN[bloco.size],
+        "group relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-surface",
+        "transition-[opacity,box-shadow] duration-150",
         bloco.provenance === "banco" ? "border-line" : "border-caution/25 bg-caution-soft",
-        sendoArrastado && "opacity-40",
+        emMovimento && "opacity-40",
+        emResize && "ring-2 ring-accent/40",
       )}
     >
-      <header className="flex items-start gap-2">
+      <header className="flex shrink-0 items-start gap-2 px-3.5 pb-1.5 pt-3">
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[12.5px] font-medium leading-snug text-ink">
             {bloco.title || bloco.question}
@@ -117,20 +123,18 @@ export function BlocoPainel({ bloco, temaId, onMudou, arrasto }: Props) {
         {/* Os controles só aparecem no hover: num painel, a moldura tem de sumir
             para o conteúdo aparecer. Continuam alcançáveis pelo teclado. */}
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
-          {arrasto && (
+          {manejo && (
             <button
               onPointerDown={(e) => {
                 // Sem isto o navegador começa a arrastar a imagem do ícone.
                 e.preventDefault();
-                arrasto.aoPegar(bloco.id);
+                manejo.aoPegar(bloco.id);
               }}
-              // Arrastar precisa de um ponteiro. As setas dão o mesmo resultado
-              // a quem navega por teclado.
               onKeyDown={(e) => {
                 const passo = e.key === "ArrowLeft" ? -1 : e.key === "ArrowRight" ? 1 : 0;
                 if (!passo) return;
                 e.preventDefault();
-                arrasto.aoMover(bloco.id, passo);
+                manejo.aoMover(bloco.id, passo);
               }}
               aria-label="Reordenar o bloco: arraste, ou use as setas esquerda e direita"
               className="cursor-grab touch-none rounded p-1 text-ink-subtle transition-colors duration-150 hover:text-ink active:cursor-grabbing"
@@ -140,7 +144,7 @@ export function BlocoPainel({ bloco, temaId, onMudou, arrasto }: Props) {
           )}
           <select
             value={bloco.format}
-            onChange={(e) => void ajustar({ format: e.target.value as BlockFormat })}
+            onChange={(e) => void ajustarFormato(e.target.value as BlockFormat)}
             aria-label="Formato do bloco"
             className="rounded-md border border-line bg-surface px-1 py-0.5 text-[10.5px] text-ink-muted outline-none focus:border-accent"
           >
@@ -150,22 +154,6 @@ export function BlocoPainel({ bloco, temaId, onMudou, arrasto }: Props) {
               </option>
             ))}
           </select>
-          <button
-            onClick={() => void ajustar({ size: TAMANHOS[i - 1] })}
-            disabled={i === 0}
-            aria-label="Diminuir o bloco"
-            className="rounded p-1 text-ink-subtle transition-colors duration-150 hover:text-ink disabled:opacity-30"
-          >
-            <Minimize2 aria-hidden className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={() => void ajustar({ size: TAMANHOS[i + 1] })}
-            disabled={i === TAMANHOS.length - 1}
-            aria-label="Aumentar o bloco"
-            className="rounded p-1 text-ink-subtle transition-colors duration-150 hover:text-ink disabled:opacity-30"
-          >
-            <Maximize2 aria-hidden className="h-3.5 w-3.5" />
-          </button>
           <button
             onClick={async () => {
               await unpinBlock(temaId, bloco.id);
@@ -179,62 +167,112 @@ export function BlocoPainel({ bloco, temaId, onMudou, arrasto }: Props) {
         </div>
       </header>
 
-      {/* ---- o corpo, conforme o formato ---- */}
-      {formato === "indicador" && valorUnico(bloco) && (
-        <div className="flex flex-1 flex-col justify-center py-1">
-          <span className="text-[30px] font-semibold leading-none tracking-tight text-ink [font-variant-numeric:tabular-nums]">
-            {valorUnico(bloco)!.valor}
-          </span>
-          <span className="mt-1 text-[11px] text-ink-subtle">{valorUnico(bloco)!.rotulo}</span>
-        </div>
-      )}
+      {/* O corpo rola dentro do bloco: a altura é da grade, e o conteúdo se
+          acomoda nela em vez de esticá-la. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3.5 pb-2">
+        {formato === "indicador" && valorUnico(bloco) && (
+          <div className="flex flex-1 flex-col justify-center py-1">
+            <span className="text-[30px] font-semibold leading-none tracking-tight text-ink [font-variant-numeric:tabular-nums]">
+              {valorUnico(bloco)!.valor}
+            </span>
+            <span className="mt-1 text-[11px] text-ink-subtle">{valorUnico(bloco)!.rotulo}</span>
+          </div>
+        )}
 
-      {formato === "grafico" && bloco.chart && bloco.result && (
-        <ResultChart spec={bloco.chart} result={bloco.result} />
-      )}
-      {formato === "grafico" && !bloco.chart && (
-        <p className="py-3 text-[11.5px] text-ink-subtle">
-          Este resultado não tem gráfico declarado. Escolha outro formato.
-        </p>
-      )}
-
-      {formato === "tabela" && bloco.result && <ResultTable result={bloco.result} />}
-
-      {formato === "citacao" && (
-        <div>
-          {bloco.text && (
-            <p className="text-[12.5px] italic leading-relaxed text-ink">
-              &ldquo;{bloco.text}&rdquo;
-            </p>
-          )}
-          <p className="mt-1.5 text-[11px] text-ink-muted">
-            {bloco.sourceUrl ? (
-              <a
-                href={bloco.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className="underline decoration-dotted underline-offset-2 hover:text-accent"
-              >
-                {bloco.sourceTitle || dominio(bloco.sourceUrl)}
-              </a>
-            ) : (
-              "Anotação sem fonte externa"
-            )}
-            {bloco.accessedAt && ` · acesso ${bloco.accessedAt}`}
+        {/* O piso é do CONTEÚDO, não do bloco: um bloco pode ser baixo — para um
+            indicador isso é ótimo — mas um gráfico espremido em 60px não é
+            gráfico, é um borrão. Abaixo deste piso o corpo rola em vez de
+            achatar. */}
+        {formato === "grafico" && bloco.chart && bloco.result && (
+          <div className="min-h-[170px] flex-1">
+            <ResultChart spec={bloco.chart} result={bloco.result} preencher />
+          </div>
+        )}
+        {formato === "grafico" && !bloco.chart && (
+          <p className="py-3 text-[11.5px] text-ink-subtle">
+            Este resultado não tem gráfico declarado. Escolha outro formato.
           </p>
-        </div>
-      )}
+        )}
 
-      {/* Um resumo em uma linha quando o formato não é o texto em si. */}
-      {bloco.text && formato !== "citacao" && !aberto && (
-        <p className="line-clamp-2 text-[11.5px] leading-snug text-ink-muted">{bloco.text}</p>
-      )}
+        {formato === "tabela" && bloco.result && <ResultTable result={bloco.result} />}
 
-      {/* ---- o detalhe, atrás de um clique ---- */}
+        {formato === "citacao" && (
+          <div>
+            {bloco.text && (
+              <p className="text-[12.5px] italic leading-relaxed text-ink">
+                &ldquo;{bloco.text}&rdquo;
+              </p>
+            )}
+            <p className="mt-1.5 text-[11px] text-ink-muted">
+              {bloco.sourceUrl ? (
+                <a
+                  href={bloco.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="underline decoration-dotted underline-offset-2 hover:text-accent"
+                >
+                  {bloco.sourceTitle || dominio(bloco.sourceUrl)}
+                </a>
+              ) : (
+                "Anotação sem fonte externa"
+              )}
+              {bloco.accessedAt && ` · acesso ${bloco.accessedAt}`}
+            </p>
+          </div>
+        )}
+
+        {/* Um resumo em uma linha quando o formato não é o texto em si. */}
+        {bloco.text && formato !== "citacao" && !aberto && (
+          <p className="line-clamp-2 shrink-0 text-[11.5px] leading-snug text-ink-muted">
+            {bloco.text}
+          </p>
+        )}
+
+        {aberto && (
+          <div className="shrink-0 space-y-2.5 border-t border-line pt-2.5">
+            {bloco.definition && (
+              <div className="rounded-lg bg-raised px-3 py-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
+                  O que foi medido
+                </p>
+                <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-muted">
+                  {bloco.definition}
+                </p>
+              </div>
+            )}
+            {bloco.text && formato !== "citacao" && (
+              <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-ink">
+                {bloco.text}
+              </p>
+            )}
+            {bloco.assumptions.length > 0 && (
+              <p className="text-[11px] leading-relaxed text-ink-subtle">
+                <span className="font-medium">Suposições:</span> {bloco.assumptions.join(" · ")}
+              </p>
+            )}
+            {bloco.sql && <SqlBlock sql={bloco.sql} />}
+            {bloco.result && formato !== "tabela" && <ResultTable result={bloco.result} />}
+            <textarea
+              value={anotacao}
+              onChange={(e) => setAnotacao(e.target.value)}
+              onBlur={async () => {
+                if (anotacao !== bloco.note) {
+                  await noteBlock(temaId, bloco.id, anotacao);
+                  onMudou();
+                }
+              }}
+              rows={2}
+              placeholder="Por que este bloco importa para a investigação?"
+              className="block w-full resize-y rounded-lg border border-line bg-canvas px-3 py-2 text-[12px] leading-relaxed text-ink outline-none transition-colors duration-150 placeholder:text-ink-subtle focus:border-accent"
+            />
+          </div>
+        )}
+      </div>
+
       <button
         onClick={() => setAberto((v) => !v)}
         aria-expanded={aberto}
-        className="mt-auto flex items-center gap-1 self-start pt-1 text-[11px] text-ink-subtle transition-colors duration-150 hover:text-accent"
+        className="flex shrink-0 items-center gap-1 px-3.5 pb-2 pt-0.5 text-[11px] text-ink-subtle transition-colors duration-150 hover:text-accent"
       >
         <ChevronDown
           aria-hidden
@@ -243,42 +281,50 @@ export function BlocoPainel({ bloco, temaId, onMudou, arrasto }: Props) {
         {aberto ? "menos" : "detalhe"}
       </button>
 
-      {aberto && (
-        <div className="space-y-2.5 border-t border-line pt-2.5">
-          {bloco.definition && (
-            <div className="rounded-lg bg-raised px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-subtle">
-                O que foi medido
-              </p>
-              <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-muted">
-                {bloco.definition}
-              </p>
-            </div>
-          )}
-          {bloco.text && formato !== "citacao" && (
-            <p className="whitespace-pre-wrap text-[12px] leading-relaxed text-ink">{bloco.text}</p>
-          )}
-          {bloco.assumptions.length > 0 && (
-            <p className="text-[11px] leading-relaxed text-ink-subtle">
-              <span className="font-medium">Suposições:</span> {bloco.assumptions.join(" · ")}
-            </p>
-          )}
-          {bloco.sql && <SqlBlock sql={bloco.sql} />}
-          {bloco.result && formato !== "tabela" && <ResultTable result={bloco.result} />}
-          <textarea
-            value={anotacao}
-            onChange={(e) => setAnotacao(e.target.value)}
-            onBlur={async () => {
-              if (anotacao !== bloco.note) {
-                await noteBlock(temaId, bloco.id, anotacao);
-                onMudou();
-              }
-            }}
-            rows={2}
-            placeholder="Por que este bloco importa para a investigação?"
-            className="block w-full resize-y rounded-lg border border-line bg-canvas px-3 py-2 text-[12px] leading-relaxed text-ink outline-none transition-colors duration-150 placeholder:text-ink-subtle focus:border-accent"
+      {/* ---- as bordas ----
+          Faixas invisíveis sobre a borda, largas o bastante para o ponteiro
+          acertar (a borda de 1px não é alvo). Ficam sempre presentes, e não só
+          no hover: quem já sabe que dá para puxar não deveria ter de descobrir
+          de novo a cada bloco. */}
+      {manejo && (
+        <>
+          <span
+            onPointerDown={(e) => manejo.aoPegarBorda(bloco, "direita", e)}
+            className="absolute right-0 top-0 h-full w-2 cursor-ew-resize touch-none opacity-0 transition-opacity duration-150 hover:opacity-100 group-hover:opacity-60"
+            style={{ background: "linear-gradient(to right, transparent, var(--accent))" }}
+            aria-hidden
           />
-        </div>
+          <span
+            onPointerDown={(e) => manejo.aoPegarBorda(bloco, "baixo", e)}
+            className="absolute bottom-0 left-0 h-2 w-full cursor-ns-resize touch-none opacity-0 transition-opacity duration-150 hover:opacity-100 group-hover:opacity-60"
+            style={{ background: "linear-gradient(to bottom, transparent, var(--accent))" }}
+            aria-hidden
+          />
+          <button
+            onPointerDown={(e) => manejo.aoPegarBorda(bloco, "quina", e)}
+            onKeyDown={(e) => {
+              const d: Partial<Tamanho> =
+                e.key === "ArrowRight"
+                  ? { width: 1 }
+                  : e.key === "ArrowLeft"
+                    ? { width: -1 }
+                    : e.key === "ArrowDown"
+                      ? { height: 1 }
+                      : e.key === "ArrowUp"
+                        ? { height: -1 }
+                        : {};
+              if (!Object.keys(d).length) return;
+              e.preventDefault();
+              void manejo.aoAjustar(bloco, d);
+            }}
+            aria-label="Redimensionar o bloco: arraste a quina, ou use as setas"
+            className="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize touch-none rounded-tl-md opacity-0 transition-opacity duration-150 focus:opacity-100 group-hover:opacity-100"
+          >
+            <svg viewBox="0 0 10 10" className="h-full w-full text-ink-subtle" aria-hidden>
+              <path d="M9 3 L3 9 M9 6.5 L6.5 9" stroke="currentColor" strokeWidth="1.2" fill="none" />
+            </svg>
+          </button>
+        </>
       )}
     </article>
   );

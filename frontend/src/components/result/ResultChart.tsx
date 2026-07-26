@@ -9,6 +9,7 @@ import * as echarts from "echarts/core";
 import { LabelLayout } from "echarts/features";
 import { SVGRenderer } from "echarts/renderers";
 import { useEffect, useMemo, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { useIsDark } from "@/hooks/useTheme";
 import { abreviar, chartTheme, nfBR } from "@/lib/chartTheme";
 import type { ChartSpec, QueryResult } from "@/lib/types";
@@ -33,6 +34,14 @@ type Celula = string | number | boolean | null;
 interface Props {
   spec: ChartSpec;
   result: QueryResult;
+  /**
+   * Ocupa toda a altura disponível em vez dos 260px fixos.
+   *
+   * É o que o painel precisa: lá o bloco tem altura ajustável, e um gráfico de
+   * altura fixa dentro dele ou sobra ou deixa um vazio. O ResizeObserver que já
+   * existe aqui cuida do resto — o ECharts é avisado sozinho.
+   */
+  preencher?: boolean;
 }
 
 /**
@@ -40,7 +49,7 @@ interface Props {
  * linhas que o DuckDB devolveu. É por isso que o gráfico não pode conter um
  * número que a consulta não retornou — o modelo nunca escreve um ponto.
  */
-export function ResultChart({ spec, result }: Props) {
+export function ResultChart({ spec, result, preencher = false }: Props) {
   const dark = useIsDark();
   const host = useRef<HTMLDivElement>(null);
   const inst = useRef<echarts.ECharts>();
@@ -50,6 +59,12 @@ export function ResultChart({ spec, result }: Props) {
   useEffect(() => {
     const el = host.current;
     if (!el) return;
+    // Um `init` sobre um dom que já tem instância devolve a antiga e deixa a
+    // nova sem conteúdo — e o StrictMode monta, desmonta e remonta, então em
+    // desenvolvimento isso acontece sempre. O sintoma não é gráfico sumido: é
+    // o ResizeObserver ficar preso à instância errada, e o gráfico parar de
+    // acompanhar o tamanho do bloco.
+    echarts.getInstanceByDom(el)?.dispose();
     const chart = echarts.init(el, undefined, { renderer: "svg" });
     inst.current = chart;
     const ro = new ResizeObserver(() => chart.resize());
@@ -71,7 +86,12 @@ export function ResultChart({ spec, result }: Props) {
   if (!option) return null;
 
   return (
-    <figure className="overflow-hidden rounded-xl border border-line bg-surface">
+    <figure
+      className={cn(
+        "overflow-hidden rounded-xl border border-line bg-surface",
+        preencher && "flex h-full min-h-0 flex-col",
+      )}
+    >
       <figcaption className="flex items-baseline justify-between gap-2 border-b border-line px-3.5 py-2">
         <span className="truncate text-[12.5px] font-medium text-ink">
           {spec.title || "Gráfico do resultado"}
@@ -81,7 +101,12 @@ export function ResultChart({ spec, result }: Props) {
           {result.nRows === 1 ? "" : "s"}
         </span>
       </figcaption>
-      <div ref={host} className="h-[260px] w-full p-1" role="img" aria-label={spec.title} />
+      <div
+        ref={host}
+        className={cn("w-full p-1", preencher ? "min-h-0 flex-1" : "h-[260px]")}
+        role="img"
+        aria-label={spec.title}
+      />
       {spec.reason && (
         <p className="border-t border-line px-3.5 py-1.5 text-[11.5px] text-ink-subtle">
           {spec.reason}

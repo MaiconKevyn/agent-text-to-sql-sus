@@ -27,9 +27,17 @@ TipoBloco = Literal["consulta", "investigacao", "nota"]
 # `auto` deixa a interface escolher pelo formato do resultado.
 Formato = Literal["auto", "indicador", "grafico", "tabela", "citacao"]
 
-# Quanto ocupa numa grade de três colunas. A altura acompanha o conteúdo: uma
-# segunda dimensão ajustável dobraria os estados sem dobrar o que se ganha.
-Tamanho = Literal["p", "m", "g"]
+# Quanto o bloco ocupa na grade do painel: colunas de 1 a COLUNAS, e altura em
+# unidades de linha. Nasceu como três tamanhos fixos (p/m/g) e virou isto quando
+# ficou claro que o gesto natural é pegar a borda e puxar — três degraus não
+# respondem a "um pouco mais largo".
+COLUNAS = 12
+LARGURA_MIN, ALTURA_MIN = 3, 4
+ALTURA_MAX = 40
+
+# Como os tamanhos antigos entram no novo eixo. Sem isto, todo tema já salvo
+# perderia o arranjo na primeira leitura.
+LARGURA_LEGADA = {"p": 4, "m": 8, "g": 12}
 
 
 def _agora() -> str:
@@ -38,6 +46,14 @@ def _agora() -> str:
 
 def _id(prefixo: str) -> str:
     return f"{prefixo}_{uuid.uuid4().hex[:12]}"
+
+
+def _largura_de(d: dict) -> int:
+    """Largura em colunas, aceitando o `size` p/m/g dos temas salvos antes."""
+    bruto = d.get("width")
+    if bruto is None:
+        bruto = LARGURA_LEGADA.get(str(d.get("size") or ""), 4)
+    return max(LARGURA_MIN, min(COLUNAS, int(bruto)))
 
 
 @dataclass
@@ -105,10 +121,11 @@ class Bloco:
     fonte_url: str = ""
     fonte_titulo: str = ""
     acessado_em: str = ""
-    # Apresentação. Nasce em `auto`/`m` e só muda se alguém ajustar — quem fixa
-    # um bloco não deveria precisar decidir o arranjo no mesmo gesto.
+    # Apresentação. Nasce num tamanho médio e só muda se alguém ajustar — quem
+    # fixa um bloco não deveria precisar decidir o arranjo no mesmo gesto.
     formato: Formato = "auto"
-    tamanho: Tamanho = "m"
+    largura: int = 4
+    altura: int = 8
     fixado_em: str = field(default_factory=_agora)
 
     def para_json(self) -> dict:
@@ -129,7 +146,8 @@ class Bloco:
             "sourceTitle": self.fonte_titulo,
             "accessedAt": self.acessado_em,
             "format": self.formato,
-            "size": self.tamanho,
+            "width": self.largura,
+            "height": self.altura,
             "pinnedAt": self.fixado_em,
         }
 
@@ -152,7 +170,8 @@ class Bloco:
             fonte_titulo=str(d.get("sourceTitle") or ""),
             acessado_em=str(d.get("accessedAt") or ""),
             formato=d.get("format") or "auto",
-            tamanho=d.get("size") or "m",
+            largura=_largura_de(d),
+            altura=max(ALTURA_MIN, min(ALTURA_MAX, int(d.get("height") or 8))),
             fixado_em=str(d.get("pinnedAt") or _agora()),
         )
 

@@ -380,7 +380,11 @@ def ajustar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONR
     """Formato e tamanho do bloco no painel."""
     try:
         tema = armazem().formatar(
-            tema_id, bloco_id, formato=corpo.get("format"), tamanho=corpo.get("size")
+            tema_id,
+            bloco_id,
+            formato=corpo.get("format"),
+            largura=corpo.get("width"),
+            altura=corpo.get("height"),
         )
         return JSONResponse(tema.para_json())
     except TemaInexistente:

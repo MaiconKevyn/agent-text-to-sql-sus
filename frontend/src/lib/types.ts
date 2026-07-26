@@ -321,7 +321,16 @@ export type BlockKind = "consulta" | "investigacao" | "nota";
  *  `format` é o que o leitor vê. A mesma consulta de uma linha pode ser um
  *  número grande ou uma tabela. */
 export type BlockFormat = "auto" | "indicador" | "grafico" | "tabela" | "citacao";
-export type BlockSize = "p" | "m" | "g";
+
+/** A grade do painel. Espelha as constantes de src/themes/models.py — mudar
+ *  aqui sem mudar lá deixa o servidor aparando o que a tela desenhou. */
+export const COLUNAS = 12;
+export const LARGURA_MIN = 3;
+export const ALTURA_MIN = 4;
+export const ALTURA_MAX = 40;
+/** Altura de uma unidade de linha, em pixels, e o vão entre blocos. */
+export const LINHA_PX = 30;
+export const VAO_PX = 12;
 
 export interface ThemeBlock {
   id: string;
@@ -343,8 +352,10 @@ export interface ThemeBlock {
   accessedAt: string;
   /** COMO o bloco se apresenta. `auto` deixa a interface escolher. */
   format: BlockFormat;
+  /** Quanto ocupa na grade: colunas de LARGURA_MIN a COLUNAS, altura em linhas. */
+  width: number;
+  height: number;
   /** Quanto ocupa na grade de três colunas. */
-  size: BlockSize;
   pinnedAt: string;
 }
 

@@ -8,7 +8,8 @@ import { ReportPanel } from "@/components/report/ReportPanel";
 import { ConceptPanel } from "@/components/concept/ConceptPanel";
 import { useInvestigation } from "@/hooks/useInvestigation";
 import { useThemes } from "@/hooks/useThemes";
-import { Sidebar } from "@/components/Sidebar";
+import { Sidebar, type Aba } from "@/components/Sidebar";
+import { TrilhoDeSecoes } from "@/components/TrilhoDeSecoes";
 import { useChat } from "@/hooks/useChat";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ function lerFlag(chave: string, padrao: boolean): boolean {
 
 export default function App() {
   const { messages, busy, send, regenerate, setFeedback, stop, clear, abrir: abrirChat, chatAtual, versao } = useChat();
+  const [aba, setAba] = useState<Aba>("chats");
   const composer = useRef<ComposerHandle>(null);
 
   const [debug, setDebug] = useState(() => lerFlag(DEBUG_KEY, false));
@@ -125,9 +127,24 @@ export default function App() {
           onClear={clear}
         />
 
-        <div className="mx-auto flex w-full min-h-0 max-w-[1500px] flex-1">
-          {/* A barra é recolhível porque o painel da direita já existe: com os
-              dois lados fixos, o conteúdo central sufoca num laptop de 1280px. */}
+        {/* O trilho e a lista vivem FORA do contêiner centralizado: dentro
+            dele, uma janela mais larga que 1500px empurrava a barra para o meio
+            da tela — 200px de recuo numa janela de 1900px — enquanto o
+            cabeçalho continuava encostado na borda. */}
+        <div className="flex min-h-0 flex-1">
+          <TrilhoDeSecoes
+            aba={aba}
+            aberto={barraAberta}
+            onEscolher={(a) => {
+              // Na seção já aberta, o clique fecha; nas outras, troca e abre.
+              if (barraAberta && a === aba) setBarraAberta(false);
+              else {
+                setAba(a);
+                setBarraAberta(true);
+              }
+            }}
+          />
+
           <aside
             aria-hidden={!barraAberta}
             className={cn(
@@ -138,6 +155,7 @@ export default function App() {
           >
             <div className="h-full w-60">
               <Sidebar
+                aba={aba}
                 atual={chatAtual ? { tipo: "chats", id: chatAtual } : null}
                 versao={versao}
                 onNovoChat={clear}
@@ -152,6 +170,7 @@ export default function App() {
             </div>
           </aside>
 
+          <div className="mx-auto flex w-full min-h-0 max-w-[1500px] flex-1">
           <main className="flex min-w-0 min-h-0 flex-1 flex-col">
             <MessageList
               messages={messages}
@@ -222,6 +241,7 @@ export default function App() {
               )}
             </div>
           </aside>
+          </div>
         </div>
 
         {/* Em tela estreita o painel lateral não existe (lg:block), então o

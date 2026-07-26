@@ -2,6 +2,7 @@ import { ArrowLeft, Bookmark, FileText, Loader2, Plus } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { SeletorDePaleta } from "@/components/SeletorDePaleta";
+import { TrilhoDeSecoes } from "@/components/TrilhoDeSecoes";
 import {
   createTheme,
   listThemes,
@@ -101,7 +102,19 @@ export default function ThemePage() {
 
   return (
     <PaletaEscopo.Provider value={paletaDoTema || null}>
-    <div ref={raiz} className="min-h-full bg-canvas">
+    <div ref={raiz} className="flex min-h-full bg-canvas">
+      {/* O trilho é o mesmo do chat, e por isso está aqui: uma coluna que
+          "nunca sai" que sumisse ao abrir um tema não seria uma coluna fixa,
+          seria uma coluna do chat. Aqui ele navega em vez de abrir lista —
+          não há duas listas nesta tela. */}
+      <TrilhoDeSecoes
+        aba="temas"
+        aberto
+        onEscolher={(a) => {
+          location.href = a === "temas" ? "?temas" : "/";
+        }}
+      />
+      <div className="min-w-0 flex-1">
       <header className="sticky top-0 z-10 border-b border-line bg-canvas/90 px-5 py-3 backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           <a
@@ -160,6 +173,7 @@ export default function ThemePage() {
           <DetalheDoTema tema={tema} onMudou={recarregar} />
         )}
       </main>
+      </div>
     </div>
     </PaletaEscopo.Provider>
   );

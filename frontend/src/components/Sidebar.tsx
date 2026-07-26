@@ -1,11 +1,13 @@
-import { Bookmark, MessagesSquare, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { deleteChat, deleteTheme, listChats, listThemes } from "@/lib/api";
 import type { SavedChat, Theme } from "@/lib/types";
 
-type Aba = "temas" | "chats";
+export type Aba = "temas" | "chats";
 
 interface Props {
+  /** Qual seção mostrar. Vem de fora: quem escolhe é o trilho. */
+  aba: Aba;
   /** Qual item está aberto agora, para destacá-lo na lista. */
   atual?: { tipo: Aba; id: string } | null;
   onNovoChat: () => void;
@@ -21,7 +23,7 @@ interface Props {
 const CHATS_VISIVEIS = 10;
 
 /**
- * Navegação entre os dois objetos do produto.
+ * A LISTA da seção escolhida no trilho.
  *
  * Temas e chats NÃO têm o mesmo peso, e a barra não finge que têm: o tema é
  * artefato — acumula, ganha anotação, vira contexto das perguntas seguintes — e
@@ -31,6 +33,7 @@ const CHATS_VISIVEIS = 10;
  * pergunta só.
  */
 export function Sidebar({
+  aba,
   atual,
   onNovoChat,
   onAbrirChat,
@@ -38,7 +41,6 @@ export function Sidebar({
   onNovoTema,
   versao = 0,
 }: Props) {
-  const [aba, setAba] = useState<Aba>(atual?.tipo ?? "chats");
   const [temas, setTemas] = useState<Theme[]>([]);
   const [chats, setChats] = useState<SavedChat[]>([]);
   const [todos, setTodos] = useState(false);
@@ -66,30 +68,10 @@ export function Sidebar({
       aria-label="Conversas e investigações"
       className="flex h-full w-full flex-col border-r border-line bg-raised"
     >
-      <div className="p-2">
-        <div className="flex gap-1 rounded-lg bg-canvas p-1">
-          {(["temas", "chats"] as const).map((a) => (
-            <button
-              key={a}
-              onClick={() => setAba(a)}
-              aria-pressed={aba === a}
-              className={
-                "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 " +
-                "text-[12.5px] font-medium transition-colors duration-150 " +
-                (aba === a
-                  ? "bg-surface text-ink shadow-sm"
-                  : "text-ink-muted hover:text-ink")
-              }
-            >
-              {a === "temas" ? (
-                <Bookmark aria-hidden className="h-3.5 w-3.5" />
-              ) : (
-                <MessagesSquare aria-hidden className="h-3.5 w-3.5" />
-              )}
-              {a === "temas" ? "Temas" : "Chats"}
-            </button>
-          ))}
-        </div>
+      <div className="px-3 pb-1 pt-3">
+        <h2 className="text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
+          {aba === "temas" ? "Investigações" : "Conversas"}
+        </h2>
       </div>
 
       <div className="px-2 pb-1">

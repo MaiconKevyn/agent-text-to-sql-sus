@@ -8,3 +8,9 @@ rich>=13.7
 # API HTTP (src/api.py)
 fastapi>=0.115
 uvicorn[standard]>=0.32
+
+# Busca web em fontes confiáveis (src/websearch.py).
+# Vem de carona com o `openai`, mas depender de dependência transitiva quebra
+# quando o pacote de cima troca de cliente HTTP — e o sintoma apareceria na
+# primeira busca do usuário, não na instalação.
+httpx>=0.27

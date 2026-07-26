@@ -4,8 +4,10 @@
 
 **Pergunte em português sobre 144 milhões de internações hospitalares do SUS.**
 
-O agente traduz a pergunta em SQL, executa no DuckDB, desenha o gráfico e
-responde — mostrando a consulta, os dados e as ressalvas.
+Três ferramentas sobre a mesma base: um **chat** que traduz a pergunta em SQL e
+responde com gráfico; **temas** de investigação que acumulam evidência com
+procedência; e **painéis** com filtros que recalculam tudo ao vivo — todos
+construíveis em linguagem natural.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)
 ![DuckDB](https://img.shields.io/badge/DuckDB-15,4_GB-FFF000?logo=duckdb&logoColor=black)
@@ -13,7 +15,7 @@ responde — mostrando a consulta, os dados e as ressalvas.
 ![FastAPI](https://img.shields.io/badge/FastAPI-SSE-009688?logo=fastapi&logoColor=white)
 ![ECharts](https://img.shields.io/badge/Apache_ECharts-5-AA344D)
 
-[Como funciona](#como-funciona) · [Instalação](#instalação) · [Funcionalidades](#funcionalidades) · [Avaliação](#avaliação) · [Limitações](#limitações-conhecidas)
+[Começar em 5 minutos](#começar-em-5-minutos) · [As três ferramentas](#as-três-ferramentas) · [Como funciona](#como-funciona) · [Avaliação](#avaliação) · [Limitações](#limitações-conhecidas)
 
 <img src="docs/img/02-resposta-com-grafico.png" alt="Resposta do agente com gráfico, SQL e tabela" width="880">
 
@@ -94,54 +96,122 @@ não escreve pontos — só declara a forma.
 
 ---
 
-## Instalação
+## Começar em 5 minutos
 
-**Requisitos:** Python 3.11+, Node 18+ e o arquivo `sihrd5.duckdb`.
+### 1. O que você precisa
+
+| | |
+|---|---|
+| **Python 3.11+** | `python3 --version` |
+| **Node 18+** | `node --version` |
+| **`sihrd5.duckdb`** | o banco, 15,4 GB — não vai no repositório |
+| **Chave da OpenAI** | qualquer conta com crédito |
+
+### 2. Clonar e instalar
 
 ```bash
 git clone https://github.com/MaiconKevyn/agent-text-to-sql-sus.git
 cd agent-text-to-sql-sus
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+cd frontend && npm install && cd ..
 ```
 
-Crie o `.env` na raiz:
+### 3. Configurar
+
+Crie um arquivo `.env` **na raiz do projeto**:
 
 ```env
+# obrigatórios
 DATABASE_PATH=duckdb:////caminho/absoluto/para/sihrd5.duckdb?access_mode=read_only
 OPENAI_API_KEY=sk-...
 
-# opcionais, com os valores padrão
+# opcionais — estes são os valores padrão
 SQL_MODEL=gpt-5-mini
 ANSWER_MODEL=gpt-5-mini
 QUERY_TIMEOUT_S=120
 MAX_REPAIR_ATTEMPTS=2
+
+# opcional — liga a busca web nos temas (fontes oficiais e científicas)
+TAVILY_API_KEY=tvly-...
 ```
 
-### Rodando
+> **As quatro barras não são erro de digitação.** `duckdb:////caminho` — o
+> esquema pede duas, e o caminho absoluto começa com a sua própria barra. Com
+> três, o DuckDB procura um caminho relativo e falha dizendo que o arquivo não
+> existe.
 
-**Terminal**, sem frontend:
+> **`access_mode=read_only` é o que garante que nada será escrito.** Sem ele, o
+> DuckDB abre para escrita e cria um arquivo `.wal` ao lado do banco.
+
+### 4. Subir os dois processos
+
+A interface e a API são separadas, e **as duas precisam estar de pé**. Abra dois
+terminais:
+
+```bash
+# terminal 1 — a API (deixe rodando)
+.venv/bin/python -m uvicorn src.api:app --port 8000
+```
+
+```bash
+# terminal 2 — a interface (deixe rodando)
+cd frontend && npm run dev
+```
+
+Abra **http://localhost:5173**. É esta a primeira tela:
+
+<div align="center">
+<img src="docs/img/01-inicio.png" alt="Tela inicial com sugestões de pergunta e a barra de seções à esquerda" width="880">
+</div>
+
+Para conferir que a API subiu antes de abrir a interface:
+
+```bash
+curl http://localhost:8000/api/health
+# {"ok":true,"internacoes":144386772,"model":"gpt-5-mini",...}
+```
+
+<details>
+<summary><b>Não subiu? Os quatro erros mais comuns</b></summary>
+
+| Sintoma | Causa | Conserto |
+|---|---|---|
+| `/api/health` devolve `"ok": false` com erro de arquivo | caminho do banco errado | confira as **quatro barras** e use caminho absoluto |
+| A interface abre mas diz "o backend não respondeu" | a API não está de pé, ou está em outra porta | suba o terminal 1; se mudou a porta, ajuste `VITE_API_URL` |
+| `OPENAI_API_KEY não configurada` | o `.env` está na pasta errada | tem de estar na **raiz**, não em `frontend/` |
+| A busca web recusa com 503 | falta `TAVILY_API_KEY` | é opcional — sem ela, todo o resto funciona |
+
+</details>
+
+### 5. Sem interface, se preferir
 
 ```bash
 .venv/bin/python -m src.cli
 ```
 
-**Web**, dois processos:
+O mesmo agente, no terminal.
 
-```bash
-# processo 1 — API
-.venv/bin/python -m uvicorn src.api:app --port 8000
+---
 
-# processo 2 — interface
-cd frontend && npm install && npm run dev
-```
+## As três ferramentas
 
-A interface sobe em `http://localhost:5173`.
+Elas dividem o mesmo motor de consulta e servem a momentos diferentes. A barra
+da esquerda alterna entre as três.
 
-<div align="center">
+| | Para quê | O que guarda | Quando usar |
+|---|---|---|---|
+| 💬 **Chat** | uma pergunta, uma resposta | nada — é rascunho | explorar, testar uma hipótese |
+| 🔖 **Temas** | acumular evidência sobre um assunto | blocos **congelados**, com SQL e fonte | montar um argumento que precisa ser conferível depois |
+| 📊 **Painéis** | acompanhar números que mudam | consultas **vivas**, com filtros | olhar o mesmo recorte de várias formas |
 
-<img src="docs/img/01-inicio.png" alt="Tela inicial com sugestões de pergunta" width="880">
-
-</div>
+**A diferença entre tema e painel não é de gosto, é de garantia.** O bloco de um
+tema fica congelado de propósito: um número citado num relatório precisa
+continuar citável daqui a um mês. O widget de um painel precisa do contrário —
+recalcular a cada filtro. Se um filtro pudesse mexer num bloco de tema, a
+citação apodreceria.
 
 ---
 
@@ -223,6 +293,136 @@ Isso existe porque uma versão anterior mediu "câncer" como `C00-C97` **mais**
 apenas como "câncer". O número estava certo e o rótulo errado, o que num painel
 é pior: o gráfico circula sem a definição junto.
 
+### Temas: uma investigação que não se perde
+
+<div align="center">
+<img src="docs/img/09-tema.png" alt="Painel de um tema: mosaico de blocos com gráficos, indicadores e citações da web, com o chat do tema à direita" width="920">
+</div>
+
+Um tema é um espaço que acumula evidência sobre um assunto. Qualquer resposta do
+chat pode ser **fixada** nele, e cada bloco guarda o resultado inteiro — o SQL, as
+linhas, as suposições — para continuar legível daqui a um mês.
+
+**Três coisas que o tema faz e o chat não:**
+
+**1. As perguntas enxergam o que já foi apurado.** Perguntar *"e por sexo?"*
+dentro de um tema herda o recorte dos blocos fixados, em vez de contar as 144
+milhões de internações.
+
+**2. O tema RESPONDE.** Se a resposta já está num bloco, ele lê o bloco em vez de
+reconsultar o banco — e diz de onde tirou:
+
+```
+você › quantos óbitos por câncer já apuramos aqui?
+       ⌾ respondido com o que já está fixado neste tema
+       Foram 182.765 óbitos por neoplasia maligna (CID C00–C97) ¹
+       ¹ Quantas pessoas morreram por algum tipo de câncer?
+```
+
+Clicar no número da citação rola até o card e o destaca. A regra do produto não
+foi afrouxada, foi trocada por uma mais forte: de *"todo número veio da consulta
+de agora"* para **"todo número veio de uma evidência identificada"**.
+
+Perguntas *sobre* a investigação — "explique este tema", "o que já sabemos" —
+recebem um panorama: do que se trata, o que foi estabelecido separando apuração
+de citação, e o que fica em aberto.
+
+**3. Busca em fontes confiáveis, com procedência.** Peça *"busque na internet
+sobre X"* e os achados voltam com domínio, trecho literal e link, cada um com um
+clique para virar citação no tema. A busca é restrita a domínios oficiais e
+científicos (DATASUS, gov.br, IBGE, Fiocruz, SciELO, OMS, PubMed), e **o conteúdo
+externo nunca entra no prompt que gera SQL** — uma página é conteúdo de terceiro,
+e uma que diga "ignore as instruções anteriores" seria instrução chegando pelo
+canal dos dados.
+
+Os blocos se arrastam e se redimensionam livremente. Nada se reorganiza sozinho:
+o bloco fica exatamente onde foi solto, e a grade de fundo mostra onde ele cabe.
+
+### Painéis: números que se recalculam
+
+<div align="center">
+<img src="docs/img/07-painel.png" alt="Painel com filtros de sexo e caráter da internação, um gráfico de linha e dois indicadores" width="920">
+</div>
+
+Um painel é o oposto de um tema: cada widget é uma **consulta viva**, sem
+resultado guardado, que roda de novo a cada mudança de filtro.
+
+**A mesma caixa cria gráficos e filtros.** O pedido é classificado antes de agir:
+
+```
+"óbitos por ano"                    → widget
+"quero ver só mulheres"             → filtro
+"um gráfico de internações por sexo"→ widget
+"filtro por faixa etária"           → filtro
+```
+
+Na dúvida ele escolhe widget — um gráfico a mais se apaga com um clique, um
+filtro criado sem querer muda o painel inteiro. Dois botões ao lado forçam a
+escolha quando ele erra.
+
+**Os filtros são declarados, não fixos.** Peça *"um filtro por sexo, onde eu
+possa escolher um ou os dois"* e o modelo declara a coluna, a forma do controle e
+o fragmento SQL; o **código lê o domínio no banco**. Um controle de sexo escrito à
+mão diria "Masculino/Feminino"; nesta base os valores são `1` e `3`, com a
+contagem de cada um ao lado — e o modelo anota o que significam.
+
+**O filtro alcança o SQL sem regerar nada.** O widget reserva um lugar no `WHERE`
+na hora da criação, e o código injeta a conjunção dos filtros ativos. Trocar um
+filtro é pura reexecução: determinística, sem modelo no caminho. Regerar o SQL a
+cada movimento de slider custaria uma chamada por widget e — pior — não seria
+determinístico: o gráfico mudaria por razão que não é o filtro.
+
+### A lupa: qual filtro vale em qual gráfico
+
+<div align="center">
+<img src="docs/img/08-lupa.png" alt="Lupa aberta num widget, listando os filtros do painel com caixas de marcação" width="920">
+</div>
+
+Por padrão um filtro novo vale para **todos** os gráficos. Mas nem todo recorte
+faz sentido em todo lugar: num painel com "óbitos por sexo" ao lado de "total
+geral", filtrar o primeiro por sexo o reduz a uma barra.
+
+A lupa de cada widget mostra quais filtros valem ali e permite desligar um. Pela
+linguagem também: *"adicione um filtro por caráter da internação, mas aplique só
+no gráfico de óbitos"*.
+
+O widget avisa no cabeçalho o que dispensou — e só para filtros que estão de fato
+recortando. **Um filtro que silenciosamente vale para metade do painel é pior que
+filtro nenhum:** a pessoa move o controle, vê três gráficos mudarem e dois não, e
+conclui que os dois não mudaram por causa do dado.
+
+### Aparência: cinco paletas, cromo e gráficos juntos
+
+<div align="center">
+<img src="docs/img/10-paletas.png" alt="Seletor de paletas mostrando Padrão, Argila, Daltonismo, Darcula e Alto contraste com amostras das cores reais" width="620">
+</div>
+
+| Paleta | |
+|---|---|
+| **Padrão** | azul-petróleo sobre neutros frios |
+| **Argila** | creme e terracota, inspirada no Claude |
+| **Daltonismo** | Okabe-Ito reordenado |
+| **Darcula** | cinzas quentes do VS Code, com croma de dado |
+| **Alto contraste** | preto e branco puros |
+
+Cada paleta troca o fundo, as superfícies, o texto, o acento **e as cores das
+séries dos gráficos**. Trocar só o cromo seria meia solução — uma paleta para
+daltonismo que não alcança o gráfico não serve para nada, porque é no dado que a
+cor carrega informação.
+
+As séries não foram escolhidas por gosto: passaram pelo validador de paletas
+(banda de luminosidade, piso de croma, separação sob deutan/protan, contraste com
+a superfície). Dois achados que valem registro:
+
+- **A ordem importa tanto quanto as cores.** O Okabe-Ito na ordem publicada dá
+  ΔE 7,6 no pior par adjacente; reordenado, **18**. Mesmas cinco cores.
+- **Cor de editor não é cor de dado.** As cores literais do Darcula *reprovam* —
+  são pensadas para texto sobre fundo escuro, têm croma baixo, e `#6A8759` contra
+  `#6897BB` dá ΔE 13,8, indistinguível até com visão normal.
+
+Um tema pode ainda ter paleta própria, guardada no servidor: a aparência viaja no
+link junto com a investigação.
+
 ### Trace de depuração
 
 <div align="center">
@@ -280,29 +480,51 @@ DuckDB é a mesma conexão read-only, aberta uma vez.
 src/
   agent.py             pipeline; prompts de SQL e de resposta
   llm.py               chamadas à OpenAI, saída estruturada e streaming
-  db.py                DuckDB read-only, validação de SQL, LIMIT, timeout
+  db.py                DuckDB read-only, validação, LIMIT, timeout, parâmetros
   value_linker.py      casa termos da pergunta com valores reais das dimensões
   schema_context.py    renderiza schema.yaml para o prompt
+  roteador.py          no chat do tema: banco, web, tema ou os dois
+  websearch.py         busca com lista branca de domínios (Tavily)
+  storage.py           documentos JSON com escrita atômica
   cli.py               interface de linha de comando
   api.py               FastAPI + Server-Sent Events
-  investigation/
+
+  investigation/       o modo de várias consultas
     models.py          Etapa, Achado, Relatorio, Reflexao
     contracts.py       schemas de saída estruturada e prompts
     phases.py          planejar · executar · refletir
-    report.py          síntese e serialização
     runner.py          orquestra e é o único dono do orçamento
 
+  themes/              TEMAS — evidência congelada, com procedência
+    models.py          Tema, Bloco, Definicao; a grade em células
+    contexto.py        o que o tema oferece à geração de SQL
+    indice.py          catálogo dos blocos (sem dados) e detalhe (com)
+    resposta.py        responder A PARTIR dos blocos, citando qual
+    store.py           um arquivo JSON por tema
+
+  paineis/             PAINÉIS — consultas vivas, com filtros
+    models.py          Painel, Widget; o token {{FILTROS}}
+    filtros.py         filtro declarado: fragmento, domínio, seleção
+    gerar.py           pergunta → widget com lugar reservado no WHERE
+    gerar_filtro.py    pedido → filtro ancorado numa coluna real
+    rotear.py          o pedido é um gráfico ou um filtro?
+    executar.py        injeta a conjunção e roda; sem modelo no caminho
+
 knowledge/schema.yaml  o dicionário curado — o artefato central
+
 eval/
   ground_truth.yaml    272 casos com SQL gold
   run_eval.py          execution accuracy com tolerância
   testa_graficos.py    escolha da forma do gráfico, ponta a ponta
   testa_reflexao.py    reflexão isolada, com evidências sintéticas
+
 frontend/src/
-  components/          chat, resultado, gráfico, schema, relatório
-  hooks/               useChat, useInvestigation, useTheme
-  lib/                 cliente SSE, tipos, tema dos gráficos
-  scripts/             captura dos screenshots deste README
+  components/          chat, resultado, gráfico, schema, relatório, paleta
+  theme/               a tela de temas: grade, blocos, chat do tema
+  dashboard/           a tela de painéis: filtros, widgets, lupa
+  hooks/               useChat, useInvestigation, useTheme, usePaleta
+  lib/                 cliente SSE, tipos, paletas, tema dos gráficos
+  scripts/             testes sem navegador e captura dos screenshots
 ```
 
 ### Value linking: por que existe, e como quase estragou tudo
@@ -381,9 +603,20 @@ consulta. É aí que vale trabalhar.
 ### Outros testes
 
 ```bash
+# agente
 .venv/bin/python eval/testa_graficos.py      # 7/7 — forma do gráfico, ponta a ponta
 .venv/bin/python eval/testa_reflexao.py      # 3/3 — reflexão, sem tocar o banco
+
+# interface — rodam em segundos, sem navegador e sem banco
+node --experimental-strip-types frontend/scripts/testa_grade.mjs
+node --experimental-strip-types frontend/scripts/testa_paletas.mjs
 ```
+
+`testa_grade.mjs` cobre a geometria do painel: 800 arranjos aleatórios provando
+que **nenhum vizinho se move** e que o alvo vai exatamente para onde foi pedido.
+`testa_paletas.mjs` mede o contraste de texto das nove combinações paleta×modo —
+ele foi quem descobriu que o tema **padrão** já reprovava, com `--ink-subtle` a
+3,9:1 onde o comentário no CSS prometia 4,7:1.
 
 ---
 
@@ -397,6 +630,14 @@ consulta. É aí que vale trabalhar.
 - `LIMIT` injetado quando ausente; timeout que interrompe o cursor.
 - A interface trabalha **só com agregados** — nenhuma informação individual de
   paciente é exibida.
+- **Valor de filtro vai vinculado, nunca concatenado.** O painel usa parâmetros
+  do DuckDB, então um valor vindo da tela não pode virar sintaxe. Conferido com
+  `B342' OR '1'='1` e `x'; DROP TABLE internacoes; --` — os dois viraram texto e
+  devolveram zero, com a tabela intacta.
+- **Conteúdo da web nunca alcança a geração de SQL.** Ele chega ao redator da
+  resposta cercado e rotulado como conteúdo de terceiro, com instrução de ignorar
+  comandos que apareçam dentro. A lista branca de domínios reduz a superfície; a
+  barreira a fecha.
 
 ---
 
@@ -421,6 +662,13 @@ consulta. É aí que vale trabalhar.
   é limite real do sistema em consultas com janela, percentil e média móvel.
 - A acurácia é de **uma** execução, e o modelo varia: 15% das falhas passam numa
   segunda tentativa. O número tem uma margem de uns 4 pontos.
+- O painel **reexecuta todos os widgets** a cada mudança de filtro. O endpoint já
+  aceita `?only=` para limitar aos visíveis, e a tela ainda não usa: com poucos
+  widgets não incomoda, com vinte vai.
+- Não há **formulário** para montar um widget escolhendo coluna, agregação e tipo
+  de gráfico à mão. O caminho é a linguagem natural mais o ajuste por arrasto.
+- A grade é sempre de 12 colunas, sem quebra para tela estreita. Em desktop está
+  certo; num celular fica apertado.
 
 ---
 
@@ -432,6 +680,8 @@ consulta. É aí que vale trabalhar.
 | [`knowledge/schema.yaml`](knowledge/schema.yaml) | as 20 regras, cada uma com a evidência que a motivou |
 | [`eval/ground_truth.yaml`](eval/ground_truth.yaml) | os 272 casos com SQL gold |
 | [`docs/gera_arquitetura.py`](docs/gera_arquitetura.py) | gera o diagrama acima, nas versões clara e escura |
+| [`src/paineis/filtros.py`](src/paineis/filtros.py) | por que um filtro inativo não entra na consulta |
+| [`src/themes/resposta.py`](src/themes/resposta.py) | as três guardas de responder a partir de um bloco |
 
 ---
 
@@ -439,9 +689,10 @@ consulta. É aí que vale trabalhar.
 <sub>
 
 Os screenshots deste README são capturados contra a aplicação real por
-[`frontend/scripts/screenshots.mjs`](frontend/scripts/screenshots.mjs) —
-o script digita as perguntas na interface e espera o agente responder, então os
-números nas imagens vieram do DuckDB.
+[`screenshots.mjs`](frontend/scripts/screenshots.mjs) e
+[`screenshots-painel.mjs`](frontend/scripts/screenshots-painel.mjs) — os scripts
+sobem um Chromium, digitam as perguntas na interface e esperam o agente
+responder. Nada é montado para a foto: os números nas imagens vieram do DuckDB.
 
 </sub>
 </div>

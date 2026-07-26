@@ -341,16 +341,27 @@ gold e o SQL previsto e compara os **resultados**, com:
 
 | Conjunto ampliado — 272 casos | |
 |---|---|
-| **Acurácia geral** | **205/272 — 75,4%** |
-| SQL executável | 235/237 — 99,2% |
-| Recusa correta | 26/35 — 74,3% |
+| **Acurácia geral** | **199/272 — 73,2%** |
+| SQL executável | 230/237 — 97,0% |
+| Recusa correta | 28/35 — 80,0% |
+
+Números de **uma execução completa**, todos apurados do mesmo relatório. Vale
+dizer o que isso corrige: a marca anterior de 75,4% somava 179 casos de uma
+execução com 26 recuperados ao reavaliar predições antigas depois de consertar o
+avaliador e 14 golds. Não era uma medição, era duas.
+
+**Uma rodada isolada não distingue diferenças pequenas.** Reexecutando só os 73
+casos que falharam, sem mudar uma linha de código, **11 passaram na segunda
+tentativa** — 15% do conjunto de falhas é instável. Na prática: variação de até
+uns 4 pontos entre execuções é ruído do modelo, não sinal. Comparações que
+dependam de menos que isso precisam de mais de uma rodada.
 
 **A média esconde uma divisão nítida.** Mesmo sistema, mesma execução:
 
 | Origem do caso | Acurácia |
 |---|---|
-| 57 escritos e conferidos à mão neste projeto | **89,5%** |
-| 215 importados de um conjunto externo | **59,5%** |
+| 57 escritos e conferidos à mão neste projeto | **96,5%** |
+| 215 importados de um conjunto externo | **67,0%** |
 
 Trinta pontos não são variação do modelo — são **qualidade de ground truth**. A
 maioria das falhas vem de perguntas sub-especificadas, em que mais de uma
@@ -360,7 +371,12 @@ linhas, e o gold trazia um `LIMIT 10` arbitrário.
 A lição de engenharia: **um conjunto de avaliação grande e frouxo mede menos que
 um pequeno e preciso.** Nas categorias em que a pergunta é inequívoca o
 desempenho se mantém alto — `armadilha` 10/10, `dado_corrompido` 3/3,
-`filtro` 88%.
+`agregacao_simples` 22/23, `filtro` 86%.
+
+O ponto fraco é nítido e não é ambiguidade de enunciado: **`agregacao_complexa`,
+17/44 — 38,6%**, a pior categoria e a terceira maior. São as perguntas com
+janela, percentil, média móvel ou comparação entre dois recortes na mesma
+consulta. É aí que vale trabalhar.
 
 ### Outros testes
 
@@ -401,11 +417,10 @@ desempenho se mantém alto — `armadilha` 10/10, `dado_corrompido` 3/3,
 - A reflexão da investigação está provada em teste isolado (3/3 com evidências
   sintéticas), mas **ainda não disparou numa investigação real**: nos casos
   testados o plano inicial já vinha completo.
-- O campo `chart` entrou no schema de saída sem uma reexecução completa da
-  avaliação; os 75,4% são anteriores a ele.
-- Uma execução limpa dos 272 casos ainda não foi feita. Os 205 combinam 179
-  confirmados numa execução completa com 26 recuperados ao reavaliar as mesmas
-  predições depois de corrigir o avaliador e 14 golds.
+- `agregacao_complexa` fica em 38,6%. Não é ruído nem ambiguidade de enunciado —
+  é limite real do sistema em consultas com janela, percentil e média móvel.
+- A acurácia é de **uma** execução, e o modelo varia: 15% das falhas passam numa
+  segunda tentativa. O número tem uma margem de uns 4 pontos.
 
 ---
 

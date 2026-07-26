@@ -1,4 +1,4 @@
-import { ArrowUp, Square } from "lucide-react";
+import { BookOpen, ArrowUp, Square } from "lucide-react";
 import {
   forwardRef,
   useCallback,
@@ -21,10 +21,12 @@ interface ComposerProps {
   busy: boolean;
   onSend: (texto: string) => void;
   onStop: () => void;
+  /** Abre o painel que mostra o que um termo significa nesta base. */
+  onDefineTerm?: () => void;
 }
 
 export const Composer = forwardRef<ComposerHandle, ComposerProps>(
-  ({ busy, onSend, onStop }, ref) => {
+  ({ busy, onSend, onStop, onDefineTerm }, ref) => {
     const [valor, setValor] = useState("");
     const area = useRef<HTMLTextAreaElement>(null);
 
@@ -109,6 +111,17 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
             </kbd>{" "}
             quebra linha
           </p>
+          <div className="flex items-center gap-2">
+            {onDefineTerm && (
+              <button
+                type="button"
+                onClick={onDefineTerm}
+                className="flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1 text-[11.5px] text-ink-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+              >
+                <BookOpen aria-hidden className="h-3.5 w-3.5" />
+                Definir um termo
+              </button>
+            )}
           {busy ? (
             <Button size="icon" variant="outline" onClick={onStop} aria-label="Parar geração">
               <Square aria-hidden className="h-3 w-3 fill-current" />
@@ -124,6 +137,7 @@ export const Composer = forwardRef<ComposerHandle, ComposerProps>(
               <ArrowUp aria-hidden className="h-4 w-4" strokeWidth={2.5} />
             </Button>
           )}
+          </div>
         </div>
       </div>
     );

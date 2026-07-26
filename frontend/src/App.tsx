@@ -5,6 +5,7 @@ import { Composer, type ComposerHandle } from "@/components/chat/Composer";
 import { MessageList } from "@/components/chat/MessageList";
 import { SchemaExplorer } from "@/components/schema/SchemaExplorer";
 import { ReportPanel } from "@/components/report/ReportPanel";
+import { ConceptPanel } from "@/components/concept/ConceptPanel";
 import { useInvestigation } from "@/hooks/useInvestigation";
 import { useChat } from "@/hooks/useChat";
 import { cn } from "@/lib/utils";
@@ -82,6 +83,15 @@ export default function App() {
   );
 
   const inv = useInvestigation();
+  const [conceitoAberto, setConceitoAberto] = useState(false);
+
+  // A definição confirmada é anexada à pergunta, não guardada em estado à
+  // parte: assim ela viaja no histórico, aparece no trace e fica registrada
+  // junto da resposta que produziu.
+  const usarDefinicao = useCallback((clausula: string) => {
+    composer.current?.append(clausula);
+    setConceitoAberto(false);
+  }, []);
 
   const painel = (
     <SchemaExplorer
@@ -117,7 +127,13 @@ export default function App() {
             />
             <div className="border-t border-line bg-canvas/85 px-3 py-3 backdrop-blur-md sm:px-5">
               <div className="mx-auto max-w-3xl">
-                <Composer ref={composer} busy={busy} onSend={perguntar} onStop={stop} />
+                <Composer
+                  ref={composer}
+                  busy={busy}
+                  onSend={perguntar}
+                  onDefineTerm={() => setConceitoAberto(true)}
+                  onStop={stop}
+                />
                 <p className="mt-2 px-1 text-center text-[11px] leading-relaxed text-ink-subtle">
                   Dados agregados de internações do SUS. Nenhuma informação individual de
                   paciente é acessada.
@@ -131,12 +147,18 @@ export default function App() {
               não rodar, o painel ainda assim chega à largura final em vez de
               ficar parado no meio, cortando o conteúdo. */}
           <aside
-            aria-label={inv.aberto ? "Relatório da investigação" : "Estrutura do banco"}
-            aria-hidden={!(schemaOpen || inv.aberto) || isMobile}
+            aria-label={
+              inv.aberto
+                ? "Relatório da investigação"
+                : conceitoAberto
+                  ? "Definição de termo"
+                  : "Estrutura do banco"
+            }
+            aria-hidden={!(schemaOpen || conceitoAberto || inv.aberto) || isMobile}
             className={cn(
               "hidden min-h-0 shrink-0 overflow-hidden border-l border-line lg:block",
               "transition-[width] duration-200 ease-out",
-              inv.aberto ? "w-[30rem]" : schemaOpen ? "w-80" : "w-0",
+              inv.aberto ? "w-[30rem]" : conceitoAberto || schemaOpen ? "w-80" : "w-0",
             )}
           >
             {/* A largura anima em CSS; o conteúdo tem largura fixa para não
@@ -150,6 +172,11 @@ export default function App() {
                   blocks={inv.blocos}
                   error={inv.erro}
                   onClose={inv.fechar}
+                />
+              ) : conceitoAberto ? (
+                <ConceptPanel
+                  onConfirm={usarDefinicao}
+                  onClose={() => setConceitoAberto(false)}
                 />
               ) : (
                 painel

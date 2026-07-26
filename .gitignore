@@ -48,6 +48,7 @@ eval/ground_truth_merged.yaml
 node_modules/
 frontend/dist/
 frontend/.vite/
+*.tsbuildinfo
 *.local
 
 # navegadores baixados pelo playwright (só o script de screenshots usa)

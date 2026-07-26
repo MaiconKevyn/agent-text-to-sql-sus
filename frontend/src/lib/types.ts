@@ -247,3 +247,32 @@ export const PHASE_LABELS: Record<InvestigationPhase, string> = {
   aprofundar: "Fechando as lacunas",
   sintetizar: "Escrevendo o relatório",
 };
+
+/* --------------------------------------------------------------------------
+   Definição de conceito: o que um termo clínico significa NESTA base.
+   Espelha src/concepts.py.
+   -------------------------------------------------------------------------- */
+
+export interface ConceptCandidate {
+  source: "procedimento" | "cid";
+  /** Coluna do fato onde o código é filtrado. `DIAG_PRINC_CAT` filtra por
+   *  LEFT(DIAG_PRINC,3) — categoria CID em vez de subcategoria. */
+  column: "PROC_REA" | "DIAG_PRINC" | "DIAG_PRINC_CAT";
+  code: string;
+  description: string;
+  admissions: number;
+  /** Proposta do modelo. O usuário decide. */
+  suggested: boolean;
+  /** Por que ficou de fora, quando ficou. */
+  note: string;
+}
+
+export interface Concept {
+  term: string;
+  /** Armadilha conhecida deste termo nesta base. Vazio quando não há. */
+  alert: string;
+  /** CONTAGEM da seleção, nunca a soma dos candidatos — procedimento e
+   *  diagnóstico descrevem as mesmas internações. */
+  total: number;
+  candidates: ConceptCandidate[];
+}

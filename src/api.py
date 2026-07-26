@@ -2,10 +2,13 @@
 
     .venv/bin/uvicorn src.api:app --reload --port 8000
 
-Três rotas:
-    GET /api/health   estado do banco e do modelo
-    GET /api/schema   estrutura do banco, para o explorador do frontend
-    GET /api/ask?q=…  eventos do agente via Server-Sent Events
+Rotas:
+    GET  /api/health          estado do banco e do modelo
+    GET  /api/schema          estrutura do banco, para o explorador
+    GET  /api/concept?term=…  os códigos que um termo significa nesta base
+    POST /api/concept/count   reconta quando o usuário muda a seleção
+    GET  /api/ask?q=…         eventos do agente via SSE
+    GET  /api/investigate?q=… investigação com várias consultas, via SSE
 
 O SSE usa GET porque `EventSource` no navegador só faz GET. Cada evento é uma
 linha `data: {...}` com o mesmo formato que o frontend já consome — o contrato
@@ -18,10 +21,11 @@ import json
 from collections.abc import Iterator
 
 import yaml
-from fastapi import FastAPI, Query
+from fastapi import Body, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from . import concepts
 from .investigation import Investigador
 from .agent import TextToSQLAgent, Turn
 from .config import settings
@@ -38,7 +42,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(5173|5174|5175|4173)",
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -173,6 +177,32 @@ def _schema_payload() -> dict:
 @app.get("/api/schema")
 def schema() -> JSONResponse:
     return JSONResponse(_schema_payload())
+
+
+@app.get("/api/concept")
+def concept(
+    term: str = Query(..., min_length=3, max_length=60, description="Termo clínico"),
+) -> JSONResponse:
+    """Resolve um termo nos códigos que ele significa nesta base.
+
+    Existe porque o agente erra a DEFINIÇÃO com mais frequência do que erra SQL,
+    e o erro de definição sai plausível: "covid" em U07 devolve zero, "parto" em
+    um único procedimento perde 1,19 milhão de partos.
+    """
+    return JSONResponse(concepts.para_json(concepts.resolve(agente().db, term)))
+
+
+@app.post("/api/concept/count")
+def concept_count(selecao: list[dict] = Body(..., embed=False)) -> JSONResponse:
+    """Reconta ao vivo quando o usuário muda a seleção.
+
+    Sem isto o painel teria de SOMAR os candidatos marcados — e somar
+    procedimento com diagnóstico conta a mesma internação duas vezes: para
+    "parto" a soma dá 43.564.593 onde a união é 25.010.349. O número mostrado
+    tem de vir de uma contagem, sempre.
+    """
+    total = concepts.contar(agente().db, concepts.de_json(selecao))
+    return JSONResponse({"total": total})
 
 
 @app.get("/api/investigate")

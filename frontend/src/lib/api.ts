@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { DatabaseSchema, StreamEvent, Turn, InvestigationEvent } from "./types";
+import type { DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -172,4 +172,32 @@ export async function* investigate(
       yield JSON.parse(linha.slice(5).trim()) as InvestigationEvent;
     }
   }
+}
+
+/** Resolve um termo clínico nos códigos que ele significa nesta base. */
+export async function resolveConcept(term: string, signal?: AbortSignal): Promise<Concept> {
+  const r = await fetch(`${BASE}/api/concept?term=${encodeURIComponent(term)}`, { signal });
+  if (!r.ok) throw new Error(`Não foi possível resolver "${term}" (HTTP ${r.status}).`);
+  return (await r.json()) as Concept;
+}
+
+/**
+ * Reconta no banco quando a seleção muda.
+ *
+ * Somar os candidatos marcados no cliente seria mais rápido e estaria errado:
+ * uma internação de parto tem procedimento E diagnóstico de parto, e a soma a
+ * conta duas vezes — 43,5 milhões onde a união é 25,0 milhões.
+ */
+export async function countConcept(
+  selecao: ConceptCandidate[],
+  signal?: AbortSignal,
+): Promise<number> {
+  const r = await fetch(`${BASE}/api/concept/count`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(selecao.map((c) => ({ code: c.code, column: c.column }))),
+    signal,
+  });
+  if (!r.ok) throw new Error(`Falha ao contar (HTTP ${r.status}).`);
+  return ((await r.json()) as { total: number }).total;
 }

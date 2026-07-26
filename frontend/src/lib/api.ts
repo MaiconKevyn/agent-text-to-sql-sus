@@ -309,3 +309,14 @@ export const searchStatus = () =>
 /** Devolve candidatos para escolha humana. Nada aqui é fixado sozinho. */
 export const searchWeb = (q: string) =>
   json<SearchResult>(`/api/search?q=${encodeURIComponent(q)}`);
+
+/** Formato e tamanho do bloco no painel. */
+export const layoutBlock = (
+  id: string,
+  blocoId: string,
+  layout: { format?: string; size?: string },
+) =>
+  json<Theme>(`/api/themes/${id}/blocks/${blocoId}/layout`, {
+    method: "POST",
+    body: JSON.stringify(layout),
+  });

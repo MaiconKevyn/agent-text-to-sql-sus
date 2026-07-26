@@ -306,6 +306,12 @@ export interface Continuity {
 export type Provenance = "banco" | "web" | "arquivo" | "usuario";
 export type BlockKind = "consulta" | "investigacao" | "nota";
 
+/** Separado de `kind` porque são perguntas diferentes: `kind` é de onde veio,
+ *  `format` é o que o leitor vê. A mesma consulta de uma linha pode ser um
+ *  número grande ou uma tabela. */
+export type BlockFormat = "auto" | "indicador" | "grafico" | "tabela" | "citacao";
+export type BlockSize = "p" | "m" | "g";
+
 export interface ThemeBlock {
   id: string;
   kind: BlockKind;
@@ -324,6 +330,10 @@ export interface ThemeBlock {
   sourceUrl: string;
   sourceTitle: string;
   accessedAt: string;
+  /** COMO o bloco se apresenta. `auto` deixa a interface escolher. */
+  format: BlockFormat;
+  /** Quanto ocupa na grade de três colunas. */
+  size: BlockSize;
   pinnedAt: string;
 }
 

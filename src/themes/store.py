@@ -92,6 +92,25 @@ class Armazem:
         bloco.anotacao = anotacao.strip()
         return self.salvar(tema)
 
+    def formatar(
+        self, id_: str, bloco_id: str, *, formato: str | None = None, tamanho: str | None = None
+    ) -> Tema:
+        """Ajusta a apresentação de um bloco no painel.
+
+        Valores fora dos previstos são ignorados em silêncio em vez de virarem
+        erro: o pedido vem do cliente, e um valor desconhecido é ruído, não
+        motivo para recusar a operação inteira.
+        """
+        tema = self.ler(id_)
+        bloco = tema.bloco(bloco_id)
+        if bloco is None:
+            raise TemaInexistente(bloco_id)
+        if formato in ("auto", "indicador", "grafico", "tabela", "citacao"):
+            bloco.formato = formato  # type: ignore[assignment]
+        if tamanho in ("p", "m", "g"):
+            bloco.tamanho = tamanho  # type: ignore[assignment]
+        return self.salvar(tema)
+
     def reordenar(self, id_: str, ordem: list[str]) -> Tema:
         """Reordena pelos ids recebidos; o que não vier na lista fica no fim."""
         tema = self.ler(id_)

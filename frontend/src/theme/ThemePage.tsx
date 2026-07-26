@@ -1,21 +1,16 @@
-import { ArrowLeft, Bookmark, FileText, Loader2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Bookmark, FileText, Loader2, Plus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { ResultChart } from "@/components/result/ResultChart";
-import { ResultTable } from "@/components/result/ResultTable";
-import { SqlBlock } from "@/components/result/SqlBlock";
 import { Badge } from "@/components/ui/badge";
 import { useTheme } from "@/hooks/useTheme";
 import {
   createTheme,
   listThemes,
-  noteBlock,
   readTheme,
-  unpinBlock,
 } from "@/lib/api";
-import type { Theme, ThemeBlock } from "@/lib/types";
+import type { Theme } from "@/lib/types";
 import { ThemeChat } from "./ThemeChat";
 import { AddSource } from "@/components/theme/AddSource";
-import { SourceBadge } from "@/components/theme/SourceBadge";
+import { BlocoPainel } from "./BlocoPainel";
 
 const nf = new Intl.NumberFormat("pt-BR");
 
@@ -262,15 +257,9 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
           </p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {blocos.map((b, i) => (
-            <BlocoFixado
-              key={b.id}
-              bloco={b}
-              indice={i + 1}
-              temaId={tema.id}
-              onMudou={onMudou}
-            />
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          {blocos.map((b) => (
+            <BlocoPainel key={b.id} bloco={b} temaId={tema.id} onMudou={onMudou} />
           ))}
         </div>
       )}
@@ -280,146 +269,5 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
       </div>
       </div>
     </div>
-  );
-}
-
-/** Só o domínio, para o rótulo do link não estourar a largura do bloco. */
-function dominio(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-function BlocoFixado({
-  bloco,
-  indice,
-  temaId,
-  onMudou,
-}: {
-  bloco: ThemeBlock;
-  indice: number;
-  temaId: string;
-  onMudou: () => void;
-}) {
-  const [anotacao, setAnotacao] = useState(bloco.note);
-  const [estado, setEstado] = useState<"parado" | "salvando" | "salvo">("parado");
-
-  /**
-   * Salva sozinha, 800 ms depois de parar de digitar.
-   *
-   * Salvar só no `blur` perde a anotação de quem digita e fecha a aba — e é
-   * justamente o texto mais caro de reescrever, porque é a única parte do bloco
-   * que não dá para reproduzir rodando a consulta de novo.
-   */
-  useEffect(() => {
-    if (anotacao === bloco.note) return;
-    const t = setTimeout(async () => {
-      setEstado("salvando");
-      try {
-        await noteBlock(temaId, bloco.id, anotacao);
-        setEstado("salvo");
-        onMudou();
-      } catch {
-        setEstado("parado");
-      }
-    }, 800);
-    return () => clearTimeout(t);
-  }, [anotacao, bloco.note, bloco.id, temaId, onMudou]);
-
-  return (
-    <article className="overflow-hidden rounded-xl border border-line bg-surface">
-      <header className="flex items-start gap-2.5 border-b border-line px-4 py-2.5">
-        <span className="pt-0.5 text-[11px] text-ink-subtle">{indice}</span>
-        <div className="min-w-0 flex-1">
-          <h3 className="text-[13px] font-medium leading-snug text-ink">
-            {bloco.title || bloco.question}
-          </h3>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <SourceBadge provenance={bloco.provenance} />
-            {bloco.result && (
-              <Badge tone="neutral">{nf.format(bloco.result.nRows)} linhas</Badge>
-            )}
-          </div>
-        </div>
-        <button
-          onClick={async () => {
-            await unpinBlock(temaId, bloco.id);
-            onMudou();
-          }}
-          aria-label="Remover do tema"
-          className="rounded-lg p-1 text-ink-subtle transition-colors duration-150 hover:bg-raised hover:text-critical"
-        >
-          <Trash2 aria-hidden className="h-3.5 w-3.5" />
-        </button>
-      </header>
-
-      <div className="space-y-2.5 px-4 py-3">
-        {bloco.provenance !== "banco" && (
-          <div className="rounded-lg border border-caution/20 bg-caution-soft px-3 py-2">
-            {/* O trecho vai entre aspas e em itálico: é citação, não texto do
-                produto. Quem lê o relatório precisa distinguir sem esforço. */}
-            {bloco.text && (
-              <p className="text-[12.5px] italic leading-relaxed text-ink">
-                &ldquo;{bloco.text}&rdquo;
-              </p>
-            )}
-            <p className="mt-1.5 text-[11px] text-ink-muted">
-              {bloco.sourceUrl ? (
-                <a
-                  href={bloco.sourceUrl}
-                  target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="underline decoration-dotted underline-offset-2 hover:text-accent"
-                >
-                  {bloco.sourceTitle || dominio(bloco.sourceUrl)}
-                </a>
-              ) : (
-                <span>Anotação sem fonte externa</span>
-              )}
-              {bloco.accessedAt && <span> · acessado em {bloco.accessedAt}</span>}
-            </p>
-          </div>
-        )}
-
-        {bloco.definition && (
-          <div className="rounded-lg bg-raised px-3 py-2">
-            <p className="text-[10.5px] font-semibold uppercase tracking-wide text-ink-subtle">
-              O que foi medido
-            </p>
-            <p className="mt-0.5 text-[12px] leading-relaxed text-ink-muted">{bloco.definition}</p>
-          </div>
-        )}
-
-        {/* Só para bloco do banco: no externo, `text` É a citação, e já foi
-            renderizada acima entre aspas. Repeti-la aqui como texto comum
-            apagava justamente a distinção que o selo faz. */}
-        {bloco.provenance === "banco" && bloco.text && (
-          <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">{bloco.text}</p>
-        )}
-
-        {bloco.chart && bloco.result && (
-          <ResultChart spec={bloco.chart} result={bloco.result} />
-        )}
-        {bloco.sql && <SqlBlock sql={bloco.sql} />}
-        {bloco.result && <ResultTable result={bloco.result} />}
-
-        {/* A anotação é o que separa uma coleção de consultas de uma
-            investigação: registra por que este bloco está aqui. */}
-        <textarea
-          value={anotacao}
-          onChange={(e) => setAnotacao(e.target.value)}
-          rows={2}
-          placeholder="Por que este bloco importa para a investigação?"
-          className="block w-full resize-y rounded-lg border border-line bg-canvas px-3 py-2 text-[12.5px] leading-relaxed text-ink outline-none transition-colors duration-150 placeholder:text-ink-subtle focus:border-accent"
-        />
-        {estado !== "parado" && (
-          <p className="text-[11px] text-ink-subtle">
-            {estado === "salvando" ? "salvando…" : "anotação salva"}
-          </p>
-        )}
-      </div>
-    </article>
   );
 }

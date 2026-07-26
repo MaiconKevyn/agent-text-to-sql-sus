@@ -21,6 +21,16 @@ Procedencia = Literal["banco", "web", "arquivo", "usuario"]
 # `nota` é texto escrito por quem investiga.
 TipoBloco = Literal["consulta", "investigacao", "nota"]
 
+# COMO o bloco se apresenta no painel. Separado de `tipo` porque são perguntas
+# diferentes: `tipo` é de onde veio, `formato` é o que o leitor vê. A mesma
+# consulta que devolve uma linha pode ser um número grande ou uma tabela.
+# `auto` deixa a interface escolher pelo formato do resultado.
+Formato = Literal["auto", "indicador", "grafico", "tabela", "citacao"]
+
+# Quanto ocupa numa grade de três colunas. A altura acompanha o conteúdo: uma
+# segunda dimensão ajustável dobraria os estados sem dobrar o que se ganha.
+Tamanho = Literal["p", "m", "g"]
+
 
 def _agora() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -95,6 +105,10 @@ class Bloco:
     fonte_url: str = ""
     fonte_titulo: str = ""
     acessado_em: str = ""
+    # Apresentação. Nasce em `auto`/`m` e só muda se alguém ajustar — quem fixa
+    # um bloco não deveria precisar decidir o arranjo no mesmo gesto.
+    formato: Formato = "auto"
+    tamanho: Tamanho = "m"
     fixado_em: str = field(default_factory=_agora)
 
     def para_json(self) -> dict:
@@ -114,6 +128,8 @@ class Bloco:
             "sourceUrl": self.fonte_url,
             "sourceTitle": self.fonte_titulo,
             "accessedAt": self.acessado_em,
+            "format": self.formato,
+            "size": self.tamanho,
             "pinnedAt": self.fixado_em,
         }
 
@@ -135,6 +151,8 @@ class Bloco:
             fonte_url=str(d.get("sourceUrl") or ""),
             fonte_titulo=str(d.get("sourceTitle") or ""),
             acessado_em=str(d.get("accessedAt") or ""),
+            formato=d.get("format") or "auto",
+            tamanho=d.get("size") or "m",
             fixado_em=str(d.get("pinnedAt") or _agora()),
         )
 

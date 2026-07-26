@@ -375,6 +375,18 @@ def anotar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONRe
         return JSONResponse({"error": "Não encontrado."}, status_code=404)
 
 
+@app.post("/api/themes/{tema_id}/blocks/{bloco_id}/layout")
+def ajustar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Formato e tamanho do bloco no painel."""
+    try:
+        tema = armazem().formatar(
+            tema_id, bloco_id, formato=corpo.get("format"), tamanho=corpo.get("size")
+        )
+        return JSONResponse(tema.para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
 @app.post("/api/themes/{tema_id}/reorder")
 def reordenar_blocos(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
     try:

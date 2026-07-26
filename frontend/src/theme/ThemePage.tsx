@@ -14,6 +14,8 @@ import {
 } from "@/lib/api";
 import type { Theme, ThemeBlock } from "@/lib/types";
 import { ThemeChat } from "./ThemeChat";
+import { AddSource } from "@/components/theme/AddSource";
+import { SourceBadge } from "@/components/theme/SourceBadge";
 
 const nf = new Intl.NumberFormat("pt-BR");
 
@@ -272,9 +274,22 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
           ))}
         </div>
       )}
+
+      <div className="mt-3">
+        <AddSource temaId={tema.id} onAdicionou={onMudou} />
+      </div>
       </div>
     </div>
   );
+}
+
+/** Só o domínio, para o rótulo do link não estourar a largura do bloco. */
+function dominio(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
 }
 
 function BlocoFixado({
@@ -322,11 +337,7 @@ function BlocoFixado({
             {bloco.title || bloco.question}
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            {/* A procedência é visível desde já, com um valor só. Quando houver
-                web e arquivos, o leitor não terá de aprender nada novo. */}
-            <Badge tone={bloco.provenance === "banco" ? "neutral" : "caution"}>
-              {bloco.provenance === "banco" ? "do banco" : bloco.provenance}
-            </Badge>
+            <SourceBadge provenance={bloco.provenance} />
             {bloco.result && (
               <Badge tone="neutral">{nf.format(bloco.result.nRows)} linhas</Badge>
             )}
@@ -345,6 +356,33 @@ function BlocoFixado({
       </header>
 
       <div className="space-y-2.5 px-4 py-3">
+        {bloco.provenance !== "banco" && (
+          <div className="rounded-lg border border-caution/20 bg-caution-soft px-3 py-2">
+            {/* O trecho vai entre aspas e em itálico: é citação, não texto do
+                produto. Quem lê o relatório precisa distinguir sem esforço. */}
+            {bloco.text && (
+              <p className="text-[12.5px] italic leading-relaxed text-ink">
+                &ldquo;{bloco.text}&rdquo;
+              </p>
+            )}
+            <p className="mt-1.5 text-[11px] text-ink-muted">
+              {bloco.sourceUrl ? (
+                <a
+                  href={bloco.sourceUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="underline decoration-dotted underline-offset-2 hover:text-accent"
+                >
+                  {bloco.sourceTitle || dominio(bloco.sourceUrl)}
+                </a>
+              ) : (
+                <span>Anotação sem fonte externa</span>
+              )}
+              {bloco.accessedAt && <span> · acessado em {bloco.accessedAt}</span>}
+            </p>
+          </div>
+        )}
+
         {bloco.definition && (
           <div className="rounded-lg bg-raised px-3 py-2">
             <p className="text-[10.5px] font-semibold uppercase tracking-wide text-ink-subtle">
@@ -354,7 +392,10 @@ function BlocoFixado({
           </div>
         )}
 
-        {bloco.text && (
+        {/* Só para bloco do banco: no externo, `text` É a citação, e já foi
+            renderizada acima entre aspas. Repeti-la aqui como texto comum
+            apagava justamente a distinção que o selo faz. */}
+        {bloco.provenance === "banco" && bloco.text && (
           <p className="whitespace-pre-wrap text-[13px] leading-relaxed text-ink">{bloco.text}</p>
         )}
 

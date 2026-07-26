@@ -320,6 +320,10 @@ export interface ThemeBlock {
   assumptions: string[];
   /** Anotação de quem investiga — o porquê de o bloco estar aqui. */
   note: string;
+  /** De onde veio, quando não é do banco. É o que torna a citação conferível. */
+  sourceUrl: string;
+  sourceTitle: string;
+  accessedAt: string;
   pinnedAt: string;
 }
 

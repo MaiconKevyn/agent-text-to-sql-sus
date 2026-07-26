@@ -89,6 +89,12 @@ class Bloco:
     # Anotação de quem investiga. É o que transforma uma coleção de consultas
     # numa investigação: o porquê daquele bloco estar ali.
     anotacao: str = ""
+    # De onde veio, quando a procedência não é o banco. `url` e `acessado_em`
+    # são o que torna a citação conferível: sem eles, o trecho é só um texto que
+    # alguém colou, indistinguível de uma lembrança.
+    fonte_url: str = ""
+    fonte_titulo: str = ""
+    acessado_em: str = ""
     fixado_em: str = field(default_factory=_agora)
 
     def para_json(self) -> dict:
@@ -105,6 +111,9 @@ class Bloco:
             "definition": self.definicao,
             "assumptions": self.suposicoes,
             "note": self.anotacao,
+            "sourceUrl": self.fonte_url,
+            "sourceTitle": self.fonte_titulo,
+            "accessedAt": self.acessado_em,
             "pinnedAt": self.fixado_em,
         }
 
@@ -123,6 +132,9 @@ class Bloco:
             definicao=str(d.get("definition") or ""),
             suposicoes=list(d.get("assumptions") or []),
             anotacao=str(d.get("note") or ""),
+            fonte_url=str(d.get("sourceUrl") or ""),
+            fonte_titulo=str(d.get("sourceTitle") or ""),
+            acessado_em=str(d.get("accessedAt") or ""),
             fixado_em=str(d.get("pinnedAt") or _agora()),
         )
 
@@ -139,9 +151,13 @@ class Bloco:
             partes.append(f"Anotação de quem investiga: {self.anotacao}")
 
         if self.procedencia != "banco":
-            partes.append(f"[fonte externa: {self.procedencia}]")
+            # Só aparece no relatório, nunca na geração de SQL — a barreira está
+            # em contexto.py. O trecho vai LITERAL: se o modelo for citar isto,
+            # a citação tem de ser conferível contra a fonte.
+            origem = self.fonte_url or self.procedencia
+            partes.append(f"[fonte externa — {origem}]")
             if self.texto:
-                partes.append(self.texto[:600])
+                partes.append(f'Trecho citado: "{self.texto[:600]}"')
             return "\n".join(partes)
 
         res = self.resultado or {}

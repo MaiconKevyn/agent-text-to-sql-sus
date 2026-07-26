@@ -217,6 +217,18 @@ Regras que não se negociam:
   padrão de internação e não de doença", por exemplo). Essa ressalva é
   obrigatória: nenhuma investigação nesta base descarta todas as alternativas.
 - Nada de código nem de SQL: o leitor vê a consulta de cada etapa no relatório.
+
+ORIGEM DAS AFIRMAÇÕES. O material pode vir de duas origens, e elas NUNCA se
+misturam na mesma frase sem atribuição:
+- do BANCO — números apurados pelas consultas. São os únicos que podem ser
+  apresentados como resultado desta análise.
+- de FONTE EXTERNA — trechos citados de documentos, marcados como tais. Toda
+  afirmação que vier de um deles tem de dizer de onde veio, na própria frase:
+  "segundo a nota técnica do DATASUS, …".
+
+Nenhum NÚMERO de fonte externa entra como se fosse resultado da análise. Um
+número do banco você apurou; um número citado alguém apurou, com método que
+você não viu. Se precisar contrastá-los, diga que está contrastando.
 """
 
 DEFINICAO = """\

@@ -16,7 +16,9 @@ e nunca serão milhares. SQLite aqui seria cerimônia sem benefício.
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
+from urllib.parse import urlparse
 
 from ..config import settings
 from ..storage import DocumentoInexistente, Documentos
@@ -73,6 +75,7 @@ class Armazem:
     # -- operações sobre o conteúdo -----------------------------------------
     def fixar(self, id_: str, bloco: Bloco) -> Tema:
         tema = self.ler(id_)
+        _sanear_fonte(bloco)
         tema.blocos.append(bloco)
         return self.salvar(tema)
 
@@ -115,3 +118,32 @@ class Armazem:
         if descricao is not None:
             tema.descricao = descricao.strip()
         return self.salvar(tema)
+
+
+# Esquemas que viram link clicável no relatório. `javascript:` e `data:` ficam
+# de fora: a URL vem do usuário, e um href com `javascript:` executa no clique.
+_ESQUEMAS = ("http", "https")
+
+
+def _sanear_fonte(bloco: Bloco) -> None:
+    """Confere a URL do bloco externo e carimba a data de acesso.
+
+    A data é do SERVIDOR, não do cliente: ela existe para dizer quando o texto
+    foi lido, e um valor que o cliente escolhe não serve para isso.
+    """
+    if bloco.procedencia == "banco":
+        bloco.fonte_url = ""
+        bloco.fonte_titulo = ""
+        bloco.acessado_em = ""
+        return
+
+    url = (bloco.fonte_url or "").strip()
+    if url:
+        partes = urlparse(url)
+        if partes.scheme not in _ESQUEMAS or not partes.netloc:
+            url = ""
+    bloco.fonte_url = url
+    # Sem URL não é fonte externa conferível — é anotação de quem investiga.
+    if not url and bloco.procedencia == "web":
+        bloco.procedencia = "usuario"
+    bloco.acessado_em = bloco.acessado_em or date.today().isoformat()

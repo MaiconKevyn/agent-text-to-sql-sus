@@ -154,12 +154,24 @@ class Painel:
     def de_json(cls, d: dict) -> Painel:
         widgets = [Widget.de_json(x) for x in (d.get("widgets") or [])]
         acomodar(widgets)
+        # Painel salvo antes dos filtros declarados guardava `filters` como um
+        # OBJETO — os três filtros fixos de então. Iterar um dicionário devolve
+        # as chaves, e o construtor de Filtro estoura numa string.
+        #
+        # Aqueles filtros não têm conversão: eles não carregavam fragmento SQL
+        # nem domínio, que é o que um filtro declarado é. O painel abre sem
+        # filtro nenhum e mantém os widgets — perder o recorte é recuperável em
+        # um clique; perder o painel, não.
+        brutos = d.get("filters")
+        filtros = [
+            Filtro.de_json(x) for x in (brutos if isinstance(brutos, list) else []) if isinstance(x, dict)
+        ]
         return cls(
             id=str(d.get("id") or _id("dash")),
             titulo=str(d.get("title") or "Novo painel"),
             criado_em=str(d.get("createdAt") or _agora()),
             atualizado_em=str(d.get("updatedAt") or _agora()),
-            filtros=[Filtro.de_json(x) for x in (d.get("filters") or [])],
+            filtros=filtros,
             widgets=widgets,
         )
 

@@ -18,10 +18,11 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 from collections.abc import Iterator
 
 import yaml
-from fastapi import Body, FastAPI, Query
+from fastapi import Body, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -53,6 +54,30 @@ app = FastAPI(
     description="Perguntas em português sobre 144 milhões de internações do SUS.",
     version="1.0.0",
 )
+
+# ORDEM IMPORTA: este middleware é registrado ANTES do CORS, e `add_middleware`
+# empilha do último para o primeiro — então o CORS fica POR FORA dele, e a
+# resposta de erro daqui passa pelo CORS na saída.
+#
+# Sem isso, uma exceção não tratada sobe até a camada de erro do Starlette, que
+# é a mais externa de todas: o 500 sai sem `access-control-allow-origin`, o
+# navegador o bloqueia antes de o código ler o status, e a interface reporta
+# "Failed to fetch". O sintoma aponta para rede quando a causa é uma linha de
+# Python — foi assim que um painel salvo em formato antigo virou "backend fora
+# do ar" na tela.
+@app.middleware("http")
+async def erro_com_cors(request: Request, chamar):
+    try:
+        return await chamar(request)
+    except Exception as exc:  # noqa: BLE001
+        logging.exception("erro não tratado em %s %s", request.method, request.url.path)
+        # O texto vai junto: é ferramenta de análise rodando local, e esconder a
+        # causa aqui custa mais do que expõe.
+        return JSONResponse(
+            {"error": f"{type(exc).__name__}: {exc}"[:500], "path": request.url.path},
+            status_code=500,
+        )
+
 
 # O Vite serve em 5173; as portas alternativas cobrem o caso de a principal
 # estar ocupada.

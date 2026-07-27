@@ -169,7 +169,9 @@ function ListaDePaineis({ paineis, onNovo }: { paineis: Dashboard[]; onNovo: () 
     <>
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-[13px] font-semibold text-ink">
-          {paineis.length} painel{paineis.length === 1 ? "" : "éis"}
+          {/* "painel" + "éis" dá "paineléis": o plural troca a terminação, não a
+              acrescenta. */}
+          {paineis.length} {paineis.length === 1 ? "painel" : "painéis"}
         </h2>
         <button
           onClick={onNovo}

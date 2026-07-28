@@ -1,5 +1,4 @@
 import { ArrowLeft, BarChart3, Loader2, Plus, Sparkles } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SeletorDePaleta } from "@/components/SeletorDePaleta";
 import { TrilhoDeSecoes } from "@/components/TrilhoDeSecoes";
@@ -21,6 +20,8 @@ import {
 import { LINHA_PX, VAO_PX, type Dashboard, type WidgetData } from "@/lib/types";
 import { usePainel } from "@/theme/usePainel";
 import { ControleDeFiltro } from "./ControleDeFiltro";
+import { PainelDeTarefas } from "./PainelDeTarefas";
+import { useFilaDePedidos } from "./useFilaDePedidos";
 import { WidgetPainel } from "./WidgetPainel";
 
 function idDaUrl(): string | null {
@@ -211,8 +212,7 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
   const [dados, setDados] = useState<Record<string, WidgetData>>({});
   const [rodando, setRodando] = useState(false);
   const [pedido, setPedido] = useState("");
-  const [ocupado, setOcupado] = useState(false);
-  const [resposta, setResposta] = useState<{ tipo: string; texto: string } | null>(null);
+  const [aviso, setAviso] = useState("");
   const grade = usePainel(widgets, (l) => setDashboardGrid(painel.id, l), onMudou);
 
   // A assinatura é o RECORTE mais a lista de widgets. Sem isso, arrastar um
@@ -232,38 +232,46 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
       .finally(() => setRodando(false));
   }, [assinatura, painel.id, widgets.length]);
 
-  const recarregarTudo = () => {
+  const recarregarTudo = useCallback(() => {
     ultima.current = "";
     onMudou();
-  };
+  }, [onMudou]);
 
-  async function enviar(forcar?: "widget" | "filtro") {
+  // A caixa deixou de bloquear: cada envio vira uma tarefa na fila do canto.
+  // Montar um widget leva de dez a quarenta segundos, e quem já sabe o que quer
+  // não deveria digitar-esperar-digitar-esperar.
+  const fila = useFilaDePedidos(
+    useCallback(
+      async (texto: string) => {
+        const r = await askDashboard(painel.id, texto);
+        return { tipo: r.kind, recusa: r.refused };
+      },
+      [painel.id],
+    ),
+    recarregarTudo,
+  );
+
+  function enviar(forcar?: "widget" | "filtro") {
     const q = pedido.trim();
-    if (q.length < 3 || ocupado) return;
-    setOcupado(true);
-    setResposta(null);
-    try {
-      const r =
-        forcar === "filtro"
-          ? { kind: "filtro" as const, ...(await createFilter(painel.id, q)) }
-          : forcar === "widget"
-            ? { kind: "widget" as const, ...(await createWidget(painel.id, q)) }
-            : await askDashboard(painel.id, q);
-      if (r.refused) {
-        setResposta({ tipo: r.kind, texto: r.refused });
-      } else {
-        setPedido("");
-        setResposta({
-          tipo: r.kind,
-          texto: r.kind === "filtro" ? "Filtro criado." : "Widget acrescentado.",
-        });
-        recarregarTudo();
-      }
-    } catch (e) {
-      setResposta({ tipo: "erro", texto: String(e) });
-    } finally {
-      setOcupado(false);
+    if (q.length < 3) return;
+    // Forçar o tipo é um caminho à parte: ele existe para quando a
+    // classificação erra, e aí a pessoa está olhando o resultado — não faria
+    // sentido enfileirar e esperar.
+    if (forcar) {
+      setAviso("");
+      const chamada = forcar === "filtro" ? createFilter : createWidget;
+      void chamada(painel.id, q).then((r) => {
+        if (r.refused) setAviso(r.refused);
+        else {
+          setPedido("");
+          recarregarTudo();
+        }
+      });
+      return;
     }
+    const recusa = fila.enfileirar(q);
+    setAviso(recusa);
+    if (!recusa) setPedido("");
   }
 
   const ativos = painel.filters.filter((f) => f.active).length;
@@ -279,40 +287,38 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
           <input
             value={pedido}
             onChange={(e) => setPedido(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && void enviar()}
+            onKeyDown={(e) => e.key === "Enter" && enviar()}
             placeholder="Peça um gráfico ou um filtro — &ldquo;óbitos por ano&rdquo;, &ldquo;filtro por sexo&rdquo;…"
             aria-label="Pedido ao painel"
             className="min-w-0 flex-1 bg-transparent text-[12.5px] text-ink outline-none placeholder:text-ink-subtle"
           />
           <button
-            onClick={() => void enviar()}
-            disabled={pedido.trim().length < 3 || ocupado}
+            onClick={() => enviar()}
+            disabled={pedido.trim().length < 3}
             className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-[12px] font-medium text-white transition-opacity duration-150 disabled:opacity-40"
           >
-            {ocupado ? <Loader2 aria-hidden className="h-3.5 w-3.5 animate-spin" /> : "Enviar"}
+            Enviar
           </button>
         </div>
-        {pedido.trim().length >= 3 && !ocupado && (
+        {pedido.trim().length >= 3 && (
           <div className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-subtle">
             ou force:
-            <button onClick={() => void enviar("widget")} className="rounded border border-line px-1.5 py-px hover:border-accent/40 hover:text-accent">
+            <button onClick={() => enviar("widget")} className="rounded border border-line px-1.5 py-px hover:border-accent/40 hover:text-accent">
               como gráfico
             </button>
-            <button onClick={() => void enviar("filtro")} className="rounded border border-line px-1.5 py-px hover:border-accent/40 hover:text-accent">
+            <button onClick={() => enviar("filtro")} className="rounded border border-line px-1.5 py-px hover:border-accent/40 hover:text-accent">
               como filtro
             </button>
           </div>
         )}
-        {resposta && (
-          <p
-            className={cn(
-              "mt-2 rounded-lg px-3 py-2 text-[11.5px] leading-relaxed",
-              resposta.texto.endsWith(".") && resposta.texto.length < 40
-                ? "bg-accent-soft text-ink"
-                : "bg-caution-soft text-ink",
-            )}
-          >
-            {resposta.texto}
+        {aviso && (
+          <p className="mt-2 rounded-lg bg-caution-soft px-3 py-2 text-[11.5px] leading-relaxed text-ink">
+            {aviso}
+          </p>
+        )}
+        {fila.emCurso > 0 && (
+          <p className="mt-1.5 text-[11px] text-ink-subtle">
+            {fila.emCurso} pedido(s) em andamento — pode continuar mexendo no painel.
           </p>
         )}
       </div>
@@ -417,6 +423,12 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
           })}
         </div>
       )}
+
+      <PainelDeTarefas
+        tarefas={fila.tarefas}
+        onDispensar={fila.dispensar}
+        onLimpar={fila.limparConcluidas}
+      />
     </>
   );
 }

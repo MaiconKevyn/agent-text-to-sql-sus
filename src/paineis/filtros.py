@@ -34,7 +34,18 @@ from typing import Any
 # porque a quantidade de condições muda a cada leitura.
 TOKEN = "{{FILTROS}}"
 
-TIPOS = ("faixa", "escolha", "multipla")
+TIPOS = ("faixa", "data", "escolha", "multipla")
+
+# Os dois controles de intervalo. Compartilham quase tudo — dois limites, dois
+# `?`, seleção de dois valores —, e a única diferença é o tipo que atravessa o
+# JSON: número em `faixa`, texto ISO em `data`.
+#
+# Existem separados porque `faixa` nasceu convertendo os limites com `int()`, e
+# um pedido perfeitamente correto — "i.DT_SAIDA BETWEEN ? AND ?", com domínio
+# devolvendo min e max da coluna — morria em `int(date(2007, 8, 1))` com a
+# mensagem "não devolveu dois números". O modelo tinha acertado; o sistema é que
+# não sabia falar data.
+INTERVALOS = ("faixa", "data")
 
 
 @dataclass
@@ -59,9 +70,10 @@ class Filtro:
     # A expressão booleana, com `?`. Precisa se bastar: só `i.<coluna>` e
     # subconsultas. Nada de depender de join que o widget talvez não tenha.
     fragmento: str = ""
-    # Para `faixa`: os limites que o banco tem de fato.
-    minimo: int | None = None
-    maximo: int | None = None
+    # Para `faixa` e `data`: os limites que o banco tem de fato. Número num
+    # caso, data ISO ('2007-08-01') no outro.
+    minimo: int | str | None = None
+    maximo: int | str | None = None
     # Para `escolha` e `multipla`: o domínio, lido do banco.
     opcoes: list[Opcao] = field(default_factory=list)
     # O que está selecionado agora. Faixa: [ini, fim]. Escolha: [v]. Múltipla:
@@ -76,14 +88,17 @@ class Filtro:
         """Se este filtro está de fato recortando algo."""
         if not self.selecao:
             return False
-        if self.tipo == "faixa":
+        if self.tipo in INTERVALOS:
             return [self.minimo, self.maximo] != list(self.selecao)
         # Seleção que cobre todas as opções é o mesmo que nenhuma seleção.
         return len(self.selecao) < len(self.opcoes) if self.opcoes else True
 
     def valores(self) -> list:
         """Os valores a vincular, na ordem dos `?` do fragmento."""
-        if self.tipo == "faixa":
+        if self.tipo in INTERVALOS:
+            # Data vai como texto ISO: o DuckDB compara VARCHAR com DATE sem
+            # reclamar, e mandar um `datetime.date` obrigaria o filtro a
+            # carregar um tipo que o JSON do painel não sabe guardar.
             return list(self.selecao[:2])
         if self.tipo == "multipla":
             # Um único parâmetro, que É a lista: `= ANY(?)`.

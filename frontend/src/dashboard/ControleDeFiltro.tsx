@@ -24,6 +24,9 @@ interface Props {
  * anterior deixava widgets permanentemente vazios sem nunca dar erro.
  */
 export function ControleDeFiltro({ filtro, onSelecionar, onRemover }: Props) {
+  // Só a faixa numérica precisa de estado local: o slider tem de se mover a
+  // cada quadro do arrasto e só gravar quando o dedo levanta. O campo de data
+  // grava direto — quem escolhe uma data já escolheu.
   const [faixa, setFaixa] = useState<[number, number]>([
     Number(filtro.selection[0] ?? filtro.min ?? 0),
     Number(filtro.selection[1] ?? filtro.max ?? 0),
@@ -78,7 +81,38 @@ export function ControleDeFiltro({ filtro, onSelecionar, onRemover }: Props) {
         </button>
       </div>
 
-      {filtro.kind === "faixa" ? (
+      {filtro.kind === "data" ? (
+        /* Dois campos de data, e não dois sliders: um controle deslizante sobre
+           seis mil dias move três semanas por pixel, e ninguém acerta "1º de
+           março de 2020" arrastando. `min`/`max` prendem a escolha ao que a
+           base tem — uma data fora deles devolveria zero linhas, e zero linhas
+           na tela se lê como "não houve". */
+        <div className="flex items-center gap-1.5">
+          <input
+            type="date"
+            value={String(filtro.selection[0] ?? filtro.min ?? "")}
+            min={String(filtro.min ?? "")}
+            max={String(filtro.selection[1] ?? filtro.max ?? "")}
+            onChange={(e) =>
+              onSelecionar([e.target.value, String(filtro.selection[1] ?? filtro.max ?? "")])
+            }
+            aria-label={`${filtro.label}: de`}
+            className="min-w-0 flex-1 rounded border border-line bg-canvas px-1.5 py-0.5 text-[11.5px] text-ink outline-none focus:border-accent"
+          />
+          <span className="shrink-0 text-[11px] text-ink-subtle">até</span>
+          <input
+            type="date"
+            value={String(filtro.selection[1] ?? filtro.max ?? "")}
+            min={String(filtro.selection[0] ?? filtro.min ?? "")}
+            max={String(filtro.max ?? "")}
+            onChange={(e) =>
+              onSelecionar([String(filtro.selection[0] ?? filtro.min ?? ""), e.target.value])
+            }
+            aria-label={`${filtro.label}: até`}
+            className="min-w-0 flex-1 rounded border border-line bg-canvas px-1.5 py-0.5 text-[11.5px] text-ink outline-none focus:border-accent"
+          />
+        </div>
+      ) : filtro.kind === "faixa" ? (
         <div>
           <div className="mb-1 text-[12px] font-medium text-ink [font-variant-numeric:tabular-nums]">
             {faixa[0]} – {faixa[1]}

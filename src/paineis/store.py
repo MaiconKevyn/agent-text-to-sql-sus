@@ -8,7 +8,10 @@ documento errado.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
+
+_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 from ..config import settings
 from ..storage import DocumentoInexistente, Documentos
@@ -79,7 +82,18 @@ class Paineis:
             raise PainelInexistente(filtro_id)
         # Só valores que existem no domínio: um valor inventado não filtraria
         # nada e pareceria "não há dado".
-        if f.tipo == "faixa":
+        if f.tipo == "data":
+            # Data ISO, dentro dos limites lidos do banco. Uma data fora deles
+            # não é erro de digitação inofensivo: recortar de 1990 a 1995 numa
+            # base que começa em 2007 devolve zero linhas, e zero linhas na tela
+            # se lê como "não houve".
+            datas = sorted(
+                v
+                for v in selecao
+                if isinstance(v, str) and _ISO.match(v) and str(f.minimo) <= v <= str(f.maximo)
+            )[:2]
+            f.selecao = datas if len(datas) == 2 else f.selecao
+        elif f.tipo == "faixa":
             nums = [v for v in selecao if isinstance(v, (int, float))][:2]
             f.selecao = sorted(int(v) for v in nums) if len(nums) == 2 else f.selecao
         else:

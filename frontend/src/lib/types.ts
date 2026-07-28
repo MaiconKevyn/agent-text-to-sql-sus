@@ -476,11 +476,12 @@ export interface FilterOption {
 export interface PanelFilter {
   id: string;
   label: string;
-  kind: "faixa" | "escolha" | "multipla";
+  kind: FilterKind;
   /** A expressão booleana com `?`. Só aparece no detalhe. */
   fragment: string;
-  min: number | null;
-  max: number | null;
+  /** Número em "faixa", data ISO ("2007-08-01") em "data". */
+  min: number | string | null;
+  max: number | string | null;
   options: FilterOption[];
   selection: (string | number)[];
   /** O que os valores significam nesta base. Nem sempre é adivinhável. */
@@ -527,7 +528,7 @@ export interface Dashboard {
    e a que a tela mostra é sempre a que erra por último.
    -------------------------------------------------------------------------- */
 
-export type FilterKind = "faixa" | "escolha" | "multipla";
+export type FilterKind = "faixa" | "data" | "escolha" | "multipla";
 
 export interface CatalogField {
   id: string;
@@ -542,6 +543,8 @@ export interface CatalogField {
   note: string;
   /** Poucas categorias o bastante para virar série sem estourar a legenda. */
   canSeries: boolean;
+  /** Se serve de eixo. Data crua só recorta: agrupar daria uma barra por dia. */
+  canGroup: boolean;
   /** Tempo e faixas: o eixo sai em ordem de categoria, não de valor. */
   ordinal: boolean;
 }

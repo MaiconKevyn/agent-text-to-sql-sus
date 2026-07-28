@@ -268,7 +268,9 @@ function AbaGrafico({
         <Campo rotulo="Agrupar por" dica={c?.note}>
           <select value={campo} onChange={(e) => setCampo(e.target.value)} className={SELECT}>
             <option value="">— nenhum: só o número —</option>
-            {porGrupo(catalogo.fields).map(([grupo, campos]) => (
+            {/* `canGroup` tira do eixo o que só serve para recortar: agrupar
+                por data crua daria 5.844 barras, uma por dia da base. */}
+            {porGrupo(catalogo.fields.filter((f) => f.canGroup)).map(([grupo, campos]) => (
               <optgroup key={grupo} label={grupo}>
                 {campos.map((f) => (
                   <option key={f.id} value={f.id}>

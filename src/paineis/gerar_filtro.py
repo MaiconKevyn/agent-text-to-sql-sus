@@ -15,7 +15,7 @@ from ..db import Database, UnsafeQueryError, validate_sql
 from ..llm import complete
 from ..schema_context import build_schema_prompt
 from . import montar
-from .filtros import Filtro
+from .filtros import INTERVALOS, TIPOS, Filtro
 
 ESQUEMA = {
     "type": "object",
@@ -26,11 +26,12 @@ ESQUEMA = {
         "rotulo": {"type": "string", "description": "Nome do filtro na tela. Curto: 'Sexo', 'Idade'."},
         "tipo": {
             "type": "string",
-            "enum": ["faixa", "escolha", "multipla"],
+            "enum": ["faixa", "data", "escolha", "multipla"],
             "description": (
-                "'faixa' para número contínuo (idade, valor). 'multipla' quando faz "
-                "sentido marcar mais de um (sexo, caráter da internação). 'escolha' "
-                "quando só um por vez."
+                "'data' para coluna de DATA (DT_SAIDA, DT_INTER) — período de uma data "
+                "a outra. 'faixa' para número contínuo (idade, valor, ano). 'multipla' "
+                "quando faz sentido marcar mais de um (sexo, caráter da internação). "
+                "'escolha' quando só um por vez."
             ),
         },
         "fragmento": {
@@ -48,7 +49,8 @@ ESQUEMA = {
             "type": "string",
             "description": (
                 "SELECT que devolve as opções ou os limites, e nada mais. "
-                "Para 'faixa': SELECT min(col), max(col) FROM internacoes WHERE <sanidade>. "
+                "Para 'faixa' e 'data': SELECT min(col), max(col) FROM internacoes "
+                "WHERE <sanidade>. "
                 "Para escolha/múltipla, TRÊS colunas nesta ordem — código, rótulo "
                 "legível e contagem: SELECT i.SEXO, s.DESCRICAO, count(*) FROM "
                 "internacoes i LEFT JOIN sexo s ON s.SEXO = i.SEXO GROUP BY 1,2 "
@@ -147,7 +149,7 @@ def gerar(pedido: str, db: Database, catalogo: str = "") -> Resultado:
     if not bruto.get("possivel"):
         return Resultado(recusa=str(bruto.get("recusa") or "A base não tem esse recorte.")[:400])
 
-    tipo = bruto.get("tipo") if bruto.get("tipo") in ("faixa", "escolha", "multipla") else "escolha"
+    tipo = bruto.get("tipo") if bruto.get("tipo") in TIPOS else "escolha"
     fragmento = str(bruto.get("fragmento") or "").strip()
     dominio_sql = str(bruto.get("dominio_sql") or "").strip()
     if not fragmento or not dominio_sql:
@@ -172,11 +174,12 @@ def gerar(pedido: str, db: Database, catalogo: str = "") -> Resultado:
         nota=str(bruto.get("nota") or "")[:200],
     )
 
-    if tipo == "faixa":
-        try:
-            filtro.minimo, filtro.maximo = int(dom.rows[0][0]), int(dom.rows[0][1])
-        except (TypeError, ValueError, IndexError):
-            return Resultado(recusa="A consulta de domínio de faixa não devolveu dois números.")
+    if tipo in INTERVALOS:
+        # O mesmo leitor do menu manual, e por isso um filtro de data declarado
+        # aqui funciona igual ao escolhido lá.
+        filtro.minimo, filtro.maximo, erro = montar.limites(dom.rows, tipo)
+        if erro:
+            return Resultado(recusa=erro)
         filtro.selecao = [filtro.minimo, filtro.maximo]
     else:
         # O mesmo leitor do menu manual: ele aceita o domínio com rótulo (três

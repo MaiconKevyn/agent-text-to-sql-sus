@@ -13,12 +13,15 @@ de SQL com aparência de menu, e toda a garantia do validador viraria enfeite.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
-from ..db import Database, UnsafeQueryError, validate_sql
+from ..db import Database, UnsafeQueryError, json_safe, validate_sql
 from . import catalogo as cat
 from .filtros import TOKEN, Filtro, Opcao
 from .models import Widget
+
+_ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 # Quantas categorias um gráfico manual traz por padrão, e o teto. Acima de 60
 # barras ninguém lê o eixo — e a consulta ainda varre 144 milhões de linhas
@@ -69,11 +72,10 @@ def filtro(campo_id: str, tipo: str, db: Database, rotulo: str = "") -> Resultad
         nota=c.nota,
     )
 
-    if tipo == cat.FAIXA:
-        try:
-            f.minimo, f.maximo = int(dom.rows[0][0]), int(dom.rows[0][1])
-        except (TypeError, ValueError, IndexError):
-            return ResultadoFiltro(recusa="O domínio da faixa não devolveu dois números.")
+    if tipo in cat.INTERVALOS:
+        f.minimo, f.maximo, erro = limites(dom.rows, tipo)
+        if erro:
+            return ResultadoFiltro(recusa=erro)
         f.selecao = [f.minimo, f.maximo]
     else:
         # O domínio traz (valor, rótulo, contagem): o filtro COMPARA o código e
@@ -114,6 +116,41 @@ def opcoes_de(linhas: list) -> list[Opcao]:
     return saida
 
 
+def limites(linhas: list, tipo: str) -> tuple:
+    """Lê os dois limites de um controle de intervalo. Devolve (min, max, erro).
+
+    Aceita as duas formas porque a consulta de domínio é a mesma —
+    `SELECT min(col), max(col)` — e o que muda é o TIPO da coluna. A versão
+    anterior chamava `int()` nos dois casos, e um filtro de data perfeitamente
+    declarado (`i.DT_SAIDA BETWEEN ? AND ?`) morria em
+    `int(datetime.date(2007, 8, 1))` acusando o modelo de não ter devolvido
+    números — quando quem não sabia ler datas era este código.
+    """
+    try:
+        a, b = linhas[0][0], linhas[0][1]
+    except (IndexError, TypeError):
+        return None, None, "A consulta de domínio não devolveu dois limites."
+    if a is None or b is None:
+        return None, None, "A consulta de domínio devolveu limite nulo."
+
+    if tipo == cat.DATA:
+        # ISO, e só a data: o painel guarda o filtro em JSON, e um `date` do
+        # Python não atravessa. O DuckDB compara o texto com a coluna DATE sem
+        # precisar de cast — conferido contra o literal `DATE '…'`.
+        ini, fim = str(json_safe(a))[:10], str(json_safe(b))[:10]
+        if not (_ISO.match(ini) and _ISO.match(fim)):
+            return None, None, f"Os limites não são datas: {ini!r} e {fim!r}."
+        return ini, fim, ""
+
+    try:
+        return int(a), int(b), ""
+    except (TypeError, ValueError):
+        return None, None, (
+            f"O domínio da faixa não devolveu dois números ({type(a).__name__}). "
+            "Para uma coluna de data, o controle é 'data', não 'faixa'."
+        )
+
+
 def provar(f: Filtro, db: Database) -> str:
     """Executa o fragmento com valores reais. Devolve o erro, ou string vazia.
 
@@ -122,7 +159,9 @@ def provar(f: Filtro, db: Database) -> str:
     clicasse, e aí o painel inteiro erra de uma vez.
     """
     teste = Filtro(**{**f.__dict__})
-    teste.selecao = [f.minimo, f.maximo] if f.tipo == cat.FAIXA else [f.opcoes[0].valor]
+    teste.selecao = (
+        [f.minimo, f.maximo] if f.tipo in cat.INTERVALOS else [f.opcoes[0].valor]
+    )
     try:
         db.run(
             f"SELECT COUNT(*) FROM internacoes i WHERE {f.fragmento}",
@@ -171,6 +210,14 @@ def widget(p: Pedido, db: Database) -> ResultadoWidget:
     dim = cat.campo(p.campo) if p.campo else None
     if p.campo and dim is None:
         return ResultadoWidget(recusa=f"Campo desconhecido: {p.campo}.")
+    if dim is not None and not dim.agrupavel:
+        return ResultadoWidget(
+            recusa=(
+                f"{dim.rotulo} só serve para recortar, não para virar eixo: o gráfico "
+                "sairia com uma barra por dia. Para ver ao longo do tempo, agrupe por "
+                "'Ano' ou 'Mês (série contínua)'."
+            )
+        )
 
     serie = cat.campo(p.serie) if p.serie else None
     if p.serie and serie is None:

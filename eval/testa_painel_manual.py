@@ -51,7 +51,7 @@ def main() -> int:
             filtros_ok.append(f)
             detalhe = (
                 f"{f.minimo}–{f.maximo}"
-                if tipo == cat.FAIXA
+                if tipo in cat.INTERVALOS
                 else f"{len(f.opcoes)} opções · {f.opcoes[0].rotulo[:22]}"
             )
             print(f"  {VERDE}✓{FIM} {c.id:<18} {tipo:<9} {detalhe:<40} {dt:5.1f}s")
@@ -61,7 +61,12 @@ def main() -> int:
     print(f"\n{CINZA}RECORTE — o filtro muda mesmo a contagem?{FIM}")
     total = db.run("SELECT COUNT(*) FROM internacoes i WHERE 1=1").rows[0][0]
     for f in filtros_ok:
-        if f.tipo == cat.FAIXA:
+        if f.tipo == cat.DATA:
+            # Metade do intervalo, pelo ano: "2007-08-01" a "2023-12-31" vira
+            # um corte em 2015 — o bastante para o recorte ter de mudar a conta.
+            meio = (int(str(f.minimo)[:4]) + int(str(f.maximo)[:4])) // 2
+            f.selecao = [f.minimo, f"{meio}-12-31"]
+        elif f.tipo == cat.FAIXA:
             meio = (f.minimo or 0) + ((f.maximo or 0) - (f.minimo or 0)) // 2
             f.selecao = [f.minimo, meio]
         else:
@@ -115,6 +120,21 @@ def main() -> int:
     else:
         print(f"  {VERDE}✓{FIM} sem filtro {sem:,} · com filtro de sexo {com:,}")
 
+    # Um campo que só recorta não pode virar eixo — nem pela API, que não passa
+    # pelo menu. Sem esta recusa, "agrupe por data de saída" devolveria um
+    # gráfico com uma barra por dia da base.
+    print(f"\n{CINZA}RECUSAS{FIM}")
+    for pedido, esperado in (
+        (montar.Pedido(medida="internacoes", campo="data_saida"), "só serve para recortar"),
+        (montar.Pedido(medida="internacoes", campo="uf", forma="heatmap"), "exige uma série"),
+        (montar.Pedido(medida="internacoes", campo="inexistente"), "desconhecido"),
+    ):
+        r = montar.widget(pedido, db)
+        ok = r.widget is None and esperado in r.recusa
+        if not ok:
+            falhas.append(f"recusa esperada ({esperado}) não veio para {pedido.campo}")
+        print(f"  {VERDE + '✓' + FIM if ok else VERMELHO + '✗' + FIM} {pedido.campo:<16} {r.recusa[:66]}")
+
     print()
     if falhas:
         print(f"{VERMELHO}{len(falhas)} falha(s){FIM}")
@@ -128,7 +148,7 @@ def main() -> int:
 def _combinacoes() -> list[montar.Pedido]:
     """Os gráficos a testar. Com --tudo, o produto cartesiano."""
     if TUDO:
-        agrupaveis = [c for c in cat.CAMPOS]
+        agrupaveis = [c for c in cat.CAMPOS if c.agrupavel]
         return [
             montar.Pedido(medida=m.id, campo=c.id, limite=8)
             for m in cat.MEDIDAS

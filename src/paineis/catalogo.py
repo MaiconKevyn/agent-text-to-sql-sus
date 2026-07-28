@@ -33,11 +33,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 # Os tipos de controle, iguais aos de `filtros.py`.
-FAIXA, ESCOLHA, MULTIPLA = "faixa", "escolha", "multipla"
+FAIXA, DATA, ESCOLHA, MULTIPLA = "faixa", "data", "escolha", "multipla"
 
 # Como cada tipo compara. O molde do campo recebe isto em `{cmp}`.
 COMPARACAO = {
     FAIXA: "BETWEEN ? AND ?",
+    DATA: "BETWEEN ? AND ?",
     MULTIPLA: "= ANY(?)",
     ESCOLHA: "= ?",
 }
@@ -45,6 +46,9 @@ COMPARACAO = {
 # Acima disto um campo não pode virar série: doze cores já são o limite de uma
 # legenda legível, e nenhuma paleta separa vinte.
 TETO_SERIE = 12
+
+# Os controles de intervalo, que compartilham a forma "dois limites, dois `?`".
+INTERVALOS = (FAIXA, DATA)
 
 
 @dataclass(frozen=True)
@@ -78,6 +82,9 @@ class Campo:
     nota: str = ""
     # Séries temporais e faixas ordenam pela categoria, não pelo valor.
     ordinal: bool = False
+    # Se serve de eixo. Falso para o que só faz sentido recortar: agrupar por
+    # data crua daria 5.844 barras, uma por dia da base.
+    agrupavel: bool = True
 
     @property
     def expr_rotulo(self) -> str:
@@ -102,6 +109,7 @@ class Campo:
             "distinct": self.distintos,
             "note": self.nota,
             "canSeries": self.serve_serie,
+            "canGroup": self.agrupavel,
             "ordinal": self.ordinal,
         }
 
@@ -167,6 +175,39 @@ END"""
 
 CAMPOS: tuple[Campo, ...] = (
     # -- Tempo ------------------------------------------------------------- #
+    Campo(
+        id="data_saida",
+        rotulo="Data de saída",
+        grupo="Tempo",
+        chave="i.DT_SAIDA",
+        tipo="data",
+        filtros=(DATA,),
+        dominio="SELECT min(DT_SAIDA), max(DT_SAIDA) FROM internacoes WHERE DT_SAIDA IS NOT NULL",
+        condicao="i.DT_SAIDA IS NOT NULL",
+        # Só recorta, não agrupa: um eixo com um dia por categoria daria 5.844
+        # barras. Para ver ao longo do tempo existem "Ano" e "Mês (série)".
+        agrupavel=False,
+        nota=(
+            "Data de alta, que é o critério de competência da base: 2007-08-01 a "
+            "2023-12-31. Recorte com dia exato — para ver a evolução, agrupe por ano ou mês."
+        ),
+    ),
+    Campo(
+        id="data_internacao",
+        rotulo="Data de internação",
+        grupo="Tempo",
+        chave="i.DT_INTER",
+        tipo="data",
+        filtros=(DATA,),
+        dominio="SELECT min(DT_INTER), max(DT_INTER) FROM internacoes WHERE DT_INTER IS NOT NULL",
+        condicao="i.DT_INTER IS NOT NULL",
+        agrupavel=False,
+        nota=(
+            "Data de ENTRADA, e ela vai bem antes do início da base — o mínimo é 1995, "
+            "porque internações longas entram na base só quando recebem alta. "
+            "Para recorte de período, prefira a data de saída."
+        ),
+    ),
     Campo(
         id="ano",
         rotulo="Ano",
@@ -628,6 +669,7 @@ def para_json() -> dict:
         "orders": list(ORDENS),
         "filterKinds": [
             {"id": FAIXA, "label": "Faixa (de … até)"},
+            {"id": DATA, "label": "Período (data a data)"},
             {"id": MULTIPLA, "label": "Marcar vários"},
             {"id": ESCOLHA, "label": "Escolher um"},
         ],

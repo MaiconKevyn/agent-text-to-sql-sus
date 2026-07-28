@@ -395,8 +395,8 @@ de escolhas produz sempre o mesmo gráfico.
 
 | Aba | O que oferece |
 |---|---|
-| **Gráfico** | 10 medidas × 21 campos, série, forma, ordem, quantas categorias, título, cor, rótulos, legenda |
-| **Filtro** | a coluna e o tipo de controle — faixa, marcar vários, escolher um |
+| **Gráfico** | 10 medidas × 21 campos de eixo, série, forma, ordem, quantas categorias, título, cor, rótulos, legenda |
+| **Filtro** | a coluna e o tipo de controle — faixa numérica, período (data a data), marcar vários, escolher um |
 | **Análise completa** | um assunto vira um plano de mostradores (abaixo) |
 
 **O catálogo é servido pelo backend, não escrito no cliente.** É o mesmo objeto
@@ -741,7 +741,7 @@ que ele oferece**, confere que cada filtro de fato muda a contagem, e executa um
 amostra larga de gráficos; com `--tudo`, o produto cartesiano inteiro:
 
 ```
-tudo passou · 206s     # 259 verificações: 21 campos × 10 medidas + filtros + recortes
+tudo passou · 210s     # 21 campos × 10 medidas, mais todo filtro e todo recorte
 ```
 
 `testa_grade.mjs` cobre a geometria do painel: 800 arranjos aleatórios provando
@@ -797,7 +797,7 @@ ele foi quem descobriu que o tema **padrão** já reprovava, com `--ink-subtle` 
 - O painel **reexecuta todos os widgets** a cada mudança de filtro. O endpoint já
   aceita `?only=` para limitar aos visíveis, e a tela ainda não usa: com poucos
   widgets não incomoda, com vinte vai.
-- O menu manual cobre **21 campos e 10 medidas** — os que o dicionário do banco
+- O menu manual cobre **23 campos e 10 medidas** — os que o dicionário do banco
   documenta bem. Colunas fora dele (`INSTRU`, `VINCPREV`, `CBOR`, `ETNIA`) ficam
   só na linguagem natural: são quase vazias, e oferecê-las num menu convidaria a
   montar gráficos de "não informado".

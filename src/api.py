@@ -19,6 +19,8 @@ from __future__ import annotations
 import functools
 import json
 import logging
+import queue
+import threading
 from collections.abc import Iterator
 
 import yaml
@@ -35,6 +37,7 @@ from .paineis import (
     gerar_filtro,
     montar as montar_painel,
     planejar as planejar_painel,
+    progresso as prog,
     rotear as rotear_painel,
 )
 from .investigation import Investigador
@@ -716,6 +719,135 @@ def criar_widget(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
         return JSONResponse({"refused": r.recusa}, status_code=200)
     painel = paineis().acrescentar(painel_id, r.widget)
     return JSONResponse({"refused": "", "dashboard": painel.para_json(), "widgetId": r.widget.id})
+
+
+def _com_relato(trabalho) -> Iterator[str]:
+    """Roda `trabalho(relatar)` numa thread e transmite os passos conforme saem.
+
+    A thread existe porque as etapas nascem NO FUNDO da pilha — dentro de
+    `gerar`, de `gerar_filtro`, do laço que lê o JSON do planejador — e um
+    gerador não consegue ceder de lá. Uma fila atravessa qualquer profundidade
+    sem que nenhuma dessas funções precise saber que existe HTTP do outro lado:
+    elas recebem uma função de um argumento e a chamam.
+
+    O DuckDB é acessado por essa thread, e isso é seguro porque `Database.run`
+    serializa tudo num lock — a mesma proteção que já valia para as requisições
+    concorrentes do painel.
+    """
+    fila: queue.Queue = queue.Queue()
+    caixa: dict = {}
+
+    def rodar() -> None:
+        try:
+            caixa["resultado"] = trabalho(fila.put)
+        except Exception as exc:  # noqa: BLE001
+            logging.exception("erro no trabalho com relato")
+            caixa["erro"] = f"{type(exc).__name__}: {exc}"[:300]
+        finally:
+            fila.put(None)
+
+    threading.Thread(target=rodar, daemon=True).start()
+
+    while True:
+        item = fila.get()
+        if item is None:
+            break
+        yield sse({"type": "step", **item.para_json()})
+
+    if "erro" in caixa:
+        yield sse({"type": "done", "refused": caixa["erro"], "kind": "widget"})
+    else:
+        yield sse({"type": "done", **caixa.get("resultado", {})})
+
+
+@app.get("/api/dashboards/{painel_id}/ask/stream")
+def pedir_ao_painel_transmitindo(
+    painel_id: str, request: str = Query(..., min_length=3, max_length=600)
+) -> StreamingResponse:
+    """O mesmo que `/ask`, relatando cada etapa enquanto ela acontece.
+
+    É GET porque `EventSource` no navegador só faz GET — o mesmo motivo de
+    `/api/ask` e `/api/investigate` serem GET.
+
+    Toda etapa transmitida aqui é um FATO: ela abre quando aquele trabalho
+    começa e fecha quando termina, com o que produziu. Nada avança por
+    temporizador. Uma barra que anda sozinha chegaria ao fim antes do modelo e
+    ficaria parada ali, e a pessoa não teria como distinguir isso de travado —
+    que é exatamente o problema que este endpoint existe para resolver.
+    """
+    pedido = request.strip()
+
+    def trabalho(relatar) -> dict:
+        try:
+            paineis().ler(painel_id)
+        except PainelInexistente:
+            return {"kind": "widget", "refused": "Painel não encontrado."}
+
+        prog.relata(relatar, "rotear", "Entendendo o pedido")
+        alvo, motivo = rotear_painel.rotear(pedido)
+        prog.fecha(relatar, "rotear", "Entendendo o pedido", ROTULO_ALVO.get(alvo, alvo))
+
+        if alvo == "analise":
+            plano = planejar_painel.planejar(pedido, relatar)
+            return {"kind": "analise", "reason": motivo, **plano.para_json()}
+
+        if alvo == "filtro":
+            atual = paineis().ler(painel_id)
+            catalogo = "\n".join(f"- {w.id} | {w.titulo}" for w in atual.widgets)
+            r = gerar_filtro.gerar(pedido, agente().db, catalogo, relatar)
+            if r.filtro is None:
+                return {"kind": "filtro", "refused": r.recusa, "reason": motivo}
+            prog.relata(relatar, "salvar", "Guardando no painel")
+            painel = paineis().acrescentar_filtro(painel_id, r.filtro)
+            validos = [w for w in r.apenas if atual.widget(w) is not None]
+            if validos:
+                painel = paineis().restringir_filtro(painel_id, r.filtro.id, validos)
+            prog.fecha(relatar, "salvar", "Guardando no painel", r.filtro.rotulo)
+            return {"kind": "filtro", "refused": "", "reason": motivo, "createdId": r.filtro.id}
+
+        rw = gerar_widget.gerar(pedido, agente().db, relatar)
+        if rw.widget is None:
+            return {"kind": "widget", "refused": rw.recusa, "reason": motivo}
+        prog.relata(relatar, "salvar", "Guardando no painel")
+        paineis().acrescentar(painel_id, rw.widget)
+        prog.fecha(relatar, "salvar", "Guardando no painel", rw.widget.titulo[:50])
+        return {"kind": "widget", "refused": "", "reason": motivo, "createdId": rw.widget.id}
+
+    return StreamingResponse(
+        _com_relato(trabalho),
+        media_type="text/event-stream",
+        # Sem isto um proxy pode segurar os pedaços e entregar tudo no fim —
+        # que é precisamente o que este endpoint existe para não fazer.
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+ROTULO_ALVO = {"widget": "um gráfico", "filtro": "um filtro", "analise": "uma análise inteira"}
+
+
+@app.get("/api/dashboards/{painel_id}/plan/stream")
+def planejar_transmitindo(
+    painel_id: str, request: str = Query(..., min_length=3, max_length=600)
+) -> StreamingResponse:
+    """O plano, com os itens aparecendo conforme o modelo os escreve.
+
+    Sem roteador no caminho: quem clicou no botão "Análise completa" já disse a
+    intenção, e passar pela classificação só acrescentaria uma chance de errar.
+    """
+    pedido = request.strip()
+
+    def trabalho(relatar) -> dict:
+        try:
+            paineis().ler(painel_id)
+        except PainelInexistente:
+            return {"refused": "Painel não encontrado.", "items": []}
+        return planejar_painel.planejar(pedido, relatar).para_json()
+
+    return StreamingResponse(
+        _com_relato(trabalho),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/dashboards/{painel_id}/plan")

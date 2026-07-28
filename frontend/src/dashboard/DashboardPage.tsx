@@ -4,7 +4,7 @@ import { SeletorDePaleta } from "@/components/SeletorDePaleta";
 import { TrilhoDeSecoes } from "@/components/TrilhoDeSecoes";
 import { Badge } from "@/components/ui/badge";
 import {
-  askDashboard,
+  askDashboardStream,
   createDashboard,
   createFilter,
   createWidget,
@@ -364,8 +364,8 @@ function Detalhe({
   // não deveria digitar-esperar-digitar-esperar.
   const fila = useFilaDePedidos(
     useCallback(
-      async (texto: string) => {
-        const r = await askDashboard(painel.id, texto);
+      async (texto: string, aoPassar) => {
+        const r = await askDashboardStream(painel.id, texto, aoPassar);
         // Uma análise não cria nada por si: ela devolve o plano, e cada item
         // dele vira uma tarefa irmã. Assim um item que a base não sustenta
         // recusa sozinho, com o motivo, sem derrubar os outros onze.

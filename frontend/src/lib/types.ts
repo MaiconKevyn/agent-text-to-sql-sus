@@ -592,6 +592,22 @@ export interface WidgetDraft {
    O plano de uma análise completa.
    -------------------------------------------------------------------------- */
 
+/**
+ * Uma etapa relatada pelo servidor enquanto o painel trabalha.
+ *
+ * Toda etapa é um FATO: ela abre quando aquele trabalho começa e fecha quando
+ * termina, com o que produziu em `detail` — "20 regras", "6 linha(s) em 0.5s",
+ * "12 itens". Nada avança por temporizador, e por isso não há porcentagem:
+ * ninguém sabe quanto falta, e uma barra que anda sozinha chegaria ao fim antes
+ * do modelo e ficaria parada ali mentindo.
+ */
+export interface PanelStep {
+  id: string;
+  label: string;
+  state: "fazendo" | "feita" | "falhou";
+  detail: string;
+}
+
 export interface PlanItem {
   kind: "indicador" | "grafico" | "filtro";
   /** A frase que será executada sozinha. Carrega o assunto por extenso. */

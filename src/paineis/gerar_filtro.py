@@ -15,6 +15,7 @@ from ..db import Database, UnsafeQueryError, validate_sql
 from ..llm import complete
 from ..schema_context import build_schema_prompt
 from . import montar
+from . import progresso as prog
 from .filtros import INTERVALOS, TIPOS, Filtro
 
 ESQUEMA = {
@@ -127,8 +128,11 @@ class Restricao:
     apenas: list[str] = field(default_factory=list)
 
 
-def gerar(pedido: str, db: Database, catalogo: str = "") -> Resultado:
+def gerar(
+    pedido: str, db: Database, catalogo: str = "", relatar: prog.Relator = None
+) -> Resultado:
     """Declara, lê o domínio no banco, e prova que o fragmento executa."""
+    prog.relata(relatar, "declarar", "Escolhendo a coluna e o controle")
     bruto = complete(
         model=settings.sql_model,
         system=SISTEMA.format(schema=build_schema_prompt()),
@@ -147,24 +151,39 @@ def gerar(pedido: str, db: Database, catalogo: str = "") -> Resultado:
     )
     assert isinstance(bruto, dict)
     if not bruto.get("possivel"):
+        prog.relata(relatar, "declarar", "Escolhendo a coluna e o controle", prog.FALHOU, "a base não tem")
         return Resultado(recusa=str(bruto.get("recusa") or "A base não tem esse recorte.")[:400])
 
     tipo = bruto.get("tipo") if bruto.get("tipo") in TIPOS else "escolha"
     fragmento = str(bruto.get("fragmento") or "").strip()
     dominio_sql = str(bruto.get("dominio_sql") or "").strip()
     if not fragmento or not dominio_sql:
+        prog.relata(relatar, "declarar", "Escolhendo a coluna e o controle", prog.FALHOU, "declaração incompleta")
         return Resultado(recusa="O modelo não declarou o fragmento ou o domínio.")
+    prog.fecha(
+        relatar,
+        "declarar",
+        "Escolhendo a coluna e o controle",
+        f"{str(bruto.get('rotulo') or '')[:30]} · {tipo}",
+    )
 
+    # As opções vêm do BANCO, e é isto que a etapa relata: um filtro de sexo com
+    # rótulos escritos à mão diria "Masculino/Feminino"; aqui os valores são
+    # lidos, contados e mostrados como são.
+    prog.relata(relatar, "dominio", "Lendo os valores da coluna no banco")
     try:
         dominio_sql = validate_sql(dominio_sql)
     except UnsafeQueryError as exc:
+        prog.relata(relatar, "dominio", "Lendo os valores da coluna no banco", prog.FALHOU, str(exc)[:60])
         return Resultado(recusa=f"A consulta de domínio foi recusada: {exc}")
 
     try:
         dom = db.run(dominio_sql, max_rows=60)
     except Exception as exc:  # noqa: BLE001
+        prog.relata(relatar, "dominio", "Lendo os valores da coluna no banco", prog.FALHOU, str(exc)[:60])
         return Resultado(recusa=f"A consulta de domínio não executou: {str(exc)[:200]}")
     if not dom.rows:
+        prog.relata(relatar, "dominio", "Lendo os valores da coluna no banco", prog.FALHOU, "nada voltou")
         return Resultado(recusa="A consulta de domínio não devolveu nada.")
 
     filtro = Filtro(
@@ -191,8 +210,20 @@ def gerar(pedido: str, db: Database, catalogo: str = "") -> Resultado:
         # nasce recortando mudaria o painel inteiro sem ninguém pedir.
         filtro.selecao = [o.valor for o in filtro.opcoes]
 
+    prog.fecha(
+        relatar,
+        "dominio",
+        "Lendo os valores da coluna no banco",
+        f"{filtro.minimo} a {filtro.maximo}"
+        if tipo in INTERVALOS
+        else f"{len(filtro.opcoes)} opções · {', '.join(o.rotulo for o in filtro.opcoes[:3])}",
+    )
+
+    prog.relata(relatar, "provar", "Provando que o recorte funciona")
     erro = montar.provar(filtro, db)
     if erro:
+        prog.relata(relatar, "provar", "Provando que o recorte funciona", prog.FALHOU, erro[:60])
         return Resultado(recusa=erro)
+    prog.fecha(relatar, "provar", "Provando que o recorte funciona", "vale para todos os gráficos")
 
     return Resultado(filtro=filtro, apenas=[str(x) for x in (bruto.get("apenas") or [])])

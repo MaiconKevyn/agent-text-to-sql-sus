@@ -19,11 +19,15 @@ esquema exige o assunto repetido em cada pedido, e o código confere.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 from ..config import settings
-from ..llm import complete
-from ..schema_context import build_schema_prompt
+from ..llm import carrega as llm_carrega, complete, complete_json_streaming
+from ..schema_context import build_schema_prompt, load_schema
+from . import progresso as prog
+
+_REGRAS = len(load_schema().get("rules") or [])
 
 # Um plano maior que isto não cabe na tela nem na cabeça de quem lê. Doze itens
 # já são quatro indicadores, cinco gráficos e três filtros.
@@ -193,6 +197,54 @@ Se a base sustenta PARTE do assunto, planeje a parte que ela sustenta e diga no 
 `raciocinio` o que ficou de fora."""
 
 
+def _pensar(pedido: str, sistema: str, relatar: prog.Relator) -> dict:
+    """A chamada do planejador, relatando o plano conforme ele é escrito.
+
+    Sem relator não há por que abrir o fluxo — a chamada direta é mais simples e
+    é o que os testes e a API sem stream usam. Com relator, o mesmo trabalho
+    vira uma lista que cresce: o título quando o modelo o escolhe, e cada item
+    quando a sua última aspa chega.
+    """
+    argumentos = dict(
+        model=settings.sql_model,
+        system=sistema,
+        messages=[{"role": "user", "content": f"Assunto da análise: {pedido}"}],
+        schema=ESQUEMA,
+        schema_name="plano",
+        # Alto, e só aqui: uma chamada decide o conteúdo de doze.
+        reasoning_effort="high",
+    )
+    if relatar is None:
+        bruto = complete(**argumentos)
+        assert isinstance(bruto, dict)
+        return bruto
+
+    texto, anunciados, titulo_dito = "", 0, False
+    for pedaco in complete_json_streaming(**argumentos):
+        texto += pedaco
+        if not titulo_dito and (m := _TITULO_PRONTO.search(texto)):
+            prog.fecha(
+                relatar,
+                "pensar",
+                "Decidindo o que a base sustenta sobre o assunto",
+                m.group(1)[:70],
+            )
+            prog.relata(relatar, "montar", "Escolhendo os mostradores")
+            titulo_dito = True
+        prontos = _PEDIDO_PRONTO.findall(texto)
+        while anunciados < len(prontos):
+            prog.fecha(relatar, f"item{anunciados}", prontos[anunciados][:110])
+            anunciados += 1
+
+    prog.fecha(
+        relatar,
+        "montar",
+        "Escolhendo os mostradores",
+        f"{anunciados} {'item' if anunciados == 1 else 'itens'}",
+    )
+    return llm_carrega(texto)
+
+
 @dataclass
 class Item:
     tipo: str
@@ -219,19 +271,29 @@ class Plano:
         }
 
 
-def planejar(pedido: str) -> Plano:
+# Um `pedido` só é anunciado quando a aspa de fechamento chegou — meio pedido na
+# tela é pior que nenhum, porque some e reaparece diferente.
+_PEDIDO_PRONTO = re.compile(r'"pedido"\s*:\s*"((?:[^"\\]|\\.)*)"')
+_TITULO_PRONTO = re.compile(r'"titulo"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def planejar(pedido: str, relatar: prog.Relator = None) -> Plano:
     """Lê o assunto, pensa sobre a base, devolve a lista de mostradores."""
+    prog.relata(relatar, "dicionario", "Lendo o dicionário do banco")
+    sistema = SISTEMA.format(schema=build_schema_prompt())
+    prog.fecha(relatar, "dicionario", "Lendo o dicionário do banco", f"{_REGRAS} regras")
+
+    prog.relata(relatar, "pensar", "Decidindo o que a base sustenta sobre o assunto")
     try:
-        bruto = complete(
-            model=settings.sql_model,
-            system=SISTEMA.format(schema=build_schema_prompt()),
-            messages=[{"role": "user", "content": f"Assunto da análise: {pedido}"}],
-            schema=ESQUEMA,
-            schema_name="plano",
-            # Alto, e só aqui: uma chamada decide o conteúdo de doze.
-            reasoning_effort="high",
-        )
+        bruto = _pensar(pedido, sistema, relatar)
     except Exception as exc:  # noqa: BLE001
+        prog.relata(
+            relatar,
+            "pensar",
+            "Decidindo o que a base sustenta sobre o assunto",
+            prog.FALHOU,
+            str(exc)[:60],
+        )
         return Plano(recusa=f"O planejamento falhou: {str(exc)[:200]}")
     assert isinstance(bruto, dict)
 

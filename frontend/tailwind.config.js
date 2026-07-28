@@ -43,10 +43,18 @@ export default {
         },
         blink: { "0%, 45%": { opacity: "1" }, "50%, 95%": { opacity: "0" } },
         shimmer: { "100%": { transform: "translateX(100%)" } },
+        // A varredura da etapa em curso. INDETERMINADA de propósito: ela diz
+        // "isto está acontecendo" e não finge saber quanto falta — o modelo
+        // leva de dez a quarenta segundos e ninguém, nem ele, sabe quantos.
+        varre: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(400%)" },
+        },
       },
       animation: {
         "fade-up": "fade-up 200ms cubic-bezier(0.16, 1, 0.3, 1) both",
         blink: "blink 1.1s steps(1) infinite",
+        varre: "varre 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite",
       },
     },
   },

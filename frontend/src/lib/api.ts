@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { AnalysisPlan, ChartSpec, Dashboard, PanelCatalog, PlanItem, WidgetData, WidgetDraft, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
+import type { AnalysisPlan, ChartSpec, Dashboard, PanelCatalog, PanelStep, PlanItem, WidgetData, WidgetDraft, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -41,7 +41,11 @@ export async function* ask(
       JSON.stringify(history.map((t) => ({ question: t.question, sql: t.sql }))),
     );
   }
+  yield* fluxo<StreamEvent>(url, signal);
+}
 
+/** A leitura de um fluxo SSE: um evento por bloco `data:`. */
+export async function* fluxo<T>(url: URL, signal?: AbortSignal): AsyncGenerator<T> {
   let resposta: Response;
   try {
     resposta = await fetch(url, { signal, headers: { Accept: "text/event-stream" } });
@@ -77,7 +81,7 @@ export async function* ask(
           .join("\n");
         if (!payload) continue;
         try {
-          yield JSON.parse(payload) as StreamEvent;
+          yield JSON.parse(payload) as T;
         } catch {
           // Bloco truncado ou comentário do servidor: ignora e segue.
         }
@@ -391,6 +395,58 @@ export const planDashboard = (id: string, request: string) =>
     method: "POST",
     body: JSON.stringify({ request }),
   });
+
+/* --------------------------------------------------------------------------
+   As versões que RELATAM enquanto trabalham.
+
+   Montar um widget leva de dez a quarenta segundos e um plano leva dois
+   minutos. As versões POST acima continuam existindo porque são o caminho de
+   quem só quer o resultado — testes, scripts —, mas a tela usa estas: um
+   cartão girando não distingue "está escrevendo a consulta" de "travou".
+   -------------------------------------------------------------------------- */
+
+type EventoDoPainel =
+  | ({ type: "step" } & PanelStep)
+  | ({ type: "done" } & Record<string, unknown>);
+
+async function comRelato<T>(
+  caminho: string,
+  request: string,
+  aoPassar: (p: PanelStep) => void,
+): Promise<T> {
+  const url = new URL(caminho, BASE);
+  url.searchParams.set("request", request);
+  let ultimo: T | null = null;
+  for await (const e of fluxo<EventoDoPainel>(url)) {
+    if (e.type === "step") aoPassar(e);
+    else ultimo = e as T;
+  }
+  // Sem o evento final o trabalho não terminou — a conexão caiu no meio, e
+  // tratar isso como sucesso mudo deixaria a tarefa "pronta" sem nada na tela.
+  if (!ultimo) throw new Error("A conexão caiu antes de o trabalho terminar.");
+  return ultimo;
+}
+
+export const askDashboardStream = (
+  id: string,
+  request: string,
+  aoPassar: (p: PanelStep) => void,
+) =>
+  comRelato<{
+    kind: "widget" | "filtro" | "analise";
+    refused: string;
+    reason: string;
+    createdId?: string;
+    title?: string;
+    reasoning?: string;
+    items?: PlanItem[];
+  }>(`/api/dashboards/${id}/ask/stream`, request, aoPassar);
+
+export const planDashboardStream = (
+  id: string,
+  request: string,
+  aoPassar: (p: PanelStep) => void,
+) => comRelato<AnalysisPlan>(`/api/dashboards/${id}/plan/stream`, request, aoPassar);
 
 export const renameDashboard = (id: string, title: string) =>
   json<Dashboard>(`/api/dashboards/${id}`, {

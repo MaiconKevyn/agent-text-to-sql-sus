@@ -490,6 +490,41 @@ painel, é folha de gráficos, e "peça de novo" não é conserto. Um indicador
 também é **um** número: pedir "total, óbitos, taxa e gasto" junto produz um
 widget que mostra o primeiro e esconde os outros três.
 
+### O relato: o que está acontecendo enquanto se espera
+
+Montar um widget leva de dez a quarenta segundos; um plano de análise leva de um
+a dois minutos. Antes, esse tempo era um cartão girando — e girar não distingue
+*está escrevendo a consulta* de *travou*. Foi assim que uma chamada sem prazo
+ficou nove minutos sem ninguém perceber.
+
+Agora o servidor **transmite cada etapa** por SSE, e a tarefa vira um relato:
+
+```
+ ✓ Entendendo o pedido                        um gráfico
+ ✓ Lendo o dicionário do banco                20 regras
+ ● Escrevendo a consulta                                 17s   ▁▁▃▃▁▁
+   Conferindo o SQL
+   Executando sobre 144 milhões de linhas
+   Guardando no painel
+```
+
+**Toda etapa é um fato.** Ela abre quando aquele trabalho começa e fecha quando
+termina, com o que produziu ao lado — `20 regras`, `6 linha(s) em 0.5s`,
+`2 opções · Feminino, Masculino`, `12 itens`. Nada avança por temporizador.
+
+**Não há porcentagem, e a ausência é deliberada.** O passo caro é o modelo
+escrever a consulta, e ninguém sabe de antemão quantos segundos ele vai levar.
+Uma barra determinada chegaria ao fim antes dele e ficaria parada em 100% —
+indistinguível de travada, que é exatamente o problema que isto resolve. O que
+existe é uma varredura **indeterminada** e um cronômetro: os dois dizem *está
+acontecendo, faz tanto tempo*, e nada além disso.
+
+Numa análise, os itens do plano aparecem **um a um, conforme o modelo os
+escreve**. O JSON é transmitido em pedaços e cada item é anunciado quando a sua
+aspa de fechamento chega — meio pedido na tela seria pior que nenhum, porque
+sumiria e voltaria diferente. O título chega aos 76s; os doze itens, entre 79s e
+87s.
+
 ### A lupa: qual filtro vale em qual gráfico
 
 <div align="center">
@@ -628,6 +663,7 @@ src/
     gerar.py           pergunta → widget com lugar reservado no WHERE
     gerar_filtro.py    pedido → filtro ancorado numa coluna real
     planejar.py        um assunto → o plano de mostradores que o respondem
+    progresso.py       as etapas que o painel relata enquanto trabalha
     rotear.py          o pedido é gráfico, filtro ou análise inteira?
     executar.py        injeta a conjunção e roda; sem modelo no caminho
 
@@ -802,8 +838,8 @@ ele foi quem descobriu que o tema **padrão** já reprovava, com `--ink-subtle` 
   só na linguagem natural: são quase vazias, e oferecê-las num menu convidaria a
   montar gráficos de "não informado".
 - O planejador da análise leva **de um a dois minutos** antes de a fila começar:
-  é uma chamada em esforço alto sobre o dicionário inteiro. A tela mostra o
-  cartão rodando, mas não há progresso parcial.
+  é uma chamada em esforço alto sobre o dicionário inteiro. A tela relata as
+  etapas e mostra os itens do plano conforme são escritos, mas o tempo é esse.
 - A grade é sempre de 12 colunas, sem quebra para tela estreita. Em desktop está
   certo; num celular fica apertado.
 

@@ -1,5 +1,7 @@
 import { AlertCircle, Check, Clock, Loader2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
+import type { PanelStep } from "@/lib/types";
 import { MAX_SIMULTANEAS, type EstadoTarefa, type Tarefa } from "./useFilaDePedidos";
 
 const ICONE: Record<EstadoTarefa, typeof Check> = {
@@ -33,7 +35,7 @@ interface Props {
 }
 
 /**
- * A fila de pedidos, flutuando no canto.
+ * A fila de pedidos, flutuando no canto, com o relato do que está acontecendo.
  *
  * Fica fora do fluxo da página porque o painel continua utilizável enquanto os
  * pedidos rodam — dá para arrastar um widget, mexer num filtro, abrir uma lupa.
@@ -58,7 +60,7 @@ export function PainelDeTarefas({ tarefas, onDispensar, onLimpar }: Props) {
       // `aria-live` porque o estado muda sem ninguém clicar: quem usa leitor de
       // tela precisa saber que um pedido terminou.
       aria-live="polite"
-      className="fixed bottom-4 right-4 z-40 w-72 rounded-xl border border-line bg-surface shadow-2xl"
+      className="fixed bottom-4 right-4 z-40 w-[21rem] rounded-xl border border-line bg-surface shadow-2xl"
     >
       <header className="flex items-center gap-2 border-b border-line px-3 py-2">
         <span className="flex-1 text-[11px] font-semibold uppercase tracking-wide text-ink-subtle">
@@ -79,7 +81,7 @@ export function PainelDeTarefas({ tarefas, onDispensar, onLimpar }: Props) {
         )}
       </header>
 
-      <ul className="max-h-80 space-y-px overflow-y-auto p-1">
+      <ul className="max-h-[26rem] space-y-px overflow-y-auto p-1">
         {tarefas.map((t) => {
           const Icone = ICONE[t.estado];
           return (
@@ -137,10 +139,100 @@ export function PainelDeTarefas({ tarefas, onDispensar, onLimpar }: Props) {
                   </button>
                 )}
               </div>
+
+              {t.etapas.length > 0 && <Etapas etapas={t.etapas} />}
             </li>
           );
         })}
       </ul>
     </aside>
+  );
+}
+
+/* ------------------------------------------------------------------------- */
+
+/**
+ * O relato do servidor: uma linha por etapa, na ordem em que chegou.
+ *
+ * Não há porcentagem nem barra que enche, e a ausência é deliberada. O passo
+ * caro aqui é o modelo escrever a consulta — de dez a quarenta segundos, e
+ * ninguém sabe quantos de antemão. Uma barra determinada chegaria ao fim antes
+ * dele e ficaria parada em 100%, indistinguível de travada. O que existe é uma
+ * varredura INDETERMINADA e um cronômetro: os dois dizem "está acontecendo, faz
+ * tanto tempo" e nada mais, que é tudo o que se pode afirmar com honestidade.
+ */
+function Etapas({ etapas }: { etapas: PanelStep[] }) {
+  const caixa = useRef<HTMLOListElement>(null);
+  const quantas = useRef(etapas.length);
+
+  useEffect(() => {
+    // Rola para a etapa nova. Só quando o número CRESCE: uma etapa mudando de
+    // "fazendo" para "feita" não deve puxar a lista de volta se a pessoa subiu
+    // para reler o que já passou.
+    if (etapas.length > quantas.current) {
+      caixa.current?.scrollTo({ top: caixa.current.scrollHeight, behavior: "smooth" });
+    }
+    quantas.current = etapas.length;
+  }, [etapas.length]);
+
+  return (
+    <ol
+      ref={caixa}
+      className="ml-[7px] mt-1.5 max-h-40 space-y-1 overflow-y-auto border-l border-line pl-3"
+    >
+      {etapas.map((e) => (
+        <li key={e.id} className="relative">
+          <span
+            aria-hidden
+            className={cn(
+              "absolute -left-[17px] top-[5px] h-[7px] w-[7px] rounded-full border",
+              e.state === "feita" && "border-positive bg-positive",
+              e.state === "fazendo" && "border-accent bg-accent",
+              e.state === "falhou" && "border-critical bg-critical",
+            )}
+          />
+          <div className="flex items-baseline gap-1.5">
+            <span
+              className={cn(
+                "min-w-0 flex-1 text-[10.5px] leading-snug",
+                e.state === "fazendo" ? "text-ink" : "text-ink-muted",
+                e.state === "falhou" && "text-critical",
+              )}
+            >
+              {e.label}
+            </span>
+            {e.state === "fazendo" && <Cronometro />}
+          </div>
+          {e.detail && (
+            <span className="block truncate text-[10px] leading-snug text-ink-subtle">
+              {e.detail}
+            </span>
+          )}
+          {e.state === "fazendo" && (
+            <span
+              aria-hidden
+              className="mt-1 block h-px w-full overflow-hidden rounded bg-line"
+            >
+              <span className="block h-full w-1/4 animate-varre rounded bg-accent" />
+            </span>
+          )}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** Segundos desde que a etapa começou. Reinicia a cada etapa por causa da key. */
+function Cronometro() {
+  const [s, setS] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setS((v) => v + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+  // Antes de um segundo não há o que mostrar, e "0s" piscando em toda etapa
+  // instantânea — ler o dicionário, conferir o SQL — seria ruído.
+  if (s < 1) return null;
+  return (
+    <span className="shrink-0 text-[9.5px] tabular-nums text-ink-subtle">{s}s</span>
   );
 }

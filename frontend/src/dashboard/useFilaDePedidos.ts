@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { PanelStep } from "@/lib/types";
 
 /** Quantos pedidos DIGITADOS cabem esperando. Acima disso, a caixa recusa. */
 export const MAX_FILA = 10;
@@ -38,11 +39,20 @@ export interface Tarefa {
   tipo?: "widget" | "filtro" | "analise";
   /** De qual análise este pedido veio. Vazio = alguém o digitou. */
   origem?: string;
+  /**
+   * O que o servidor já relatou. Na ordem em que chegou — é um relato, e
+   * reordenar por estado faria as linhas trocarem de lugar sozinhas.
+   */
+  etapas: PanelStep[];
+  /** Quando começou a rodar, para o cronômetro da etapa atual. */
+  desde?: number;
 }
 
 /** O que a fila faz com um pedido. Devolve o resultado ou lança. */
 export type Executor = (
   pedido: string,
+  /** Chamado a cada etapa que o servidor relata, enquanto o trabalho corre. */
+  aoPassar: (p: PanelStep) => void,
 ) => Promise<{ tipo: "widget" | "filtro" | "analise"; recusa: string }>;
 
 let seq = 0;
@@ -96,7 +106,13 @@ export function useFilaDePedidos(executar: Executor, aoConcluir: () => void) {
       return `A fila está cheia (${MAX_FILA} pedidos). Espere alguma terminar.`;
     }
 
-    const nova: Tarefa = { id: `tar_${++seq}`, pedido: texto, estado: "na-fila", mensagem: "" };
+    const nova: Tarefa = {
+      id: `tar_${++seq}`,
+      pedido: texto,
+      estado: "na-fila",
+      mensagem: "",
+      etapas: [],
+    };
     // O espelho é atualizado ANTES do setState, para dois envios no mesmo tique
     // se enxergarem: sem isso, dez cliques rápidos passariam todos pela
     // checagem lendo a mesma lista vazia.
@@ -130,6 +146,7 @@ export function useFilaDePedidos(executar: Executor, aoConcluir: () => void) {
       estado: "na-fila",
       mensagem: "",
       origem,
+      etapas: [],
     }));
     agora.current = [...agora.current, ...novas];
     setTarefas(agora.current);
@@ -154,10 +171,23 @@ export function useFilaDePedidos(executar: Executor, aoConcluir: () => void) {
     if (rodando >= MAX_SIMULTANEAS || !proxima) return;
 
     disparadas.current.add(proxima.id);
-    atualiza(proxima.id, { estado: "rodando" });
+    atualiza(proxima.id, { estado: "rodando", desde: Date.now() });
+
+    // Uma etapa com o mesmo id SUBSTITUI a anterior: é a mesma etapa mudando de
+    // "fazendo" para "feita", não duas. Só o planejador emite ids novos a cada
+    // linha, e são os itens do plano aparecendo conforme são escritos.
+    const aoPassar = (p: PanelStep) =>
+      setTarefas((ts) =>
+        ts.map((t) => {
+          if (t.id !== proxima.id) return t;
+          const i = t.etapas.findIndex((e) => e.id === p.id);
+          const etapas = i >= 0 ? t.etapas.map((e, k) => (k === i ? p : e)) : [...t.etapas, p];
+          return { ...t, etapas };
+        }),
+      );
 
     executarRef
-      .current(proxima.pedido)
+      .current(proxima.pedido, aoPassar)
       .then((r) => {
         if (r.recusa) {
           atualiza(proxima.id, { estado: "recusada", mensagem: r.recusa, tipo: r.tipo });

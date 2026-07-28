@@ -82,6 +82,48 @@ def complete(
     return json.loads(_repara_escapes(content)) if schema is not None else content
 
 
+def carrega(texto: str) -> dict:
+    """Lê o JSON de uma resposta estruturada, consertando o escape quebrado."""
+    return json.loads(_repara_escapes(texto))
+
+
+def complete_json_streaming(
+    *,
+    model: str,
+    system: str,
+    messages: list[dict[str, str]],
+    schema: dict[str, Any],
+    schema_name: str = "resposta",
+    reasoning_effort: str | None = None,
+) -> Iterator[str]:
+    """Igual a `complete` com schema, mas devolve o JSON conforme é escrito.
+
+    O JSON só serve completo — quem chama tem de acumular e passar por
+    `carrega` no fim. O que os pedaços permitem é RELATAR: o planejador de
+    análise leva de um a dois minutos, e a diferença entre um cartão girando e
+    os itens do plano aparecendo um a um é a diferença entre esperar e
+    acompanhar. Nada aqui é enfeite: cada item mostrado acabou de chegar.
+    """
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "system", "content": system}, *messages],
+        "stream": True,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": schema_name, "strict": True, "schema": schema},
+        },
+    }
+    if reasoning_effort and model.startswith(("gpt-5", "o3", "o4")):
+        kwargs["reasoning_effort"] = reasoning_effort
+
+    for chunk in client().chat.completions.create(**kwargs):
+        if not chunk.choices:
+            continue
+        pedaco = chunk.choices[0].delta.content
+        if pedaco:
+            yield pedaco
+
+
 def complete_streaming(
     *,
     model: str,

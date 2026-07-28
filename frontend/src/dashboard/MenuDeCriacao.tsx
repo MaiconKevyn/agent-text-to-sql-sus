@@ -1,10 +1,11 @@
 import { Check, Info, Loader2, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { createFilterManual, createWidgetManual, planDashboard } from "@/lib/api";
+import { createFilterManual, createWidgetManual, planDashboardStream } from "@/lib/api";
 import type {
   AnalysisPlan,
   CatalogField,
   ChartKind,
+  PanelStep,
   PanelCatalog,
   PlanItem,
 } from "@/lib/types";
@@ -596,14 +597,23 @@ function AbaAnalise({
   const [fora, setFora] = useState<Set<number>>(new Set());
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState("");
+  // O que o servidor já relatou. Planejar leva de um a dois minutos, e nesse
+  // tempo o botão dizia só "Pensando…" — que não distingue pensar de travar.
+  const [etapas, setEtapas] = useState<PanelStep[]>([]);
 
   async function planejar() {
     setOcupado(true);
     setErro("");
     setPlano(null);
     setFora(new Set());
+    setEtapas([]);
     try {
-      const p = await planDashboard(painelId, assunto.trim());
+      const p = await planDashboardStream(painelId, assunto.trim(), (passo) =>
+        setEtapas((atual) => {
+          const i = atual.findIndex((e) => e.id === passo.id);
+          return i >= 0 ? atual.map((e, k) => (k === i ? passo : e)) : [...atual, passo];
+        }),
+      );
       if (p.refused) setErro(p.refused);
       else setPlano(p);
     } catch (e) {
@@ -642,6 +652,48 @@ function AbaAnalise({
             </button>
           ))}
         </div>
+      )}
+
+      {/* O relato enquanto pensa. Some quando o plano chega: aí o que interessa
+          é o plano, e manter as duas listas empilhadas faria a pessoa ler o
+          caminho em vez do destino. */}
+      {ocupado && etapas.length > 0 && (
+        <ol className="ml-[3px] space-y-1 border-l border-line pl-3">
+          {etapas.map((e) => (
+            <li key={e.id} className="relative">
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute -left-[17px] top-[5px] h-[7px] w-[7px] rounded-full border",
+                  e.state === "feita" && "border-positive bg-positive",
+                  e.state === "fazendo" && "border-accent bg-accent",
+                  e.state === "falhou" && "border-critical bg-critical",
+                )}
+              />
+              <span
+                className={cn(
+                  "text-[11.5px] leading-snug",
+                  e.state === "fazendo" ? "text-ink" : "text-ink-muted",
+                )}
+              >
+                {e.label}
+              </span>
+              {e.detail && (
+                <span className="block text-[10.5px] leading-snug text-ink-subtle">
+                  {e.detail}
+                </span>
+              )}
+              {e.state === "fazendo" && (
+                <span
+                  aria-hidden
+                  className="mt-1 block h-px w-full overflow-hidden rounded bg-line"
+                >
+                  <span className="block h-full w-1/4 animate-varre rounded bg-accent" />
+                </span>
+              )}
+            </li>
+          ))}
+        </ol>
       )}
 
       {erro && <Recusa texto={erro} />}

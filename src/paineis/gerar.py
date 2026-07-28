@@ -28,9 +28,15 @@ from dataclasses import dataclass
 from ..db import Database, UnsafeQueryError, validate_sql
 from ..llm import complete
 from ..config import settings
-from ..schema_context import build_schema_prompt, capability_notes
+from ..schema_context import build_schema_prompt, capability_notes, load_schema
+from . import progresso as prog
 from .filtros import TOKEN
 from .models import Widget
+
+# Quantas regras o dicionário carrega. Vira detalhe da primeira etapa: dizer
+# "lendo o dicionário" sem número é dizer que algo aconteceu; com o número, é
+# dizer o quê.
+_REGRAS = len(load_schema().get("rules") or [])
 
 ESQUEMA_WIDGET = {
     "type": "object",
@@ -124,11 +130,18 @@ class Resultado:
 _ALIAS_FATO = re.compile(r"\binternacoes\s+(?:as\s+)?i\b", re.I)
 
 
-def gerar(pergunta: str, db: Database) -> Resultado:
+def gerar(pergunta: str, db: Database, relatar: prog.Relator = None) -> Resultado:
     """Cria um widget, ou recusa. Nunca devolve widget que não executa."""
+    prog.relata(relatar, "dicionario", "Lendo o dicionário do banco")
+    sistema = SISTEMA.format(
+        schema=build_schema_prompt(), capabilities=capability_notes(), token=TOKEN
+    )
+    prog.fecha(relatar, "dicionario", "Lendo o dicionário do banco", f"{_REGRAS} regras")
+
+    prog.relata(relatar, "sql", "Escrevendo a consulta")
     bruto = complete(
         model=settings.sql_model,
-        system=SISTEMA.format(schema=build_schema_prompt(), capabilities=capability_notes(), token=TOKEN),
+        system=sistema,
         messages=[{"role": "user", "content": f"Widget pedido: {pergunta}"}],
         schema=ESQUEMA_WIDGET,
         schema_name="widget",
@@ -137,16 +150,21 @@ def gerar(pergunta: str, db: Database) -> Resultado:
     assert isinstance(bruto, dict)
 
     if not bruto.get("possivel"):
+        prog.relata(relatar, "sql", "Escrevendo a consulta", prog.FALHOU, "a base não responde")
         return Resultado(recusa=str(bruto.get("recusa") or "A base não responde a isso.")[:400])
 
     sql = str(bruto.get("sql") or "").strip()
+    prog.fecha(relatar, "sql", "Escrevendo a consulta", str(bruto.get("titulo") or "")[:60])
 
+    prog.relata(relatar, "validar", "Conferindo o SQL")
     try:
         sql = validate_sql(sql)
     except UnsafeQueryError as exc:
+        prog.relata(relatar, "validar", "Conferindo o SQL", prog.FALHOU, str(exc)[:60])
         return Resultado(recusa=f"SQL recusado pelo validador: {exc}")
 
     if TOKEN not in sql:
+        prog.relata(relatar, "validar", "Conferindo o SQL", prog.FALHOU, "sem lugar para os filtros")
         return Resultado(
             recusa=(
                 f"A consulta não reservou lugar para os filtros ({TOKEN} no WHERE). "
@@ -154,31 +172,43 @@ def gerar(pergunta: str, db: Database) -> Resultado:
             )
         )
     if not _ALIAS_FATO.search(sql):
+        prog.relata(relatar, "validar", "Conferindo o SQL", prog.FALHOU, "o fato não está aliasado")
         return Resultado(
             recusa=(
                 "A consulta precisa aliasar o fato como `i` (FROM internacoes i): "
                 "os fragmentos de filtro referenciam `i.<coluna>`."
             )
         )
+    prog.fecha(relatar, "validar", "Conferindo o SQL", "só SELECT, com lugar para os filtros")
 
     # Duas provas: sem filtro nenhum, e com um filtro qualquer no lugar do
     # token. A segunda pega o caso em que o token ficou fora do WHERE e a
     # conjunção vira erro de sintaxe só quando alguém cria o primeiro filtro.
+    prog.relata(relatar, "executar", "Executando sobre 144 milhões de linhas")
     try:
-        res = db.run(sql.replace(TOKEN, ""), max_rows=1)
+        res = db.run(sql.replace(TOKEN, ""), max_rows=400)
     except Exception as exc:  # noqa: BLE001
+        prog.relata(relatar, "executar", "Executando sobre 144 milhões de linhas", prog.FALHOU, str(exc)[:60])
         return Resultado(recusa=f"A consulta não executou: {str(exc)[:220]}")
     try:
         db.run(sql.replace(TOKEN, " AND (1=1)"), max_rows=1)
     except Exception as exc:  # noqa: BLE001
+        prog.relata(relatar, "executar", "Executando sobre 144 milhões de linhas", prog.FALHOU, "o token caiu fora do WHERE")
         return Resultado(recusa=f"O token não está num WHERE utilizável: {str(exc)[:200]}")
 
     # Sem filtro nenhum, um widget de painel TEM de devolver linha. Zero aqui
     # não é "não há dado" — é consulta errada.
     if not res.rows:
+        prog.relata(relatar, "executar", "Executando sobre 144 milhões de linhas", prog.FALHOU, "zero linhas")
         return Resultado(
             recusa="A consulta não devolve nenhuma linha sem filtro algum. Reveja as condições."
         )
+    prog.fecha(
+        relatar,
+        "executar",
+        "Executando sobre 144 milhões de linhas",
+        f"{len(res.rows)} linha(s) em {res.elapsed_s:.1f}s",
+    )
 
     chart = bruto.get("chart") or {}
     formato = bruto.get("formato") if bruto.get("formato") in ("grafico", "indicador") else "grafico"

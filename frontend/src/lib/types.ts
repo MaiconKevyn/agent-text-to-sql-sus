@@ -78,6 +78,27 @@ export interface ChartSpec {
   title: string;
   /** Uma frase do agente justificando a forma escolhida. */
   reason: string;
+
+  /* -- Aparência, escolhida por quem olha ---------------------------------
+     Opcionais e ausentes em tudo que foi criado antes: cada leitura cai no
+     padrão da paleta, e um gráfico antigo continua igual ao que era. */
+
+  /**
+   * Cores fora da paleta, na ordem das séries. `null` — o normal — usa a paleta
+   * do tema, que é validada para daltonismo e para o contraste do fundo. Uma
+   * cor escolhida à mão não passa por essa validação, e é por isso que ela é a
+   * exceção e não o padrão.
+   */
+  colors?: string[] | null;
+  /** Número em cima de cada marca. Ilegível acima de ~15 categorias. */
+  showLabels?: boolean;
+  showLegend?: boolean;
+  /** Linha: suavizada ou reta. Reta é mais honesta com poucos pontos. */
+  smooth?: boolean;
+  /** Linha: preenche a área sob a curva. */
+  area?: boolean;
+  /** Barra com série: empilha em valor absoluto (a 100% é uma forma à parte). */
+  stack?: boolean;
 }
 
 /** Uma rodada anterior, enviada ao backend para resolver acompanhamentos. */
@@ -496,6 +517,91 @@ export interface Dashboard {
   filters: PanelFilter[];
   widgetCount: number;
   widgets?: DashboardWidget[];
+}
+
+/* --------------------------------------------------------------------------
+   O catálogo do menu manual.
+
+   Ele vem do servidor e não do cliente porque é o MESMO objeto que monta o SQL
+   lá. Duplicar a lista aqui criaria duas verdades sobre quais colunas existem,
+   e a que a tela mostra é sempre a que erra por último.
+   -------------------------------------------------------------------------- */
+
+export type FilterKind = "faixa" | "escolha" | "multipla";
+
+export interface CatalogField {
+  id: string;
+  label: string;
+  /** "Tempo", "Paciente", "Clínico", "Atendimento", "Geografia". */
+  group: string;
+  type: "categoria" | "numero";
+  /** Tipos de controle que este campo aceita. Vazio = só serve para agrupar. */
+  filters: FilterKind[];
+  /** Valores distintos; 0 quando são muitos. */
+  distinct: number;
+  note: string;
+  /** Poucas categorias o bastante para virar série sem estourar a legenda. */
+  canSeries: boolean;
+  /** Tempo e faixas: o eixo sai em ordem de categoria, não de valor. */
+  ordinal: boolean;
+}
+
+export interface CatalogMeasure {
+  id: string;
+  label: string;
+  /** "%" ou "R$", quando muda como o número se lê. */
+  unit: string;
+  /** Piso de casos por grupo. Só as taxas têm. */
+  minCases: number;
+  note: string;
+}
+
+export interface CatalogForm {
+  id: ChartKind;
+  label: string;
+  needsSeries: boolean;
+  /** 0 = sem teto. Pizza tem 8. */
+  maxCategories: number;
+}
+
+export interface PanelCatalog {
+  fields: CatalogField[];
+  measures: CatalogMeasure[];
+  forms: CatalogForm[];
+  orders: { id: string; label: string }[];
+  filterKinds: { id: FilterKind; label: string }[];
+}
+
+/** O que a tela envia para montar um gráfico. Ids do catálogo, nunca SQL. */
+export interface WidgetDraft {
+  measure: string;
+  /** Vazio = indicador: um número só, sem eixo. */
+  field: string;
+  series: string;
+  form: ChartKind;
+  order: string;
+  limit: number;
+  title: string;
+  appearance?: Partial<ChartSpec>;
+}
+
+/* --------------------------------------------------------------------------
+   O plano de uma análise completa.
+   -------------------------------------------------------------------------- */
+
+export interface PlanItem {
+  kind: "indicador" | "grafico" | "filtro";
+  /** A frase que será executada sozinha. Carrega o assunto por extenso. */
+  request: string;
+  why: string;
+}
+
+export interface AnalysisPlan {
+  title: string;
+  /** O que a base permite ver sobre o assunto, e o que não permite. */
+  reasoning: string;
+  items: PlanItem[];
+  refused: string;
 }
 
 /** O resultado de rodar um widget sob os filtros atuais. */

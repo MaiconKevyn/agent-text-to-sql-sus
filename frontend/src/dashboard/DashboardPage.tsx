@@ -1,4 +1,4 @@
-import { ArrowLeft, BarChart3, Loader2, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, BarChart3, Loader2, Plus, Sliders, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SeletorDePaleta } from "@/components/SeletorDePaleta";
 import { TrilhoDeSecoes } from "@/components/TrilhoDeSecoes";
@@ -12,14 +12,27 @@ import {
   deleteFilter,
   deleteWidget,
   listDashboards,
+  panelCatalog,
   readDashboard,
+  renameDashboard,
   selectFilter,
   setDashboardGrid,
   toggleWidgetFilter,
+  updateWidgetChart,
 } from "@/lib/api";
-import { LINHA_PX, VAO_PX, type Dashboard, type WidgetData } from "@/lib/types";
+import {
+  LINHA_PX,
+  VAO_PX,
+  type AnalysisPlan,
+  type ChartSpec,
+  type Dashboard,
+  type PanelCatalog,
+  type PlanItem,
+  type WidgetData,
+} from "@/lib/types";
 import { usePainel } from "@/theme/usePainel";
 import { ControleDeFiltro } from "./ControleDeFiltro";
+import { MenuDeCriacao } from "./MenuDeCriacao";
 import { PainelDeTarefas } from "./PainelDeTarefas";
 import { useFilaDePedidos } from "./useFilaDePedidos";
 import { WidgetPainel } from "./WidgetPainel";
@@ -54,6 +67,16 @@ export default function DashboardPage() {
   const [painel, setPainel] = useState<Dashboard | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  // O catálogo é constante do servidor: uma busca por sessão, e o menu abre sem
+  // esperar rede. Se ela falhar, o menu manual some e a caixa em linguagem
+  // natural continua — melhor uma ferramenta a menos que um menu mentindo sobre
+  // quais colunas existem.
+  const [catalogo, setCatalogo] = useState<PanelCatalog | null>(null);
+  useEffect(() => {
+    panelCatalog()
+      .then(setCatalogo)
+      .catch(() => setCatalogo(null));
+  }, []);
 
   useEffect(() => {
     const aoVoltar = () => setId(idDaUrl());
@@ -135,7 +158,7 @@ export default function DashboardPage() {
           )}
           {!carregando && !erro && !id && <ListaDePaineis paineis={lista} onNovo={novo} />}
           {!carregando && !erro && id && painel && (
-            <Detalhe painel={painel} onMudou={recarregar} />
+            <Detalhe painel={painel} catalogo={catalogo} onMudou={recarregar} />
           )}
         </main>
       </div>
@@ -207,35 +230,134 @@ function ListaDePaineis({ paineis, onNovo }: { paineis: Dashboard[]; onNovo: () 
   );
 }
 
-function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }) {
+function Detalhe({
+  painel,
+  catalogo,
+  onMudou,
+}: {
+  painel: Dashboard;
+  catalogo: PanelCatalog | null;
+  onMudou: () => void;
+}) {
   const widgets = painel.widgets ?? [];
   const [dados, setDados] = useState<Record<string, WidgetData>>({});
   const [rodando, setRodando] = useState(false);
   const [pedido, setPedido] = useState("");
   const [aviso, setAviso] = useState("");
+  const [menu, setMenu] = useState(false);
+  // O raciocínio do plano: o que a base permite ver sobre o assunto e o que
+  // não permite. É a única parte da análise que não vira widget, e é a que
+  // impede alguém de ler o painel como se ele respondesse mais do que responde.
+  const [plano, setPlano] = useState<{ titulo: string; texto: string } | null>(null);
   const grade = usePainel(widgets, (l) => setDashboardGrid(painel.id, l), onMudou);
 
-  // A assinatura é o RECORTE mais a lista de widgets. Sem isso, arrastar um
-  // widget dispararia varredura no banco a cada quadro do gesto.
-  const assinatura =
-    painel.filters.map((f) => `${f.id}:${f.selection.join("|")}`).join(",") +
-    "#" +
-    widgets.map((w) => `${w.id}:${w.excluded.join("|")}`).join(",");
-  const ultima = useRef("");
-  useEffect(() => {
-    if (!widgets.length || ultima.current === assinatura) return;
-    ultima.current = assinatura;
-    setRodando(true);
-    dashboardData(painel.id)
-      .then((r) => setDados(Object.fromEntries(r.data.map((d) => [d.id, d]))))
-      .catch(() => setDados({}))
-      .finally(() => setRodando(false));
-  }, [assinatura, painel.id, widgets.length]);
+  /*
+   * Quem precisa rodar de novo.
+   *
+   * Duas assinaturas, e não uma, porque as duas causas têm alcances diferentes:
+   * mexer num FILTRO muda todo widget que o obedece, mas um widget novo — ou um
+   * que ligou/desligou um filtro na lupa — só muda a si mesmo.
+   *
+   * Com uma assinatura só, uma análise de doze itens fazia o painel reexecutar
+   * tudo doze vezes conforme os widgets chegavam: setenta e oito varreduras
+   * sobre 144 milhões de linhas para mostrar as doze que alguém pediu, e o
+   * DuckDB serializa as consultas num lock, então elas nem se sobrepõem.
+   */
+  // Só os filtros ATIVOS entram no recorte. Um filtro nasce com tudo marcado, o
+  // que é o mesmo que não filtrar — e fazer o painel inteiro revarrer o banco
+  // para criar um controle que ainda não recorta nada seria puro desperdício.
+  const recorte = painel.filters
+    .filter((f) => f.active)
+    .map((f) => `${f.id}:${f.selection.join("|")}`)
+    .join(",");
+  const porWidget = widgets.map((w) => `${w.id}:${w.excluded.join("|")}`).join(",");
+  const ultimoRecorte = useRef<string | null>(null);
+  const ultimoPorWidget = useRef("");
+  const comDados = useRef(new Set<string>());
 
-  const recarregarTudo = useCallback(() => {
-    ultima.current = "";
-    onMudou();
-  }, [onMudou]);
+  // Trocar de painel sem desmontar o componente deixaria os refs falando do
+  // painel anterior. Os ids são únicos, então nada casaria errado — mas o
+  // recorte guardado faria a primeira leitura parecer uma mudança de filtro.
+  const painelAnterior = useRef(painel.id);
+  if (painelAnterior.current !== painel.id) {
+    painelAnterior.current = painel.id;
+    ultimoRecorte.current = null;
+    ultimoPorWidget.current = "";
+    comDados.current = new Set();
+  }
+
+  useEffect(() => {
+    if (!widgets.length) return;
+    const trocouORecorte = ultimoRecorte.current !== null && ultimoRecorte.current !== recorte;
+    const primeiraVez = ultimoRecorte.current === null;
+    const antes = new Map(
+      ultimoPorWidget.current.split(",").filter(Boolean).map((p) => {
+        const i = p.indexOf(":");
+        return [p.slice(0, i), p.slice(i + 1)] as [string, string];
+      }),
+    );
+
+    const alvos =
+      trocouORecorte || primeiraVez
+        ? widgets.map((w) => w.id)
+        : widgets
+            .filter(
+              (w) => !comDados.current.has(w.id) || antes.get(w.id) !== w.excluded.join("|"),
+            )
+            .map((w) => w.id);
+
+    ultimoRecorte.current = recorte;
+    ultimoPorWidget.current = porWidget;
+    if (!alvos.length) return;
+
+    setRodando(true);
+    // `only` limita a varredura aos que mudaram. Sem ele, trocar uma cor num
+    // widget custaria uma leitura do painel inteiro.
+    dashboardData(painel.id, alvos.length === widgets.length ? undefined : alvos)
+      .then((r) => {
+        for (const d of r.data) comDados.current.add(d.id);
+        setDados((atual) => ({
+          ...atual,
+          ...Object.fromEntries(r.data.map((d) => [d.id, d])),
+        }));
+      })
+      .catch(() => undefined)
+      .finally(() => setRodando(false));
+  }, [recorte, porWidget, painel.id, widgets]);
+
+  /**
+   * Relê o painel. Não força nada a rodar de novo — quem decide é o efeito
+   * acima, comparando o que mudou: um widget novo entra sem dados e é buscado
+   * sozinho; os que já estão na tela ficam como estão.
+   */
+  const recarregar = useCallback(() => onMudou(), [onMudou]);
+
+  // A fila precisa de si mesma dentro do executor — é ela que enfileira os
+  // itens do plano —, e o executor é argumento dela. O ref quebra o círculo.
+  const filaRef = useRef<ReturnType<typeof useFilaDePedidos> | null>(null);
+
+  /**
+   * Recebe um plano e o transforma numa fila de pedidos.
+   *
+   * O painel também ganha o título do plano, mas só enquanto ele for "Novo
+   * painel": renomear por cima de um nome escolhido a mão seria apagar uma
+   * decisão de quem usa para pôr uma do modelo no lugar.
+   */
+  const aplicarPlano = useCallback(
+    (p: AnalysisPlan, itens: PlanItem[]) => {
+      const resumo = p.title.length > 40 ? `${p.title.slice(0, 39)}…` : p.title;
+      const aviso = filaRef.current?.enfileirarLote(
+        itens.map((i) => i.request),
+        resumo,
+      );
+      setAviso(aviso ?? "");
+      if (p.reasoning) setPlano({ titulo: p.title, texto: p.reasoning });
+      if (p.title && painel.title === "Novo painel") {
+        void renameDashboard(painel.id, p.title).then(onMudou);
+      }
+    },
+    [painel.id, painel.title, onMudou],
+  );
 
   // A caixa deixou de bloquear: cada envio vira uma tarefa na fila do canto.
   // Montar um widget leva de dez a quarenta segundos, e quem já sabe o que quer
@@ -244,12 +366,27 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
     useCallback(
       async (texto: string) => {
         const r = await askDashboard(painel.id, texto);
+        // Uma análise não cria nada por si: ela devolve o plano, e cada item
+        // dele vira uma tarefa irmã. Assim um item que a base não sustenta
+        // recusa sozinho, com o motivo, sem derrubar os outros onze.
+        if (r.kind === "analise") {
+          const itens = r.items ?? [];
+          if (r.refused || !itens.length) {
+            return { tipo: "analise" as const, recusa: r.refused || "O plano voltou vazio." };
+          }
+          aplicarPlano(
+            { title: r.title ?? texto, reasoning: r.reasoning ?? "", items: itens, refused: "" },
+            itens,
+          );
+          return { tipo: "analise" as const, recusa: "" };
+        }
         return { tipo: r.kind, recusa: r.refused };
       },
-      [painel.id],
+      [painel.id, aplicarPlano],
     ),
-    recarregarTudo,
+    recarregar,
   );
+  filaRef.current = fila;
 
   function enviar(forcar?: "widget" | "filtro") {
     const q = pedido.trim();
@@ -264,7 +401,7 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
         if (r.refused) setAviso(r.refused);
         else {
           setPedido("");
-          recarregarTudo();
+          recarregar();
         }
       });
       return;
@@ -299,6 +436,20 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
           >
             Enviar
           </button>
+          {/* O menu manual não substitui a caixa: ele resolve o que ela não
+              resolve. Quem sabe exatamente o que quer escolhe em quatro menus
+              mais rápido do que descreve em português — e sem torcer para a
+              classificação acertar. */}
+          {catalogo && (
+            <button
+              onClick={() => setMenu(true)}
+              title="Montar escolhendo medida, eixo, forma e cores"
+              className="flex shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[12px] text-ink-muted transition-colors duration-150 hover:border-accent/40 hover:text-accent"
+            >
+              <Sliders aria-hidden className="h-3.5 w-3.5" />
+              Montar
+            </button>
+          )}
         </div>
         {pedido.trim().length >= 3 && (
           <div className="mt-1.5 flex items-center gap-2 text-[11px] text-ink-subtle">
@@ -323,6 +474,25 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
         )}
       </div>
 
+      {/* O raciocínio do plano. É a única parte de uma análise que não vira
+          widget — e a que diz o que a base NÃO mostra sobre o assunto. Sem
+          isto, um painel de doze gráficos parece responder tudo. */}
+      {plano && (
+        <div className="mb-3 rounded-xl border border-accent/30 bg-accent-soft/40 px-3.5 py-2.5">
+          <div className="flex items-baseline gap-2">
+            <h2 className="min-w-0 flex-1 text-[12.5px] font-semibold text-ink">{plano.titulo}</h2>
+            <button
+              onClick={() => setPlano(null)}
+              aria-label="Fechar o resumo do plano"
+              className="shrink-0 rounded p-0.5 text-ink-subtle transition-colors duration-150 hover:text-ink"
+            >
+              <X aria-hidden className="h-3.5 w-3.5" />
+            </button>
+          </div>
+          <p className="mt-1 text-[11.5px] leading-relaxed text-ink-muted">{plano.texto}</p>
+        </div>
+      )}
+
       {/* Os filtros. Valem para TODOS os widgets ao mesmo tempo. */}
       <section aria-label="Filtros" className="mb-4">
         <div className="mb-1.5 flex items-baseline gap-2">
@@ -343,11 +513,11 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
                 filtro={f}
                 onSelecionar={async (sel) => {
                   await selectFilter(painel.id, f.id, sel);
-                  recarregarTudo();
+                  recarregar();
                 }}
                 onRemover={async () => {
                   await deleteFilter(painel.id, f.id);
-                  recarregarTudo();
+                  recarregar();
                 }}
               />
             ))}
@@ -400,28 +570,53 @@ function Detalhe({ painel, onMudou }: { painel: Dashboard; onMudou: () => void }
                   carregando={rodando}
                   onRemover={async () => {
                     await deleteWidget(painel.id, w.id);
-                    recarregarTudo();
+                    recarregar();
                   }}
                   onRecriar={async () => {
                     // A pergunta original ficou guardada justamente para isto.
                     await createWidget(painel.id, w.question);
                     await deleteWidget(painel.id, w.id);
-                    recarregarTudo();
+                    recarregar();
                   }}
                   filtros={painel.filters}
                   onAlternarFiltro={async (fid) => {
                     await toggleWidgetFilter(painel.id, w.id, fid);
-                    recarregarTudo();
+                    recarregar();
                   }}
                   celula={m.celula}
                   gesto={ativo ? grade.gesto!.gesto : null}
                   comecar={grade.comecar}
                   porTeclado={grade.porTeclado}
+                  formas={catalogo?.forms ?? []}
+                  onAjustar={async (patch: Partial<ChartSpec>) => {
+                    const r = await updateWidgetChart(painel.id, w.id, patch);
+                    // Só a aparência mudou: nenhuma consulta roda de novo, e
+                    // por isso `onMudou` basta — `recarregar` faria o painel
+                    // inteiro varrer o banco para trocar uma cor.
+                    if (!r.refused) onMudou();
+                    return r.refused;
+                  }}
                 />
               </div>
             );
           })}
         </div>
+      )}
+
+      {menu && catalogo && (
+        <MenuDeCriacao
+          painelId={painel.id}
+          catalogo={catalogo}
+          onCriado={() => {
+            setMenu(false);
+            recarregar();
+          }}
+          onPlano={(p, itens) => {
+            setMenu(false);
+            aplicarPlano(p, itens);
+          }}
+          onFechar={() => setMenu(false)}
+        />
       )}
 
       <PainelDeTarefas

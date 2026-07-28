@@ -112,6 +112,12 @@ export function PainelDeTarefas({ tarefas, onDispensar, onLimpar }: Props) {
                   <p className={cn("text-[10.5px] leading-snug", COR[t.estado])}>
                     {ROTULO[t.estado]}
                     {t.tipo && t.estado === "pronta" && ` · ${t.tipo}`}
+                    {/* De qual análise o pedido veio. Sem isto, doze cartões
+                        aparecendo de uma vez parecem doze coisas que alguém
+                        pediu uma a uma. */}
+                    {t.origem && (
+                      <span className="text-ink-subtle"> · de &ldquo;{t.origem}&rdquo;</span>
+                    )}
                   </p>
                   {/* A recusa vai INTEIRA: ela é a única coisa deste cartão que
                       não está visível em nenhum outro lugar da tela. */}

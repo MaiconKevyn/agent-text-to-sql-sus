@@ -157,16 +157,48 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
     axisTick: { show: false },
   };
 
-  const rotulo = (v: Celula) => String(v ?? "—");
+  const rotulo = (v: Celula) => {
+    const s = String(v ?? "—");
+    // Uma coluna de data chega como ISO completo, porque é assim que ela
+    // atravessa o JSON. No eixo, "2020-03-01T00:00:00" ocupa quatro vezes o
+    // espaço de "2020-03" e não diz nada a mais: um `date_trunc('month', …)`
+    // tem todo dia 1 por construção.
+    const m = /^(\d{4})-(\d{2})-(\d{2})T00:00:00/.exec(s);
+    return m ? (m[3] === "01" ? `${m[1]}-${m[2]}` : `${m[1]}-${m[2]}-${m[3]}`) : s;
+  };
   const valor = (v: Celula) => Number(v ?? 0);
   const categorias = [...new Set(res.rows.map((r) => rotulo(r[ix])))];
+
+  /**
+   * A cor da série `i`.
+   *
+   * A paleta do tema é o padrão porque ela foi VALIDADA — separação para
+   * daltonismo e contraste contra o fundo, claro e escuro. Uma cor escolhida à
+   * mão não passa por essa conferência, então ela sobrepõe apenas onde foi
+   * escolhida: uma lista de duas cores num gráfico de cinco séries deixa as
+   * outras três na paleta, em vez de repetir as duas.
+   */
+  const cor = (i: number) => spec.colors?.[i] ?? t.serie[i % t.serie.length];
+  const mostraLegenda = spec.showLegend !== false;
+  const mostraRotulos = spec.showLabels === true;
+  /** Número em cima da marca. Acima de ~20 categorias vira borrão, e some. */
+  const rotulosDeValor = (n: number) =>
+    mostraRotulos && n <= 20
+      ? {
+          show: true,
+          position: "top" as const,
+          formatter: (p: { value: number }) => abreviar(p.value),
+          ...texto,
+          fontSize: 9.5,
+        }
+      : { show: false };
 
   /** Uma série por valor distinto da coluna `series`, alinhada às categorias. */
   const seriesMultiplas = () => {
     const nomes = [...new Set(res.rows.map((r) => rotulo(r[is])))];
     return nomes.map((nome, i) => ({
       nome,
-      cor: t.serie[i % t.serie.length],
+      cor: cor(i),
       dados: categorias.map((c) => {
         const linha = res.rows.find((r) => rotulo(r[ix]) === c && rotulo(r[is]) === nome);
         return linha ? valor(linha[iy]) : null;
@@ -187,7 +219,7 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
     case "linha": {
       const s = is >= 0 ? seriesMultiplas() : null;
       return {
-        grid: { top: s ? 34 : 14, right: 16, bottom: 26, left: 58 },
+        grid: { top: s && mostraLegenda ? 34 : 14, right: 16, bottom: 26, left: 58 },
         xAxis: { ...eixoCat, data: categorias, boundaryGap: false },
         yAxis: eixoValor,
         tooltip: {
@@ -196,17 +228,23 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
           axisPointer: { type: "line", lineStyle: { color: t.line } },
           valueFormatter: num,
         },
-        ...(s ? { legend: legenda(s.map((x) => x.nome)) } : {}),
-        series: (s ?? [{ nome: spec.y, cor: t.serie[0], dados: res.rows.map((r) => valor(r[iy])) }]).map(
+        ...(s && mostraLegenda ? { legend: legenda(s.map((x) => x.nome)) } : {}),
+        series: (s ?? [{ nome: spec.y, cor: cor(0), dados: res.rows.map((r) => valor(r[iy])) }]).map(
           (x) => ({
             name: x.nome,
             type: "line",
             data: x.dados,
             showSymbol: categorias.length <= 12,
             symbolSize: 6,
-            smooth: 0.2,
+            // Reta é o padrão de quem monta no menu, porque com poucos pontos a
+            // curva inventa um caminho entre eles que o dado não tem.
+            smooth: spec.smooth === false ? 0 : 0.2,
             lineStyle: { color: x.cor, width: 2 },
             itemStyle: { color: x.cor },
+            ...(spec.area
+              ? { areaStyle: { color: x.cor, opacity: s && s.length > 1 ? 0.18 : 0.28 } }
+              : {}),
+            label: rotulosDeValor(categorias.length),
             connectNulls: false,
           }),
         ),
@@ -222,7 +260,7 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
         ? categorias.map((_, i) => (s ?? []).reduce((acc, x) => acc + (x.dados[i] ?? 0), 0))
         : [];
       return {
-        grid: { top: s ? 34 : 14, right: 16, bottom: 26, left: empilha ? 50 : 58 },
+        grid: { top: s && mostraLegenda ? 34 : 14, right: 16, bottom: 26, left: empilha ? 50 : 58 },
         xAxis: {
           ...eixoCat,
           data: categorias,
@@ -239,20 +277,24 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
             ? (v: unknown) => (typeof v === "number" ? `${v.toFixed(1).replace(".", ",")}%` : String(v))
             : num,
         },
-        ...(s ? { legend: legenda(s.map((x) => x.nome)) } : {}),
-        series: (s ?? [{ nome: spec.y, cor: t.serie[0], dados: res.rows.map((r) => valor(r[iy])) }]).map(
+        ...(s && mostraLegenda ? { legend: legenda(s.map((x) => x.nome)) } : {}),
+        series: (s ?? [{ nome: spec.y, cor: cor(0), dados: res.rows.map((r) => valor(r[iy])) }]).map(
           (x) => ({
             name: x.nome,
             type: "bar",
-            stack: empilha ? "total" : undefined,
+            // Empilhar sem série não empilha nada — é uma barra só por
+            // categoria —, então a opção só vale quando há o que somar.
+            stack: empilha || (spec.stack && s) ? "total" : undefined,
             data: empilha
               ? x.dados.map((v, i) => (totais[i] ? +(((v ?? 0) / totais[i]) * 100).toFixed(2) : 0))
               : x.dados,
             barMaxWidth: 42,
             // 1px de fundo entre segmentos empilhados, como manda o guia.
-            itemStyle: empilha
-              ? { color: x.cor, borderColor: t.surface, borderWidth: 1 }
-              : { color: x.cor, borderRadius: [4, 4, 0, 0] },
+            itemStyle:
+              empilha || (spec.stack && s)
+                ? { color: x.cor, borderColor: t.surface, borderWidth: 1 }
+                : { color: x.cor, borderRadius: [4, 4, 0, 0] },
+            label: empilha ? { show: false } : rotulosDeValor(categorias.length),
           }),
         ),
       };
@@ -263,6 +305,11 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
       const rotulos = res.rows.map((r) => rotulo(r[ix])).reverse();
       const vals = res.rows.map((r) => valor(r[iy])).reverse();
       const maiorRotulo = Math.max(...rotulos.map((r) => r.length));
+      const fonte = rotulos.length > 12 ? 9.5 : 11;
+      // A largura vinha de `maiorRotulo * 6.5`, sem piso e sem olhar a fonte:
+      // num ranking por UF isso dava 13px para caber "MG", e as 27 siglas
+      // saíam como "…". Um ranking cujo eixo não se lê não é um ranking.
+      const larguraRotulo = Math.max(30, Math.min(150, maiorRotulo * fonte * 0.62 + 6));
       return {
         grid: {
           top: 10,
@@ -277,8 +324,8 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
           data: rotulos,
           axisLabel: {
             ...texto,
-            fontSize: rotulos.length > 12 ? 9.5 : 11,
-            width: Math.min(150, maiorRotulo * 6.5),
+            fontSize: fonte,
+            width: larguraRotulo,
             overflow: "truncate",
           },
         },
@@ -288,9 +335,12 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
             type: "bar",
             data: vals,
             barMaxWidth: 22,
-            itemStyle: { color: t.serie[0], borderRadius: [0, 4, 4, 0] },
+            itemStyle: { color: cor(0), borderRadius: [0, 4, 4, 0] },
             label: {
-              show: rotulos.length <= 15,
+              // Num ranking o número ao lado da barra é a informação, não
+              // enfeite: por isso ele aparece por padrão aqui e não nas outras
+              // formas. Desligar continua sendo escolha de quem olha.
+              show: spec.showLabels ?? rotulos.length <= 15,
               position: "right",
               formatter: (p: { value: number }) => abreviar(p.value),
               ...texto,
@@ -304,7 +354,7 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
       const dados = res.rows.map((r, i) => ({
         name: rotulo(r[ix]),
         value: valor(r[iy]),
-        itemStyle: { color: t.serie[i % t.serie.length], borderColor: t.surface, borderWidth: 2 },
+        itemStyle: { color: cor(i), borderColor: t.surface, borderWidth: 2 },
       }));
       const total = dados.reduce((s, r) => s + r.value, 0);
       return {
@@ -315,6 +365,10 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
             `${p.name}<br/><b>${nfBR.format(p.value)}</b> · ${String(p.percent).replace(".", ",")}%`,
         },
         legend: {
+          // Aqui a legenda carrega o percentual de cada fatia, então esconder
+          // apaga o dado e não só o rótulo — mas continua sendo escolha de quem
+          // olha, e a fatia ainda responde ao ponteiro.
+          show: mostraLegenda,
           type: "scroll",
           orient: "vertical",
           right: 6,
@@ -367,7 +421,7 @@ function montaOpcao(spec: ChartSpec, res: QueryResult, dark: boolean, paleta: st
             type: "scatter",
             data: dados,
             symbolSize: 12,
-            itemStyle: { color: t.serie[0], opacity: 0.75, borderColor: t.surface, borderWidth: 1 },
+            itemStyle: { color: cor(0), opacity: 0.75, borderColor: t.surface, borderWidth: 1 },
             label: {
               show: dados.length <= 40 && ir >= 0,
               position: "top",

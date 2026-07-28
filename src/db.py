@@ -12,6 +12,8 @@ import re
 import threading
 from dataclasses import dataclass, field
 from collections.abc import Sequence
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 from urllib.parse import unquote, urlparse
 
@@ -44,6 +46,28 @@ class QueryResult:
 
     def as_dicts(self) -> list[dict]:
         return [dict(zip(self.columns, r)) for r in self.rows]
+
+
+def json_safe(v: Any) -> Any:
+    """Converte os tipos do DuckDB que o JSON não conhece.
+
+    Mora aqui, junto do `QueryResult`, porque TODO caminho que devolve linhas
+    para a tela precisa dela — e descobrir isso um caminho de cada vez custa
+    caro. O painel foi o terceiro: um widget agrupado por `date_trunc('month',
+    DT_SAIDA)` derrubou a resposta inteira com "Object of type datetime is not
+    JSON serializable", e como a serialização é do painel todo de uma vez, os
+    oito widgets ficaram em branco por causa de um.
+    """
+    if isinstance(v, (date, datetime)):
+        return v.isoformat()
+    if isinstance(v, Decimal):
+        return float(v)
+    return v
+
+
+def linhas_json(linhas: Sequence[Sequence[Any]]) -> list[list]:
+    """As linhas prontas para o JSON."""
+    return [[json_safe(v) for v in linha] for linha in linhas]
 
 
 def _parse_database_path(raw: str) -> str:

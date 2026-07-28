@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** Quantos pedidos cabem esperando. Acima disso, a caixa recusa e diz por quê. */
+/** Quantos pedidos DIGITADOS cabem esperando. Acima disso, a caixa recusa. */
 export const MAX_FILA = 10;
+
+/**
+ * O teto absoluto, contando o que uma análise expandiu.
+ *
+ * MAX_FILA existe contra quem digita depressa demais; uma análise é UM ato
+ * deliberado que vira uma dúzia de pedidos, e recusar metade dela pelo mesmo
+ * limite entregaria um painel pela metade sem ninguém escolher qual metade.
+ * Mas "sem limite" também não serve: três análises seguidas seriam trinta e
+ * seis varreduras enfileiradas sobre 144 milhões de linhas, e a terceira só
+ * começaria dez minutos depois de pedida. Trinta é onde as duas coisas param.
+ */
+export const TETO = 30;
 
 /**
  * Quantos rodam ao mesmo tempo.
@@ -23,11 +35,15 @@ export interface Tarefa {
   /** Recusa ou erro, quando houver. É o que a pessoa precisa LER. */
   mensagem: string;
   /** O que o pedido virou, quando deu certo. */
-  tipo?: "widget" | "filtro";
+  tipo?: "widget" | "filtro" | "analise";
+  /** De qual análise este pedido veio. Vazio = alguém o digitou. */
+  origem?: string;
 }
 
 /** O que a fila faz com um pedido. Devolve o resultado ou lança. */
-export type Executor = (pedido: string) => Promise<{ tipo: "widget" | "filtro"; recusa: string }>;
+export type Executor = (
+  pedido: string,
+) => Promise<{ tipo: "widget" | "filtro" | "analise"; recusa: string }>;
 
 let seq = 0;
 
@@ -89,6 +105,40 @@ export function useFilaDePedidos(executar: Executor, aoConcluir: () => void) {
     return "";
   }, []);
 
+  /**
+   * Enfileira um plano inteiro de uma vez. Devolve o aviso, ou string vazia.
+   *
+   * Passa por TETO e não por MAX_FILA: quem pediu uma análise pediu os doze
+   * itens juntos, e cortá-los no limite de quem digita entregaria um painel
+   * pela metade sem ninguém escolher qual metade fica.
+   */
+  const enfileirarLote = useCallback((pedidos: string[], origem: string): string => {
+    const textos = pedidos.map((p) => p.trim()).filter((p) => p.length >= 3);
+    if (!textos.length) return "O plano não trouxe nenhum item utilizável.";
+
+    const esperando = agora.current.filter(
+      (t) => t.estado === "na-fila" || t.estado === "rodando",
+    ).length;
+    const cabem = Math.max(0, TETO - esperando);
+    if (cabem === 0) {
+      return `Já há ${esperando} pedidos na fila. Espere alguns terminarem.`;
+    }
+
+    const novas: Tarefa[] = textos.slice(0, cabem).map((pedido) => ({
+      id: `tar_${++seq}`,
+      pedido,
+      estado: "na-fila",
+      mensagem: "",
+      origem,
+    }));
+    agora.current = [...agora.current, ...novas];
+    setTarefas(agora.current);
+
+    return textos.length > cabem
+      ? `${textos.length - cabem} item(ns) do plano ficaram de fora: a fila comporta ${TETO}.`
+      : "";
+  }, []);
+
   const dispensar = useCallback((id: string) => {
     setTarefas((ts) => ts.filter((t) => t.id !== id));
   }, []);
@@ -124,5 +174,5 @@ export function useFilaDePedidos(executar: Executor, aoConcluir: () => void) {
   }, [tarefas, atualiza, dispensar]);
 
   const emCurso = tarefas.filter((t) => t.estado === "na-fila" || t.estado === "rodando").length;
-  return { tarefas, enfileirar, dispensar, limparConcluidas, emCurso };
+  return { tarefas, enfileirar, enfileirarLote, dispensar, limparConcluidas, emCurso };
 }

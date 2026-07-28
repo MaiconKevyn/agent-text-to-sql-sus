@@ -207,6 +207,10 @@ da esquerda alterna entre as três.
 | 🔖 **Temas** | acumular evidência sobre um assunto | blocos **congelados**, com SQL e fonte | montar um argumento que precisa ser conferível depois |
 | 📊 **Painéis** | acompanhar números que mudam | consultas **vivas**, com filtros | olhar o mesmo recorte de várias formas |
 
+No painel há três formas de criar: a **caixa em linguagem natural**, o **menu**
+(medida, eixo, forma, cor — sem modelo no caminho) e a **análise completa**, em
+que um assunto vira uma dúzia de mostradores de uma vez.
+
 **A diferença entre tema e painel não é de gosto, é de garantia.** O bloco de um
 tema fica congelado de propósito: um número citado num relatório precisa
 continuar citável daqui a um mês. O widget de um painel precisa do contrário —
@@ -341,24 +345,28 @@ o bloco fica exatamente onde foi solto, e a grade de fundo mostra onde ele cabe.
 ### Painéis: números que se recalculam
 
 <div align="center">
-<img src="docs/img/07-painel.png" alt="Painel com filtros de sexo e caráter da internação, um gráfico de linha e dois indicadores" width="920">
+<img src="docs/img/07-painel.png" alt="Painel sobre óbitos por COVID-19: filtros de UF e faixa etária, três indicadores, série mensal e ranking por UF" width="920">
 </div>
 
 Um painel é o oposto de um tema: cada widget é uma **consulta viva**, sem
 resultado guardado, que roda de novo a cada mudança de filtro.
 
-**A mesma caixa cria gráficos e filtros.** O pedido é classificado antes de agir:
+**A mesma caixa cria gráfico, filtro e análise inteira.** O pedido é classificado
+antes de agir:
 
 ```
-"óbitos por ano"                    → widget
-"quero ver só mulheres"             → filtro
-"um gráfico de internações por sexo"→ widget
-"filtro por faixa etária"           → filtro
+"óbitos por ano"                      → widget
+"quero ver só mulheres"               → filtro
+"um gráfico de internações por sexo"  → widget
+"filtro por faixa etária"             → filtro
+"análise completa sobre óbitos de covid" → análise (vira uma dúzia dos acima)
 ```
 
-Na dúvida ele escolhe widget — um gráfico a mais se apaga com um clique, um
-filtro criado sem querer muda o painel inteiro. Dois botões ao lado forçam a
-escolha quando ele erra.
+As duas pistas de *análise* são pedir um **conjunto** e nomear um **assunto** em
+vez de um recorte: "internações por UF" é widget, "análise das internações por
+UF" é análise. Na dúvida ele escolhe widget — um gráfico a mais se apaga com um
+clique, um filtro criado sem querer muda o painel inteiro, e uma análise dispara
+uma dúzia de varreduras. Dois botões ao lado forçam a escolha quando ele erra.
 
 **Os filtros são declarados, não fixos.** Peça *"um filtro por sexo, onde eu
 possa escolher um ou os dois"* e o modelo declara a coluna, a forma do controle e
@@ -371,6 +379,116 @@ na hora da criação, e o código injeta a conjunção dos filtros ativos. Troca
 filtro é pura reexecução: determinística, sem modelo no caminho. Regerar o SQL a
 cada movimento de slider custaria uma chamada por widget e — pior — não seria
 determinístico: o gráfico mudaria por razão que não é o filtro.
+
+### Montar sem escrever: o menu
+
+<div align="center">
+<img src="docs/img/11-menu.png" alt="Menu de criação aberto na aba Gráfico, com medida, agrupamento, série, forma, ordem e aparência" width="760">
+</div>
+
+A caixa em linguagem natural continua sendo o caminho rápido. O menu resolve o
+que ela não resolve: quando a pessoa já sabe exatamente o que quer — *mortalidade
+por faixa etária, separada por sexo, em barras 100%* — descrever isso em
+português e torcer para a classificação acertar é mais trabalho que escolher em
+quatro menus. E aqui **não há o que torcer**: sem modelo no caminho, o mesmo par
+de escolhas produz sempre o mesmo gráfico.
+
+| Aba | O que oferece |
+|---|---|
+| **Gráfico** | 10 medidas × 21 campos, série, forma, ordem, quantas categorias, título, cor, rótulos, legenda |
+| **Filtro** | a coluna e o tipo de controle — faixa, marcar vários, escolher um |
+| **Análise completa** | um assunto vira um plano de mostradores (abaixo) |
+
+**O catálogo é servido pelo backend, não escrito no cliente.** É o mesmo objeto
+que monta o SQL lá; duplicar a lista aqui criaria duas verdades sobre quais
+colunas existem, e a da tela é sempre a que erra por último. Ele carrega o que o
+dicionário do banco documenta e ninguém acerta por adivinhação:
+
+- **o molde do filtro**, que tem de se bastar — `i.MUNIC_RES IN (SELECT … WHERE SG_UF = ANY(?))` e não um `JOIN`, porque o fragmento é colado em widgets que talvez não tenham aquele join;
+- **o rótulo legível**, que quase sempre mora em outra tabela: `SEXO` é 1 e 3 no fato, e quem lê o eixo quer *Masculino* e *Feminino*;
+- **a sanidade** — `IDADE` registra até 130 e a faixa plausível vai a 120; `DT_SAIDA` tem nulo;
+- **o que não se deve oferecer.** `GESTRISCO` está corrompida (TRUE em 99,6% das linhas, inclusive em 58,8 milhões de homens), `UTI_INT_TO` é zero em todas as linhas menos 29, `hospital` está vazia. **Um campo que não está no catálogo não aparece no menu** — é a forma mais barata de impedir um gráfico errado: não deixar que ele seja montável.
+
+O menu **não manda SQL**: manda `{"measure":"obitos","field":"uf"}`. Se pudesse
+mandar a consulta, seria um console de SQL com aparência de menu, e o validador
+viraria enfeite.
+
+Duas regras do dicionário viram código, não conselho: uma taxa carrega
+`HAVING COUNT(*) >= 1000` (sem piso, o topo de um ranking de mortalidade é
+sempre um grupo de três internações com 100%), e um campo de tempo ordena pela
+categoria mesmo quando se pede "maior valor primeiro" — anos fora de ordem lado
+a lado não são uma série temporal, e a linha entre eles não significa nada.
+
+### Ajustar o gráfico: forma, eixos e cor
+
+Cada widget tem o seu ajuste, **inclusive os que um modelo escreveu**. Trocar a
+forma, escolher qual coluna vai para cada eixo, separar em séries, pintar cada
+série, ligar rótulos e legenda.
+
+O que faz isso valer é **não tocar no SQL**: o ajuste reetiqueta qual coluna do
+resultado vai para onde. Nenhuma consulta roda de novo, nada varre 144 milhões
+de linhas para trocar uma cor.
+
+As colunas oferecidas saem do **resultado**, não de uma lista fixa. Um eixo que
+aponta para coluna inexistente não dá erro — faz o gráfico desaparecer sem dizer
+por quê. E o eixo Y é conferido para ser **numérico**:
+
+```
+O eixo Y é o do valor, e 'faixa_etaria' é categoria — o gráfico sairia em
+branco. Para deitar as barras, mantenha os eixos e escolha a forma
+'Barras horizontais'.
+```
+
+Essa mensagem existe porque eu produzi o estado que ela descreve: inverti os
+eixos de um gráfico de mortalidade por faixa etária e as barras sumiram, sem uma
+palavra. Um gráfico em branco parece "não há dado".
+
+A cor escolhida à mão é a **exceção**, não o padrão. A paleta do tema é validada
+para daltonismo e contraste; uma cor de seletor não passa por essa conferência,
+então ela sobrepõe apenas onde foi escolhida — duas cores num gráfico de cinco
+séries deixam as outras três na paleta.
+
+### Análise completa: um assunto vira um painel
+
+<div align="center">
+<img src="docs/img/12-plano.png" alt="Plano de análise sobre partos: título, um parágrafo de ressalvas da base e doze itens marcáveis, cada um rotulado como indicador ou gráfico" width="700">
+</div>
+
+*"Crie uma análise completa sobre óbitos de covid"* não é um widget nem um
+filtro. É uma dúzia deles, e **escolher quais é o trabalho**.
+
+O planejador é a única chamada do projeto em esforço alto, e a razão é a
+assimetria: ela custa uma chamada e decide o conteúdo de doze. Ele devolve
+título, um parágrafo de raciocínio e a lista de itens — que a tela mostra antes
+de disparar, para dar de desmarcar o que não interessa. Cada item vira uma tarefa
+na fila, três de cada vez.
+
+**O raciocínio fica na tela**, e é a única parte da análise que não vira widget:
+
+> Não permite rastrear óbitos pós-alta nem identificar o hospital executante
+> (tabela hospital vazia), tampouco calcular taxas por população; 2007 é parcial.
+
+Sem isso, um painel de doze gráficos parece responder tudo.
+
+**A regra que faz o resto funcionar** é que cada item é uma frase completa. Os
+itens são executados depois, um por um, cada um numa chamada que não viu o plano,
+não viu a pergunta original e não verá os outros itens:
+
+```
+RUIM   "óbitos por ano"          → num plano sobre COVID, produz os óbitos de TUDO:
+                                   um número quinze vezes maior, com o título certo
+BOM    "óbitos por COVID-19 por ano"
+```
+
+Também não vale escrever SQL no pedido: quem executa recebe o mesmo dicionário
+do banco e escreve a consulta melhor. Ele precisa saber **o quê**, não **como**.
+
+**O orçamento é imposto pelo código, não pedido ao modelo.** 2–4 indicadores,
+4–6 gráficos, 1–3 filtros. Na primeira versão o modelo gastou as doze vagas em
+seis indicadores e seis gráficos, sem nenhum filtro — um painel sem filtro não é
+painel, é folha de gráficos, e "peça de novo" não é conserto. Um indicador
+também é **um** número: pedir "total, óbitos, taxa e gasto" junto produz um
+widget que mostra o primeiro e esconde os outros três.
 
 ### A lupa: qual filtro vale em qual gráfico
 
@@ -505,9 +623,12 @@ src/
   paineis/             PAINÉIS — consultas vivas, com filtros
     models.py          Painel, Widget; o token {{FILTROS}}
     filtros.py         filtro declarado: fragmento, domínio, seleção
+    catalogo.py        os campos e medidas do menu manual — sem modelo no caminho
+    montar.py          escolhas de menu → SQL, pelo catálogo
     gerar.py           pergunta → widget com lugar reservado no WHERE
     gerar_filtro.py    pedido → filtro ancorado numa coluna real
-    rotear.py          o pedido é um gráfico ou um filtro?
+    planejar.py        um assunto → o plano de mostradores que o respondem
+    rotear.py          o pedido é gráfico, filtro ou análise inteira?
     executar.py        injeta a conjunção e roda; sem modelo no caminho
 
 knowledge/schema.yaml  o dicionário curado — o artefato central
@@ -604,12 +725,23 @@ consulta. É aí que vale trabalhar.
 
 ```bash
 # agente
-.venv/bin/python eval/testa_graficos.py      # 7/7 — forma do gráfico, ponta a ponta
-.venv/bin/python eval/testa_reflexao.py      # 3/3 — reflexão, sem tocar o banco
+.venv/bin/python eval/testa_graficos.py         # 7/7 — forma do gráfico, ponta a ponta
+.venv/bin/python eval/testa_reflexao.py         # 3/3 — reflexão, sem tocar o banco
+.venv/bin/python eval/testa_painel_manual.py    # o catálogo do menu contra o banco real
 
 # interface — rodam em segundos, sem navegador e sem banco
 node --experimental-strip-types frontend/scripts/testa_grade.mjs
 node --experimental-strip-types frontend/scripts/testa_paletas.mjs
+```
+
+`testa_painel_manual.py` é o que sustenta o menu manual. Como lá não há modelo
+no caminho, também não há nenhuma etapa em que alguém leia o SQL antes de ele
+rodar — a prova tem de vir de execução. Ele monta **todo campo com todo controle
+que ele oferece**, confere que cada filtro de fato muda a contagem, e executa uma
+amostra larga de gráficos; com `--tudo`, o produto cartesiano inteiro:
+
+```
+tudo passou · 206s     # 259 verificações: 21 campos × 10 medidas + filtros + recortes
 ```
 
 `testa_grade.mjs` cobre a geometria do painel: 800 arranjos aleatórios provando
@@ -665,8 +797,13 @@ ele foi quem descobriu que o tema **padrão** já reprovava, com `--ink-subtle` 
 - O painel **reexecuta todos os widgets** a cada mudança de filtro. O endpoint já
   aceita `?only=` para limitar aos visíveis, e a tela ainda não usa: com poucos
   widgets não incomoda, com vinte vai.
-- Não há **formulário** para montar um widget escolhendo coluna, agregação e tipo
-  de gráfico à mão. O caminho é a linguagem natural mais o ajuste por arrasto.
+- O menu manual cobre **21 campos e 10 medidas** — os que o dicionário do banco
+  documenta bem. Colunas fora dele (`INSTRU`, `VINCPREV`, `CBOR`, `ETNIA`) ficam
+  só na linguagem natural: são quase vazias, e oferecê-las num menu convidaria a
+  montar gráficos de "não informado".
+- O planejador da análise leva **de um a dois minutos** antes de a fila começar:
+  é uma chamada em esforço alto sobre o dicionário inteiro. A tela mostra o
+  cartão rodando, mas não há progresso parcial.
 - A grade é sempre de 12 colunas, sem quebra para tela estreita. Em desktop está
   certo; num celular fica apertado.
 

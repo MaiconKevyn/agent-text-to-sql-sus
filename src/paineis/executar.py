@@ -12,7 +12,7 @@ antes disto, que não responde a nenhum e diz isso em vez de fingir que aplicou.
 
 from __future__ import annotations
 
-from ..db import Database
+from ..db import Database, linhas_json
 from .filtros import Filtro, aplicar
 from .models import Painel, Widget
 
@@ -55,7 +55,11 @@ def executar(widget: Widget, filtros: list[Filtro], db: Database) -> dict:
         "error": None,
         "result": {
             "columns": res.columns,
-            "rows": [list(r) for r in res.rows],
+            # Data e Decimal precisam virar texto e número antes do JSON. E é o
+            # PAINEL inteiro que se serializa de uma vez: um widget agrupado por
+            # mês derrubava a resposta toda, e os outros sete ficavam em branco
+            # sem nenhum deles ter erro.
+            "rows": linhas_json(res.rows),
             "nRows": len(res.rows),
             "elapsed": round(res.elapsed_s, 3),
             "truncated": res.truncated,

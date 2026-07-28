@@ -14,7 +14,8 @@ from ..config import settings
 from ..db import Database, UnsafeQueryError, validate_sql
 from ..llm import complete
 from ..schema_context import build_schema_prompt
-from .filtros import Filtro, Opcao
+from . import montar
+from .filtros import Filtro
 
 ESQUEMA = {
     "type": "object",
@@ -48,8 +49,12 @@ ESQUEMA = {
             "description": (
                 "SELECT que devolve as opções ou os limites, e nada mais. "
                 "Para 'faixa': SELECT min(col), max(col) FROM internacoes WHERE <sanidade>. "
-                "Para escolha/múltipla: SELECT col AS valor, count(*) AS n FROM internacoes "
-                "GROUP BY 1 ORDER BY 2 DESC LIMIT 40. Sem `?`."
+                "Para escolha/múltipla, TRÊS colunas nesta ordem — código, rótulo "
+                "legível e contagem: SELECT i.SEXO, s.DESCRICAO, count(*) FROM "
+                "internacoes i LEFT JOIN sexo s ON s.SEXO = i.SEXO GROUP BY 1,2 "
+                "ORDER BY 3 DESC LIMIT 40. O rótulo é o que aparece no botão; sem "
+                "ele a pessoa vê '1' e '3' e não sabe qual é qual. Se a coluna não "
+                "tiver dimensão, repita o próprio valor como rótulo. Sem `?`."
             ),
         },
         "nota": {
@@ -174,31 +179,17 @@ def gerar(pedido: str, db: Database, catalogo: str = "") -> Resultado:
             return Resultado(recusa="A consulta de domínio de faixa não devolveu dois números.")
         filtro.selecao = [filtro.minimo, filtro.maximo]
     else:
-        filtro.opcoes = [
-            Opcao(valor=r[0], rotulo=str(r[0]), n=int(r[1]) if len(r) > 1 and r[1] is not None else 0)
-            for r in dom.rows
-            if r[0] is not None
-        ][:40]
+        # O mesmo leitor do menu manual: ele aceita o domínio com rótulo (três
+        # colunas) e sem (duas), porque há dois produtores e só um deles é este.
+        filtro.opcoes = montar.opcoes_de(dom.rows)[:40]
         if not filtro.opcoes:
             return Resultado(recusa="O domínio veio só com nulos.")
         # Nasce com tudo marcado, que é o mesmo que não filtrar. Um filtro que
         # nasce recortando mudaria o painel inteiro sem ninguém pedir.
         filtro.selecao = [o.valor for o in filtro.opcoes]
 
-    # A prova: o fragmento executa com valores reais? Ele nasce inativo, então
-    # forço uma seleção parcial só para o teste.
-    teste = Filtro(**{**filtro.__dict__})
-    if tipo == "faixa":
-        teste.selecao = [filtro.minimo, filtro.maximo]
-    else:
-        teste.selecao = [filtro.opcoes[0].valor]
-    try:
-        db.run(
-            f"SELECT COUNT(*) FROM internacoes i WHERE {fragmento}",
-            params=teste.valores(),
-            max_rows=1,
-        )
-    except Exception as exc:  # noqa: BLE001
-        return Resultado(recusa=f"O fragmento não executa: {str(exc)[:200]}")
+    erro = montar.provar(filtro, db)
+    if erro:
+        return Resultado(recusa=erro)
 
     return Resultado(filtro=filtro, apenas=[str(x) for x in (bruto.get("apenas") or [])])

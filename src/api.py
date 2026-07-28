@@ -29,9 +29,12 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from . import concepts, roteador, websearch
 from .paineis import Paineis, PainelInexistente
 from .paineis import (
+    catalogo as catalogo_painel,
     executar as executar_painel,
     gerar as gerar_widget,
     gerar_filtro,
+    montar as montar_painel,
+    planejar as planejar_painel,
     rotear as rotear_painel,
 )
 from .investigation import Investigador
@@ -84,7 +87,10 @@ async def erro_com_cors(request: Request, chamar):
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"http://(localhost|127\.0\.0\.1):(5173|5174|5175|4173)",
-    allow_methods=["GET", "POST", "DELETE"],
+    # PATCH está aqui porque o ajuste de aparência do widget e o renomear do
+    # painel o usam. Sem ele o preflight falha e a tela reporta "Failed to
+    # fetch" — o mesmo sintoma de rede para uma causa que não é rede.
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -603,10 +609,31 @@ def criar_painel(corpo: dict = Body(default={})) -> JSONResponse:
     return JSONResponse(paineis().criar(str(corpo.get("title") or "")).para_json())
 
 
+@app.get("/api/dashboards/catalog")
+def catalogo_do_painel() -> JSONResponse:
+    """Os campos, medidas e formas que o menu manual oferece.
+
+    Registrado ANTES de `/{painel_id}`: o FastAPI casa as rotas na ordem em que
+    foram declaradas, e depois dela "catalog" viraria um id de painel.
+
+    É uma constante — nada de banco no caminho —, então o cliente pode guardá-la
+    e o menu abre sem esperar rede.
+    """
+    return JSONResponse(catalogo_painel.para_json())
+
+
 @app.get("/api/dashboards/{painel_id}")
 def ler_painel(painel_id: str) -> JSONResponse:
     try:
         return JSONResponse(paineis().ler(painel_id).para_json())
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+
+@app.patch("/api/dashboards/{painel_id}")
+def renomear_painel(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    try:
+        return JSONResponse(paineis().renomear(painel_id, str(corpo.get("title") or "")).para_json())
     except PainelInexistente:
         return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
 
@@ -634,6 +661,14 @@ def pedir_ao_painel(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
         return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
 
     alvo, motivo = rotear_painel.rotear(pedido)
+    if alvo == "analise":
+        # A análise não CRIA nada aqui: devolve o plano, e quem enfileira os
+        # itens é a tela. Assim cada item aparece como uma tarefa própria, com
+        # o seu próprio sucesso ou recusa — em vez de uma chamada de três
+        # minutos que ou traz doze widgets ou não traz nenhum.
+        plano = planejar_painel.planejar(pedido)
+        return JSONResponse({"kind": "analise", "reason": motivo, **plano.para_json()})
+
     if alvo == "filtro":
         atual = paineis().ler(painel_id)
         catalogo = "\n".join(f"- {w.id} | {w.titulo}" for w in atual.widgets)
@@ -683,6 +718,141 @@ def criar_widget(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
     return JSONResponse({"refused": "", "dashboard": painel.para_json(), "widgetId": r.widget.id})
 
 
+@app.post("/api/dashboards/{painel_id}/plan")
+def planejar_painel_completo(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Transforma um assunto num plano de mostradores, sem criar nenhum.
+
+    Separado do `/ask` para o botão "Análise completa" do menu não depender da
+    classificação: quando a pessoa escolheu o botão, a intenção já é conhecida e
+    passar pelo roteador só acrescentaria uma chance de errar.
+    """
+    pedido = str(corpo.get("request") or "").strip()
+    if len(pedido) < 3:
+        return JSONResponse({"error": "Pedido muito curto."}, status_code=400)
+    try:
+        paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+    return JSONResponse(planejar_painel.planejar(pedido).para_json())
+
+
+@app.post("/api/dashboards/{painel_id}/widgets/manual")
+def criar_widget_manual(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Monta um gráfico a partir de escolhas de menu. Sem modelo no caminho.
+
+    O corpo traz ids do catálogo e números — nunca SQL. Se a tela pudesse mandar
+    a consulta, o menu manual seria um console de SQL com aparência de menu, e o
+    validador viraria enfeite.
+    """
+    try:
+        paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+    pedido = montar_painel.Pedido(
+        medida=str(corpo.get("measure") or ""),
+        campo=str(corpo.get("field") or ""),
+        serie=str(corpo.get("series") or ""),
+        forma=str(corpo.get("form") or "barra"),
+        ordem=str(corpo.get("order") or "valor_desc"),
+        limite=int(corpo.get("limit") or montar_painel.LIMITE_PADRAO),
+        titulo=str(corpo.get("title") or ""),
+        aparencia=corpo.get("appearance") if isinstance(corpo.get("appearance"), dict) else None,
+    )
+    r = montar_painel.widget(pedido, agente().db)
+    if r.widget is None:
+        return JSONResponse({"refused": r.recusa})
+    painel = paineis().acrescentar(painel_id, r.widget)
+    return JSONResponse({"refused": "", "dashboard": painel.para_json(), "widgetId": r.widget.id})
+
+
+@app.patch("/api/dashboards/{painel_id}/widgets/{widget_id}/chart")
+def ajustar_grafico(painel_id: str, widget_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Troca a forma, os eixos e as cores de um widget que já existe.
+
+    Só a APARÊNCIA: o SQL não é tocado, e por isso o ajuste vale para qualquer
+    widget, inclusive os que um modelo escreveu. Os eixos são conferidos contra
+    as colunas que a consulta devolve de fato — apontar `x` para uma coluna
+    inexistente não dá erro, faz o gráfico sumir, que é pior.
+    """
+    try:
+        painel = paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+    w = painel.widget(widget_id)
+    if w is None or w.formato != "grafico":
+        return JSONResponse({"error": "Widget não encontrado ou não é gráfico."}, status_code=404)
+
+    try:
+        amostra = agente().db.run(w.sql.replace(montar_painel.TOKEN, ""), max_rows=20)
+        colunas = amostra.columns
+    except Exception as exc:  # noqa: BLE001
+        return JSONResponse({"refused": f"A consulta do widget não executa: {str(exc)[:200]}"})
+
+    atual = dict(w.chart or {})
+    x = str(corpo.get("x") or atual.get("x") or "")
+    y = str(corpo.get("y") or atual.get("y") or "")
+    serie = str(corpo.get("series") if corpo.get("series") is not None else atual.get("series") or "")
+    for nome, valor in (("X", x), ("Y", y)):
+        if valor not in colunas:
+            return JSONResponse(
+                {"refused": f"O eixo {nome} aponta para '{valor}', que a consulta não devolve."}
+            )
+    if x == y:
+        return JSONResponse({"refused": "Os dois eixos não podem ser a mesma coluna."})
+    if serie and serie not in colunas:
+        return JSONResponse({"refused": f"A série aponta para '{serie}', que a consulta não devolve."})
+
+    # O eixo Y é o do VALOR, e um texto ali não desenha nada — nem dá erro. O
+    # gráfico simplesmente fica em branco, e um gráfico em branco parece "não
+    # há dado". Foi exatamente o que aconteceu ao trocar os eixos de um gráfico
+    # de mortalidade por faixa etária: as barras sumiram sem uma palavra.
+    if not _tem_numero(amostra.rows, colunas.index(y)):
+        return JSONResponse(
+            {
+                "refused": (
+                    f"O eixo Y é o do valor, e '{y}' é categoria — o gráfico sairia em "
+                    "branco. Para deitar as barras, mantenha os eixos e escolha a forma "
+                    "'Barras horizontais'."
+                )
+            }
+        )
+
+    forma = catalogo_painel.forma(str(corpo.get("kind") or atual.get("kind") or "barra"))
+    if forma is None:
+        return JSONResponse({"refused": "Forma de gráfico desconhecida."})
+    if forma["needsSeries"] and not serie:
+        return JSONResponse({"refused": f"{forma['label']} exige uma série além do eixo."})
+
+    w.chart = {
+        **atual,
+        "kind": forma["id"],
+        "x": x,
+        "y": y,
+        "series": serie,
+        "title": str(corpo.get("title") or atual.get("title") or w.titulo)[:120],
+        "reason": str(atual.get("reason") or ""),
+        **montar_painel.aparencia(corpo.get("appearance")),
+    }
+    if corpo.get("title"):
+        w.titulo = str(corpo["title"])[:120]
+    return JSONResponse({"refused": "", "dashboard": paineis().salvar(painel).para_json()})
+
+
+def _tem_numero(linhas: list, coluna: int) -> bool:
+    """Se aquela coluna traz número em alguma linha da amostra.
+
+    `bool` é subclasse de `int` em Python, e uma coluna de True/False plotada
+    como valor dá um gráfico de zeros e uns — tecnicamente numérico, na prática
+    inútil. Fica de fora.
+    """
+    return any(
+        isinstance(l[coluna], (int, float)) and not isinstance(l[coluna], bool)
+        for l in linhas
+        if len(l) > coluna
+    )
+
+
 @app.delete("/api/dashboards/{painel_id}/widgets/{widget_id}")
 def remover_widget(painel_id: str, widget_id: str) -> JSONResponse:
     try:
@@ -707,6 +877,31 @@ def criar_filtro(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
         return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
 
     r = gerar_filtro.gerar(pedido, agente().db)
+    if r.filtro is None:
+        return JSONResponse({"refused": r.recusa})
+    painel = paineis().acrescentar_filtro(painel_id, r.filtro)
+    return JSONResponse({"refused": "", "dashboard": painel.para_json(), "filterId": r.filtro.id})
+
+
+@app.post("/api/dashboards/{painel_id}/filters/manual")
+def criar_filtro_manual(painel_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Cria um filtro a partir de um campo do catálogo e um tipo de controle.
+
+    Registrado antes de `/filters/{filtro_id}/selection` não faz diferença — os
+    caminhos têm formatos distintos —, mas o corpo sim: aqui vêm ids, nunca o
+    fragmento SQL. Quem monta o fragmento é o catálogo.
+    """
+    try:
+        paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+
+    r = montar_painel.filtro(
+        str(corpo.get("field") or ""),
+        str(corpo.get("kind") or ""),
+        agente().db,
+        str(corpo.get("label") or ""),
+    )
     if r.filtro is None:
         return JSONResponse({"refused": r.recusa})
     painel = paineis().acrescentar_filtro(painel_id, r.filtro)

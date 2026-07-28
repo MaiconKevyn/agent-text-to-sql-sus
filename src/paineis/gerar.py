@@ -194,5 +194,9 @@ def gerar(pergunta: str, db: Database) -> Resultado:
             chart=chart if formato == "grafico" and chart.get("kind") not in (None, "", "nenhum") else None,
             formato=formato,
             suposicoes=[str(a) for a in (bruto.get("assumptions") or [])][:6],
+            # Um indicador é um número: dar-lhe meia tela é desperdiçar a tela.
+            # Quatro deles cabem lado a lado, que é como um painel abre.
+            largura=4 if formato == "indicador" else 6,
+            altura=5 if formato == "indicador" else 10,
         )
     )

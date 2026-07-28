@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { Dashboard, WidgetData, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
+import type { AnalysisPlan, ChartSpec, Dashboard, PanelCatalog, PlanItem, WidgetData, WidgetDraft, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -371,12 +371,67 @@ export const deleteWidget = (id: string, widgetId: string) =>
  */
 export const askDashboard = (id: string, request: string) =>
   json<{
-    kind: "widget" | "filtro";
+    kind: "widget" | "filtro" | "analise";
     refused: string;
     reason: string;
     dashboard?: Dashboard;
     createdId?: string;
+    /* Em "analise" o servidor não cria nada: devolve o plano, e quem enfileira
+       os itens é a tela — assim cada um vira uma tarefa com o seu próprio
+       sucesso ou recusa, em vez de uma chamada de três minutos que ou traz doze
+       widgets ou não traz nenhum. */
+    title?: string;
+    reasoning?: string;
+    items?: PlanItem[];
   }>(`/api/dashboards/${id}/ask`, { method: "POST", body: JSON.stringify({ request }) });
+
+/** Pede o plano direto, sem passar pelo roteador: o botão já diz a intenção. */
+export const planDashboard = (id: string, request: string) =>
+  json<AnalysisPlan>(`/api/dashboards/${id}/plan`, {
+    method: "POST",
+    body: JSON.stringify({ request }),
+  });
+
+export const renameDashboard = (id: string, title: string) =>
+  json<Dashboard>(`/api/dashboards/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+
+/* --------------------------------------------------------------------------
+   Menu manual: o catálogo, e os dois construtores que bebem dele.
+   -------------------------------------------------------------------------- */
+
+/** Constante do servidor — nada de banco no caminho. Vale guardar em memória. */
+export const panelCatalog = () => json<PanelCatalog>("/api/dashboards/catalog");
+
+export const createFilterManual = (id: string, field: string, kind: string, label = "") =>
+  json<{ refused: string; dashboard?: Dashboard; filterId?: string }>(
+    `/api/dashboards/${id}/filters/manual`,
+    { method: "POST", body: JSON.stringify({ field, kind, label }) },
+  );
+
+export const createWidgetManual = (id: string, draft: WidgetDraft) =>
+  json<{ refused: string; dashboard?: Dashboard; widgetId?: string }>(
+    `/api/dashboards/${id}/widgets/manual`,
+    { method: "POST", body: JSON.stringify(draft) },
+  );
+
+/**
+ * Troca forma, eixos e cores de um widget que já existe.
+ *
+ * Só a aparência — o SQL não é tocado. É o que faz o ajuste valer também para
+ * os widgets que um modelo escreveu, que são a maioria.
+ */
+export const updateWidgetChart = (
+  id: string,
+  widgetId: string,
+  patch: Partial<ChartSpec> & { appearance?: Partial<ChartSpec> },
+) =>
+  json<{ refused: string; dashboard?: Dashboard }>(
+    `/api/dashboards/${id}/widgets/${widgetId}/chart`,
+    { method: "PATCH", body: JSON.stringify(patch) },
+  );
 
 export const createFilter = (id: string, request: string) =>
   json<{ refused: string; dashboard?: Dashboard; filterId?: string }>(

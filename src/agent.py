@@ -14,11 +14,9 @@ import re
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from datetime import date, datetime
-from decimal import Decimal
 
 from .config import settings
-from .db import Database, QueryResult, validate_sql
+from .db import Database, QueryResult, linhas_json, validate_sql
 from .llm import SQL_SCHEMA, SQL_SCHEMA_COM_HISTORICO, complete, complete_streaming
 from .schema_context import build_schema_prompt, capability_notes
 from .value_linker import _terms as _termos_da_pergunta
@@ -574,7 +572,7 @@ class TextToSQLAgent:
             "type": "result",
             "result": {
                 "columns": res.columns,
-                "rows": [[_json_safe(v) for v in linha] for linha in res.rows[:500]],
+                "rows": linhas_json(res.rows[:500]),
                 "nRows": len(res.rows),
                 "elapsed": round(res.elapsed_s, 3),
                 "truncated": len(res.rows) > 500 or bool(res.extra.get("hit_injected_limit")),
@@ -709,15 +707,6 @@ def _valida_chart(bruto: object, res: QueryResult) -> tuple[dict | None, str]:
         "reason": str(bruto.get("reason") or "").strip(),
     }
     return spec, ""
-
-
-def _json_safe(v):
-    """Converte tipos do DuckDB que o JSON não conhece."""
-    if isinstance(v, (date, datetime)):
-        return v.isoformat()
-    if isinstance(v, Decimal):
-        return float(v)
-    return v
 
 
 def _fatiar(texto: str, por: int = 2) -> Iterator[str]:

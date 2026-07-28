@@ -3,7 +3,8 @@ import { useState } from "react";
 import { ResultChart } from "@/components/result/ResultChart";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { cn } from "@/lib/utils";
-import type { DashboardWidget, PanelFilter, WidgetData } from "@/lib/types";
+import type { CatalogForm, ChartSpec, DashboardWidget, PanelFilter, WidgetData } from "@/lib/types";
+import { AjusteDoGrafico } from "./AjusteDoGrafico";
 import { LupaDeFiltros } from "./LupaDeFiltros";
 import type { Celula } from "@/theme/grade";
 import type { Gesto } from "@/theme/usePainel";
@@ -22,6 +23,9 @@ interface Props {
   gesto: Gesto | null;
   comecar: (id: string, tipo: Gesto, e: React.PointerEvent) => void;
   porTeclado: (id: string, d: Partial<Celula>) => void;
+  formas: CatalogForm[];
+  /** Devolve a recusa, ou string vazia. Só aparência — o SQL não é tocado. */
+  onAjustar: (patch: Partial<ChartSpec>) => Promise<string>;
 }
 
 /**
@@ -45,6 +49,8 @@ export function WidgetPainel({
   gesto,
   comecar,
   porTeclado,
+  formas,
+  onAjustar,
 }: Props) {
   const [aberto, setAberto] = useState(false);
   const emMovimento = gesto === "mover";
@@ -101,6 +107,17 @@ export function WidgetPainel({
         )}
 
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
+          {/* Vale para qualquer gráfico, inclusive os que um modelo escreveu:
+              o ajuste reetiqueta qual coluna vai para qual eixo e não toca no
+              SQL, então nada varre o banco de novo para trocar uma cor. */}
+          {widget.chart && formas.length > 0 && (
+            <AjusteDoGrafico
+              spec={widget.chart}
+              resultado={res ?? null}
+              formas={formas}
+              onSalvar={onAjustar}
+            />
+          )}
           <button
             onPointerDown={(e) => comecar(widget.id, "mover", e)}
             onKeyDown={(e) => {

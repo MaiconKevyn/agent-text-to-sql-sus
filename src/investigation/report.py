@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..agent import _json_safe
+from ..db import linhas_json
 from ..config import settings
 from ..llm import complete
 from . import contracts
@@ -43,7 +43,7 @@ def bloco_para_json(achado: Achado) -> dict:
         "result": (
             {
                 "columns": res.columns,
-                "rows": [[_json_safe(v) for v in linha] for linha in res.rows[:LINHAS_PARA_UI]],
+                "rows": linhas_json(res.rows[:LINHAS_PARA_UI]),
                 "nRows": len(res.rows),
                 "elapsed": round(res.elapsed_s, 3),
                 "truncated": len(res.rows) > LINHAS_PARA_UI,

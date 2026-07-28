@@ -33,12 +33,25 @@ def _repara_escapes(texto: str) -> str:
     return _ESCAPE_QUEBRADO.sub(lambda m: f"\\u00{m.group(1)}", texto)
 
 
+# Prazo de uma chamada, em segundos.
+#
+# O padrão do SDK é 600s com duas retentativas — meia hora até desistir. Numa
+# fila de painel isso é pior que um erro: a vaga fica ocupada, o cartão diz
+# "montando…" para sempre, e não há como distinguir "está pensando" de "travou".
+# Vi exatamente isso: um planejamento que normalmente leva 90 segundos ficou
+# nove minutos sem responder, segurando a única tarefa em curso.
+#
+# 210s cobre com folga o mais caro que roda aqui (o planejador, em esforço alto,
+# mediu 80 e 115 segundos) e transforma o travamento numa recusa legível.
+TEMPO_LIMITE = 210.0
+
+
 def client() -> OpenAI:
     global _client
     if _client is None:
         if not settings.openai_api_key:
             raise RuntimeError("OPENAI_API_KEY não configurada no .env")
-        _client = OpenAI(api_key=settings.openai_api_key)
+        _client = OpenAI(api_key=settings.openai_api_key, timeout=TEMPO_LIMITE, max_retries=1)
     return _client
 
 

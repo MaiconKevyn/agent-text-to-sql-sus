@@ -82,6 +82,11 @@ class Filtro:
     # Uma frase do modelo sobre o que a coluna significa nesta base. Aparece
     # como dica: "SEXO 1 é masculino e 3 é feminino" não é adivinhável.
     nota: str = ""
+    # O campo do catálogo, quando o filtro veio do menu. É o que faz a edição
+    # abrir com a coluna certa já escolhida. Um filtro declarado por modelo não
+    # tem — e a edição dele começa com a coluna em branco, dizendo isso, em vez
+    # de adivinhar a partir do fragmento.
+    campo: str = ""
 
     @property
     def ativo(self) -> bool:
@@ -116,6 +121,7 @@ class Filtro:
             "options": [o.para_json() for o in self.opcoes],
             "selection": self.selecao,
             "note": self.nota,
+            "field": self.campo,
             "active": self.ativo,
         }
 
@@ -131,6 +137,7 @@ class Filtro:
             opcoes=[Opcao.de_json(o) for o in (d.get("options") or [])],
             selecao=list(d.get("selection") or []),
             nota=str(d.get("note") or ""),
+            campo=str(d.get("field") or ""),
         )
 
 

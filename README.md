@@ -419,15 +419,49 @@ sempre um grupo de três internações com 100%), e um campo de tempo ordena pel
 categoria mesmo quando se pede "maior valor primeiro" — anos fora de ordem lado
 a lado não são uma série temporal, e a linha entre eles não significa nada.
 
-### Ajustar o gráfico: forma, eixos e cor
+### Editar: dados, aparência e exibição
 
-Cada widget tem o seu ajuste, **inclusive os que um modelo escreveu**. Trocar a
-forma, escolher qual coluna vai para cada eixo, separar em séries, pintar cada
-série, ligar rótulos e legenda.
+Todo widget e todo filtro têm um lápis. No widget ele abre três abas, e elas são
+separadas porque **custam coisas diferentes**:
 
-O que faz isso valer é **não tocar no SQL**: o ajuste reetiqueta qual coluna do
-resultado vai para onde. Nenhuma consulta roda de novo, nada varre 144 milhões
-de linhas para trocar uma cor.
+| Aba | O que muda | Custa |
+|---|---|---|
+| **Dados** | medida, eixo, série, ordem, quantas categorias | refaz o SQL — uma varredura |
+| **Aparência** | forma, qual coluna em cada eixo, cores, rótulos, legenda | nada: reetiqueta o resultado |
+| **Exibição** | compacto e tamanho do número (indicador) | nada |
+
+**Editar não é apagar e criar.** O id, a posição na grade e as exclusões da lupa
+sobrevivem — um widget novo nasceria no fim do painel, e a tela inteira se
+reorganizaria porque alguém trocou "internações" por "óbitos".
+
+**A aba Dados só existe para quem nasceu do menu.** O widget guarda as escolhas
+que o produziram, e é isso que permite reabri-las preenchidas. Um widget escrito
+a partir de uma pergunta não guarda escolhas, e reconstruí-las a partir do SQL
+seria adivinhação — errada, ela trocaria em silêncio o que o gráfico mede. Para
+esses o caminho continua sendo "recriar", que reusa a pergunta original.
+
+**Aparência vale para todos**, inclusive os do modelo, e é isso que a torna útil:
+ela não toca no SQL, só reetiqueta qual coluna do resultado vai para onde.
+Nenhuma consulta roda de novo, nada varre 144 milhões de linhas para trocar uma
+cor.
+
+No filtro o lápis troca **o nome, a coluna e o tipo de controle**. O id sobrevive
+pelo mesmo motivo: as exclusões por widget apontam para ele, e recriá-lo com id
+novo faria todo gráfico que o dispensava voltar a obedecê-lo em silêncio. A
+seleção não sobrevive a uma troca de coluna — os valores de UF não significam
+nada em faixa etária —, e a tela avisa antes de aplicar.
+
+### O indicador compacto
+
+Um indicador normal mostra o número, o nome da coluna e o rodapé de detalhe, em
+cinco linhas da grade. No **compacto** sobram título e número, em três — e o
+rodapé volta ao passar o ponteiro. Numa fila de quatro indicadores, o que se quer
+ler é a fila de números, não quatro cartões.
+
+O **tamanho do número** vai de 18px a 66px, por quatro atalhos (P/M/G/GG) ou pelo
+deslizante, com prévia. O deslizante existe porque a largura útil de um indicador
+muda com o tamanho da coluna na grade, e o número certo raramente é um dos quatro
+atalhos.
 
 As colunas oferecidas saem do **resultado**, não de uma lista fixa. Um eixo que
 aponta para coluna inexistente não dá erro — faz o gráfico desaparecer sem dizer

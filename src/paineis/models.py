@@ -29,11 +29,42 @@ from .filtros import Filtro, TOKEN
 FormatoWidget = Literal["grafico", "indicador"]
 
 COLUNAS = 12
-LARGURA_MIN, ALTURA_MIN = 3, 4
+# A altura mínima caiu de 4 para 3 por causa do indicador compacto: sem rodapé
+# e com o espaçamento apertado, título mais número cabem em três linhas da
+# grade, e prender o widget em quatro deixaria um vazio que só existe porque o
+# mínimo é antigo.
+LARGURA_MIN, ALTURA_MIN = 3, 3
 ALTURA_MAX = 40
 
 # A base vai de agosto de 2007 a dezembro de 2023 (ver knowledge/schema.yaml).
 ANO_MIN, ANO_MAX = 2007, 2024
+
+
+# O indicador normal ocupa meia altura de um gráfico e mostra número, rótulo da
+# coluna e o rodapé de detalhe. O compacto é o mesmo widget sem o rodapé e com o
+# espaçamento apertado: quando o painel abre com quatro deles em fila, o que se
+# quer ler é a fila de números, não quatro cartões.
+EXIBICAO_PADRAO = {"compact": False, "scale": 1.0}
+
+# O número do indicador tem 30px de base. Abaixo de 0,6 ele fica menor que o
+# título e deixa de ser o assunto do cartão; acima de 2,2 não cabe em três
+# colunas da grade sem estourar.
+ESCALA_MIN, ESCALA_MAX = 0.6, 2.2
+
+
+def exibicao_de(bruta) -> dict:
+    """Só as chaves conhecidas, com o tipo e a faixa certos."""
+    d = dict(EXIBICAO_PADRAO)
+    if not isinstance(bruta, dict):
+        return d
+    if isinstance(bruta.get("compact"), bool):
+        d["compact"] = bruta["compact"]
+    try:
+        escala = float(bruta.get("scale", 1.0))
+        d["scale"] = round(max(ESCALA_MIN, min(ESCALA_MAX, escala)), 2)
+    except (TypeError, ValueError):
+        pass
+    return d
 
 
 def _agora() -> str:
@@ -65,6 +96,18 @@ class Widget:
     chart: dict | None = None
     formato: FormatoWidget = "grafico"
     suposicoes: list[str] = field(default_factory=list)
+    # As escolhas do menu que produziram este widget — medida, eixo, série,
+    # ordem, limite. Só existe em quem nasceu do menu, e é o que torna a edição
+    # possível: sem ela, "editar" só poderia oferecer a aparência, porque não
+    # haveria como saber que aquele SQL veio de "Óbitos por UF, 15 categorias".
+    #
+    # Um widget escrito por modelo não tem montagem e não vai ter: reconstruir
+    # as escolhas a partir do SQL seria adivinhação, e adivinhação errada aqui
+    # troca silenciosamente o que o gráfico mede.
+    montagem: dict | None = None
+    # Como o widget se mostra. Hoje só interessa ao indicador: `compacto` tira o
+    # rodapé e aperta o espaçamento, `escala` multiplica o tamanho do número.
+    exibicao: dict = field(default_factory=dict)
     x: int = -1
     y: int = -1
     largura: int = 6
@@ -91,6 +134,8 @@ class Widget:
             "chart": self.chart,
             "format": self.formato,
             "assumptions": self.suposicoes,
+            "build": self.montagem,
+            "display": self.exibicao or EXIBICAO_PADRAO,
             "x": self.x,
             "y": self.y,
             "width": self.largura,
@@ -108,6 +153,8 @@ class Widget:
             chart=d.get("chart"),
             formato=d.get("format") if d.get("format") in ("grafico", "indicador") else "grafico",
             suposicoes=list(d.get("assumptions") or []),
+            montagem=d.get("build") if isinstance(d.get("build"), dict) else None,
+            exibicao=exibicao_de(d.get("display")),
             excluidos=[str(x) for x in (d.get("excluded") or [])],
             x=int(d.get("x", -1)),
             y=int(d.get("y", -1)),

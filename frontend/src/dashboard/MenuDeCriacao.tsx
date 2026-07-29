@@ -1,15 +1,16 @@
-import { Check, Info, Loader2, Sparkles, X } from "lucide-react";
+import { Check, Loader2, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createFilterManual, createWidgetManual, planDashboardStream } from "@/lib/api";
 import type {
   AnalysisPlan,
-  CatalogField,
-  ChartKind,
-  PanelStep,
   PanelCatalog,
+  PanelStep,
   PlanItem,
+  WidgetDraft,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { CamposDoGrafico, RASCUNHO_VAZIO, ResumoDoGrafico } from "./CamposDoGrafico";
+import { Alternador, Campo, ListaDeEtapas, Recusa, SELECT, porGrupo } from "./controles";
 
 type Aba = "grafico" | "filtro" | "analise";
 
@@ -103,81 +104,6 @@ export function MenuDeCriacao({ painelId, catalogo, onCriado, onPlano, onFechar 
 
 /* ------------------------------------------------------------------------- */
 
-/** Um `<select>` de verdade: teclado, leitor de tela e busca por digitação. */
-function Campo({
-  rotulo,
-  children,
-  dica,
-}: {
-  rotulo: string;
-  children: React.ReactNode;
-  dica?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="mb-1 flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-ink-subtle">
-        {rotulo}
-        {dica && (
-          <span title={dica} className="cursor-help">
-            <Info aria-hidden className="h-3 w-3" />
-          </span>
-        )}
-      </span>
-      {children}
-    </label>
-  );
-}
-
-const SELECT =
-  "w-full rounded-lg border border-line bg-canvas px-2 py-1.5 text-[12.5px] text-ink outline-none transition-colors duration-150 focus:border-accent";
-
-function porGrupo(campos: CatalogField[]): [string, CatalogField[]][] {
-  const mapa = new Map<string, CatalogField[]>();
-  for (const c of campos) mapa.set(c.group, [...(mapa.get(c.group) ?? []), c]);
-  return [...mapa.entries()];
-}
-
-function Alternador({
-  ligado,
-  onMudar,
-  children,
-}: {
-  ligado: boolean;
-  onMudar: (v: boolean) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onMudar(!ligado)}
-      aria-pressed={ligado}
-      className={cn(
-        "flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px] transition-colors duration-150",
-        ligado ? "border-accent bg-accent-soft text-accent" : "border-line text-ink-muted hover:text-ink",
-      )}
-    >
-      <span
-        className={cn(
-          "flex h-3 w-3 items-center justify-center rounded-sm border",
-          ligado ? "border-accent bg-accent text-white" : "border-line",
-        )}
-      >
-        {ligado && <Check aria-hidden className="h-2 w-2" strokeWidth={4} />}
-      </span>
-      {children}
-    </button>
-  );
-}
-
-function Recusa({ texto }: { texto: string }) {
-  if (!texto) return null;
-  return (
-    <p className="rounded-lg bg-caution-soft px-3 py-2 text-[11.5px] leading-relaxed text-ink">
-      {texto}
-    </p>
-  );
-}
-
 /* ------------------------------------------------------------------------- */
 
 function AbaGrafico({
@@ -189,13 +115,7 @@ function AbaGrafico({
   catalogo: PanelCatalog;
   onCriado: () => void;
 }) {
-  const [medida, setMedida] = useState(catalogo.measures[0]?.id ?? "internacoes");
-  const [campo, setCampo] = useState("ano");
-  const [serie, setSerie] = useState("");
-  const [forma, setForma] = useState<ChartKind>("linha");
-  const [ordem, setOrdem] = useState("valor_desc");
-  const [limite, setLimite] = useState(15);
-  const [titulo, setTitulo] = useState("");
+  const [rascunho, setRascunho] = useState<WidgetDraft>(RASCUNHO_VAZIO);
   const [cor, setCor] = useState("");
   const [rotulos, setRotulos] = useState(false);
   const [legenda, setLegenda] = useState(true);
@@ -205,36 +125,14 @@ function AbaGrafico({
   const [ocupado, setOcupado] = useState(false);
   const [recusa, setRecusa] = useState("");
 
-  const m = catalogo.measures.find((x) => x.id === medida);
-  const c = catalogo.fields.find((x) => x.id === campo);
-  const s = catalogo.fields.find((x) => x.id === serie);
-  const indicador = !campo;
-
-  // Séries possíveis: só as de poucas categorias, e nunca o próprio eixo.
-  const seriesPossiveis = catalogo.fields.filter((f) => f.canSeries && f.id !== campo);
-  useEffect(() => {
-    if (serie && !seriesPossiveis.some((f) => f.id === serie)) setSerie("");
-  }, [campo, serie, seriesPossiveis]);
-
-  // Uma forma que exige série fica impossível sem ela; se estava escolhida,
-  // volta para barras em vez de deixar o botão "Adicionar" recusando sozinho.
-  const formaAtual = catalogo.forms.find((f) => f.id === forma);
-  useEffect(() => {
-    if (formaAtual?.needsSeries && !serie) setForma("barra");
-  }, [serie, formaAtual]);
+  const indicador = !rascunho.field;
 
   async function criar() {
     setOcupado(true);
     setRecusa("");
     try {
       const r = await createWidgetManual(painelId, {
-        measure: medida,
-        field: campo,
-        series: serie,
-        form: forma,
-        order: ordem,
-        limit: limite,
-        title: titulo,
+        ...rascunho,
         appearance: {
           colors: cor ? [cor] : null,
           showLabels: rotulos,
@@ -255,127 +153,10 @@ function AbaGrafico({
 
   return (
     <div className="space-y-3 p-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Campo rotulo="Medida" dica={m?.note}>
-          <select value={medida} onChange={(e) => setMedida(e.target.value)} className={SELECT}>
-            {catalogo.measures.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.label}
-              </option>
-            ))}
-          </select>
-        </Campo>
-
-        <Campo rotulo="Agrupar por" dica={c?.note}>
-          <select value={campo} onChange={(e) => setCampo(e.target.value)} className={SELECT}>
-            <option value="">— nenhum: só o número —</option>
-            {/* `canGroup` tira do eixo o que só serve para recortar: agrupar
-                por data crua daria 5.844 barras, uma por dia da base. */}
-            {porGrupo(catalogo.fields.filter((f) => f.canGroup)).map(([grupo, campos]) => (
-              <optgroup key={grupo} label={grupo}>
-                {campos.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </Campo>
-      </div>
-
-      {!indicador && (
-        <>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Campo
-              rotulo="Separar em séries"
-              dica={s?.note ?? "Só campos com poucas categorias: acima de doze, a legenda fica maior que o gráfico."}
-            >
-              <select value={serie} onChange={(e) => setSerie(e.target.value)} className={SELECT}>
-                <option value="">— série única —</option>
-                {seriesPossiveis.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            </Campo>
-
-            <Campo rotulo="Forma">
-              <div className="flex flex-wrap gap-1">
-                {catalogo.forms.map((f) => {
-                  const bloqueada = f.needsSeries && !serie;
-                  return (
-                    <button
-                      key={f.id}
-                      type="button"
-                      disabled={bloqueada}
-                      onClick={() => setForma(f.id)}
-                      aria-pressed={forma === f.id}
-                      title={bloqueada ? `${f.label} exige uma série` : f.label}
-                      className={cn(
-                        "rounded-lg border px-2 py-1 text-[11.5px] transition-colors duration-150",
-                        forma === f.id
-                          ? "border-accent bg-accent-soft text-accent"
-                          : "border-line text-ink-muted hover:text-ink",
-                        bloqueada && "cursor-not-allowed opacity-35 hover:text-ink-muted",
-                      )}
-                    >
-                      {f.label.replace(/ \(.*\)/, "")}
-                    </button>
-                  );
-                })}
-              </div>
-            </Campo>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Campo
-              rotulo="Ordem"
-              dica={
-                c?.ordinal
-                  ? "Este campo é ordinal: o eixo sai em ordem de categoria de qualquer forma, senão a linha ligaria anos fora de ordem."
-                  : undefined
-              }
-            >
-              <select
-                value={ordem}
-                onChange={(e) => setOrdem(e.target.value)}
-                disabled={!!serie}
-                className={cn(SELECT, serie && "opacity-50")}
-                title={serie ? "Com série, o eixo ordena pela categoria" : undefined}
-              >
-                {catalogo.orders.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </Campo>
-
-            <Campo rotulo={`Quantas categorias — ${limite}`}>
-              <input
-                type="range"
-                min={3}
-                max={60}
-                value={limite}
-                onChange={(e) => setLimite(Number(e.target.value))}
-                className="h-1 w-full cursor-pointer accent-[hsl(var(--accent))]"
-                aria-label="Quantas categorias"
-              />
-            </Campo>
-          </div>
-        </>
-      )}
-
-      <Campo rotulo="Título">
-        <input
-          value={titulo}
-          onChange={(e) => setTitulo(e.target.value)}
-          placeholder={m && c ? `${m.label} por ${c.label}` : (m?.label ?? "")}
-          className={SELECT}
-        />
-      </Campo>
+      {/* O MESMO formulário que o editor de widget abre. Duas cópias
+          divergiriam, e a divergência apareceria como "editar mudou algo que eu
+          não toquei". */}
+      <CamposDoGrafico catalogo={catalogo} valor={rascunho} onMudar={setRascunho} />
 
       {!indicador && (
         <div className="flex flex-wrap items-center gap-1.5 border-t border-line pt-3">
@@ -385,12 +166,12 @@ function AbaGrafico({
           <Alternador ligado={rotulos} onMudar={setRotulos}>
             valores
           </Alternador>
-          {serie && (
+          {rascunho.series && (
             <Alternador ligado={legenda} onMudar={setLegenda}>
               legenda
             </Alternador>
           )}
-          {forma === "linha" && (
+          {rascunho.form === "linha" && (
             <>
               <Alternador ligado={suave} onMudar={setSuave}>
                 suavizar
@@ -400,13 +181,13 @@ function AbaGrafico({
               </Alternador>
             </>
           )}
-          {forma === "barra" && serie && (
+          {rascunho.form === "barra" && rascunho.series && (
             <Alternador ligado={empilhar} onMudar={setEmpilhar}>
               empilhar
             </Alternador>
           )}
           {/* Sem série, uma cor basta. Com várias, a escolha por série vive no
-              ajuste do widget, onde já se sabe quantas são. */}
+              editor do widget, onde já se sabe quantas são. */}
           <label className="flex items-center gap-1.5 rounded-lg border border-line px-2 py-1 text-[11.5px] text-ink-muted">
             cor
             <input
@@ -433,16 +214,7 @@ function AbaGrafico({
       <Recusa texto={recusa} />
 
       <div className="flex items-center gap-2 border-t border-line pt-3">
-        <p className="min-w-0 flex-1 text-[11.5px] leading-snug text-ink-subtle">
-          {m && (indicador ? m.label : `${m.label} por ${c?.label}`)}
-          {s && `, separado por ${s.label}`}
-          {m && m.minCases > 0 && (
-            <span className="text-caution">
-              {" "}
-              · grupos com menos de {m.minCases.toLocaleString("pt-BR")} internações ficam de fora
-            </span>
-          )}
-        </p>
+        <ResumoDoGrafico catalogo={catalogo} valor={rascunho} />
         <button
           onClick={criar}
           disabled={ocupado}
@@ -657,44 +429,10 @@ function AbaAnalise({
       {/* O relato enquanto pensa. Some quando o plano chega: aí o que interessa
           é o plano, e manter as duas listas empilhadas faria a pessoa ler o
           caminho em vez do destino. */}
-      {ocupado && etapas.length > 0 && (
-        <ol className="ml-[3px] space-y-1 border-l border-line pl-3">
-          {etapas.map((e) => (
-            <li key={e.id} className="relative">
-              <span
-                aria-hidden
-                className={cn(
-                  "absolute -left-[17px] top-[5px] h-[7px] w-[7px] rounded-full border",
-                  e.state === "feita" && "border-positive bg-positive",
-                  e.state === "fazendo" && "border-accent bg-accent",
-                  e.state === "falhou" && "border-critical bg-critical",
-                )}
-              />
-              <span
-                className={cn(
-                  "text-[11.5px] leading-snug",
-                  e.state === "fazendo" ? "text-ink" : "text-ink-muted",
-                )}
-              >
-                {e.label}
-              </span>
-              {e.detail && (
-                <span className="block text-[10.5px] leading-snug text-ink-subtle">
-                  {e.detail}
-                </span>
-              )}
-              {e.state === "fazendo" && (
-                <span
-                  aria-hidden
-                  className="mt-1 block h-px w-full overflow-hidden rounded bg-line"
-                >
-                  <span className="block h-full w-1/4 animate-varre rounded bg-accent" />
-                </span>
-              )}
-            </li>
-          ))}
-        </ol>
-      )}
+      {/* O relato enquanto pensa. Some quando o plano chega: aí o que interessa
+          é o plano, e manter as duas listas empilhadas faria a pessoa ler o
+          caminho em vez do destino. */}
+      {ocupado && etapas.length > 0 && <ListaDeEtapas etapas={etapas} />}
 
       {erro && <Recusa texto={erro} />}
 

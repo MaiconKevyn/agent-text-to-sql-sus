@@ -93,7 +93,7 @@ app.add_middleware(
     # PATCH está aqui porque o ajuste de aparência do widget e o renomear do
     # painel o usam. Sem ele o preflight falha e a tela reporta "Failed to
     # fetch" — o mesmo sintoma de rede para uma causa que não é rede.
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["*"],
 )
 
@@ -896,6 +896,81 @@ def criar_widget_manual(painel_id: str, corpo: dict = Body(...)) -> JSONResponse
         return JSONResponse({"refused": r.recusa})
     painel = paineis().acrescentar(painel_id, r.widget)
     return JSONResponse({"refused": "", "dashboard": painel.para_json(), "widgetId": r.widget.id})
+
+
+@app.put("/api/dashboards/{painel_id}/widgets/{widget_id}/manual")
+def reeditar_widget(painel_id: str, widget_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Refaz um widget a partir de novas escolhas de menu, no mesmo lugar.
+
+    Editar não é apagar e criar: o widget novo nasceria no fim da grade e o
+    painel se reorganizaria porque alguém trocou "internações" por "óbitos". O
+    id, a posição e as exclusões da lupa sobrevivem.
+
+    Só vale para quem nasceu do menu — quem tem `build`. Um widget escrito por
+    modelo não guarda escolhas, e reconstruí-las a partir do SQL seria
+    adivinhação que troca em silêncio o que o gráfico mede. Para esses o caminho
+    é "recriar", que reusa a pergunta original.
+    """
+    try:
+        painel = paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+    if painel.widget(widget_id) is None:
+        return JSONResponse({"error": "Widget não encontrado."}, status_code=404)
+
+    r = montar_painel.widget(montar_painel.Pedido.de_json(corpo), agente().db)
+    if r.widget is None:
+        return JSONResponse({"refused": r.recusa})
+    painel = paineis().substituir(painel_id, widget_id, r.widget)
+    return JSONResponse({"refused": "", "dashboard": painel.para_json()})
+
+
+@app.patch("/api/dashboards/{painel_id}/widgets/{widget_id}/display")
+def exibicao_do_widget(painel_id: str, widget_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Compacto e tamanho do número. Não toca em SQL nem em gráfico."""
+    try:
+        return JSONResponse({"refused": "", "dashboard": paineis().exibir(painel_id, widget_id, corpo).para_json()})
+    except PainelInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
+@app.put("/api/dashboards/{painel_id}/filters/{filtro_id}")
+def reeditar_filtro(painel_id: str, filtro_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Troca coluna, controle ou nome de um filtro que já existe.
+
+    O id sobrevive porque as exclusões por widget o referenciam: recriar com id
+    novo faria todo widget que o dispensava voltar a obedecê-lo em silêncio.
+
+    A SELEÇÃO NÃO SOBREVIVE a uma troca de coluna, e não tem como: os valores de
+    UF não significam nada em SEXO. O filtro volta a nascer sem recortar, que é
+    o padrão — e é melhor que herdar uma seleção que não casa com o domínio novo
+    e some sem explicação.
+    """
+    try:
+        painel = paineis().ler(painel_id)
+    except PainelInexistente:
+        return JSONResponse({"error": "Painel não encontrado."}, status_code=404)
+    atual = painel.filtro(filtro_id)
+    if atual is None:
+        return JSONResponse({"error": "Filtro não encontrado."}, status_code=404)
+
+    campo = str(corpo.get("field") or "")
+    tipo = str(corpo.get("kind") or "")
+    rotulo = str(corpo.get("label") or "")
+
+    # Só o nome mudou: nada a reconstruir, e refazer o domínio custaria uma
+    # varredura no banco para trocar uma palavra na tela.
+    if not campo or (campo == atual.campo and tipo == atual.tipo):
+        if rotulo.strip():
+            atual.rotulo = rotulo.strip()[:40]
+        return JSONResponse({"refused": "", "dashboard": paineis().salvar(painel).para_json()})
+
+    r = montar_painel.filtro(campo, tipo, agente().db, rotulo)
+    if r.filtro is None:
+        return JSONResponse({"refused": r.recusa})
+    return JSONResponse(
+        {"refused": "", "dashboard": paineis().substituir_filtro(painel_id, filtro_id, r.filtro).para_json()}
+    )
 
 
 @app.patch("/api/dashboards/{painel_id}/widgets/{widget_id}/chart")

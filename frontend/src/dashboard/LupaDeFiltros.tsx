@@ -2,6 +2,7 @@ import { Check, Search } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { PanelFilter } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { Flutuante } from "./controles";
 
 interface Props {
   filtros: PanelFilter[];
@@ -26,11 +27,16 @@ interface Props {
 export function LupaDeFiltros({ filtros, excluidos, onAlternar }: Props) {
   const [aberto, setAberto] = useState(false);
   const caixa = useRef<HTMLDivElement>(null);
+  const botao = useRef<HTMLButtonElement>(null);
+  const painel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!aberto) return;
+    // O painel vive no `body` por causa do portal: "clicou fora" olha as duas
+    // caixas. Sem o portal ele saía cortado pelo `overflow-hidden` do cartão.
     const fora = (e: PointerEvent) => {
-      if (!caixa.current?.contains(e.target as Node)) setAberto(false);
+      const alvo = e.target as Node;
+      if (!caixa.current?.contains(alvo) && !painel.current?.contains(alvo)) setAberto(false);
     };
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setAberto(false);
     document.addEventListener("pointerdown", fora);
@@ -47,6 +53,7 @@ export function LupaDeFiltros({ filtros, excluidos, onAlternar }: Props) {
   return (
     <div ref={caixa} className="relative">
       <button
+        ref={botao}
         onClick={() => setAberto((v) => !v)}
         aria-expanded={aberto}
         aria-label={`Filtros deste widget: ${filtros.length - desligados} de ${filtros.length} ligados`}
@@ -63,7 +70,11 @@ export function LupaDeFiltros({ filtros, excluidos, onAlternar }: Props) {
       </button>
 
       {aberto && (
-        <div className="absolute right-0 top-full z-40 mt-1 w-56 rounded-lg border border-line bg-surface p-1.5 shadow-xl">
+        <Flutuante ancora={botao} largura={224}>
+          <div
+            ref={painel}
+            className="max-h-[60vh] overflow-y-auto rounded-lg border border-line bg-surface p-1.5 shadow-2xl"
+          >
           <p className="px-1.5 pb-1 text-[10px] uppercase tracking-wide text-ink-subtle">
             Filtros neste widget
           </p>
@@ -98,8 +109,9 @@ export function LupaDeFiltros({ filtros, excluidos, onAlternar }: Props) {
                 </li>
               );
             })}
-          </ul>
-        </div>
+            </ul>
+          </div>
+        </Flutuante>
       )}
     </div>
   );

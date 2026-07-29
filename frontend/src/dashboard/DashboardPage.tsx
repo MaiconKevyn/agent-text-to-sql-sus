@@ -18,7 +18,10 @@ import {
   selectFilter,
   setDashboardGrid,
   toggleWidgetFilter,
+  updateFilter,
   updateWidgetChart,
+  updateWidgetDisplay,
+  updateWidgetManual,
 } from "@/lib/api";
 import {
   LINHA_PX,
@@ -29,6 +32,8 @@ import {
   type PanelCatalog,
   type PlanItem,
   type WidgetData,
+  type WidgetDisplay,
+  type WidgetDraft,
 } from "@/lib/types";
 import { usePainel } from "@/theme/usePainel";
 import { ControleDeFiltro } from "./ControleDeFiltro";
@@ -511,6 +516,7 @@ function Detalhe({
               <ControleDeFiltro
                 key={f.id}
                 filtro={f}
+                catalogo={catalogo}
                 onSelecionar={async (sel) => {
                   await selectFilter(painel.id, f.id, sel);
                   recarregar();
@@ -518,6 +524,13 @@ function Detalhe({
                 onRemover={async () => {
                   await deleteFilter(painel.id, f.id);
                   recarregar();
+                }}
+                onEditar={async (patch) => {
+                  const r = await updateFilter(painel.id, f.id, patch);
+                  // Trocar a coluna refaz o domínio e zera a seleção, então o
+                  // recorte muda: os widgets precisam rodar de novo.
+                  if (!r.refused) recarregar();
+                  return r.refused;
                 }}
               />
             ))}
@@ -587,12 +600,28 @@ function Detalhe({
                   gesto={ativo ? grade.gesto!.gesto : null}
                   comecar={grade.comecar}
                   porTeclado={grade.porTeclado}
-                  formas={catalogo?.forms ?? []}
-                  onAjustar={async (patch: Partial<ChartSpec>) => {
+                  catalogo={catalogo}
+                  onRefazer={async (draft: WidgetDraft) => {
+                    const r = await updateWidgetManual(painel.id, w.id, draft);
+                    // O SQL mudou: este widget precisa rodar de novo. Os
+                    // outros não — `comDados` guarda quem já tem resultado, e
+                    // o id sumido dele é o que dispara só esta leitura.
+                    if (!r.refused) {
+                      comDados.current.delete(w.id);
+                      onMudou();
+                    }
+                    return r.refused;
+                  }}
+                  onAparencia={async (patch: Partial<ChartSpec>) => {
                     const r = await updateWidgetChart(painel.id, w.id, patch);
                     // Só a aparência mudou: nenhuma consulta roda de novo, e
-                    // por isso `onMudou` basta — `recarregar` faria o painel
+                    // por isso `onMudou` basta — recarregar tudo faria o painel
                     // inteiro varrer o banco para trocar uma cor.
+                    if (!r.refused) onMudou();
+                    return r.refused;
+                  }}
+                  onExibicao={async (d: WidgetDisplay) => {
+                    const r = await updateWidgetDisplay(painel.id, w.id, d);
                     if (!r.refused) onMudou();
                     return r.refused;
                   }}

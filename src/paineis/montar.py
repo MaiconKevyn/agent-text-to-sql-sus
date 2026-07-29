@@ -70,6 +70,7 @@ def filtro(campo_id: str, tipo: str, db: Database, rotulo: str = "") -> Resultad
         tipo=tipo,
         fragmento=c.fragmento(tipo),
         nota=c.nota,
+        campo=c.id,
     )
 
     if tipo in cat.INTERVALOS:
@@ -200,6 +201,30 @@ class Pedido:
     titulo: str = ""
     aparencia: dict | None = None
 
+    def para_json(self) -> dict:
+        """As escolhas, para o widget guardar e a edição reabrir."""
+        return {
+            "measure": self.medida,
+            "field": self.campo,
+            "series": self.serie,
+            "form": self.forma,
+            "order": self.ordem,
+            "limit": self.limite,
+        }
+
+    @classmethod
+    def de_json(cls, d: dict) -> Pedido:
+        return cls(
+            medida=str(d.get("measure") or ""),
+            campo=str(d.get("field") or ""),
+            serie=str(d.get("series") or ""),
+            forma=str(d.get("form") or "barra"),
+            ordem=str(d.get("order") or "valor_desc"),
+            limite=int(d.get("limit") or LIMITE_PADRAO),
+            titulo=str(d.get("title") or ""),
+            aparencia=d.get("appearance") if isinstance(d.get("appearance"), dict) else None,
+        )
+
 
 def widget(p: Pedido, db: Database) -> ResultadoWidget:
     """Monta o SQL a partir do catálogo e prova que ele executa."""
@@ -288,6 +313,9 @@ def widget(p: Pedido, db: Database) -> ResultadoWidget:
             chart=chart,
             formato=formato,
             suposicoes=[n for n in (m.nota, dim.nota if dim else "", serie.nota if serie else "") if n],
+            # As escolhas ficam guardadas: é o que permite reabrir o menu com
+            # tudo preenchido e trocar a medida sem recomeçar do zero.
+            montagem=p.para_json(),
             largura=4 if formato == "indicador" else 6,
             altura=5 if formato == "indicador" else 10,
         )

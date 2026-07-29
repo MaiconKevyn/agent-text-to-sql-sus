@@ -16,7 +16,15 @@ _ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 from ..config import settings
 from ..storage import DocumentoInexistente, Documentos
 from .filtros import Filtro
-from .models import ALTURA_MAX, ALTURA_MIN, COLUNAS, LARGURA_MIN, Painel, Widget
+from .models import (
+    ALTURA_MAX,
+    ALTURA_MIN,
+    COLUNAS,
+    LARGURA_MIN,
+    Painel,
+    Widget,
+    exibicao_de,
+)
 
 
 class PainelInexistente(DocumentoInexistente):
@@ -57,6 +65,56 @@ class Paineis:
     def acrescentar(self, id_: str, widget: Widget) -> Painel:
         painel = self.ler(id_)
         painel.widgets.append(widget)
+        return self.salvar(painel)
+
+    def substituir(self, id_: str, widget_id: str, novo: Widget) -> Painel:
+        """Troca o conteúdo de um widget, mantendo id, lugar e exclusões.
+
+        Editar não é apagar e criar. Um widget novo nasceria no fim da grade, e
+        o painel inteiro se reorganizaria porque alguém trocou "internações" por
+        "óbitos" — quem edita quer o mesmo cartão dizendo outra coisa, no mesmo
+        lugar. O ID também precisa sobreviver: as exclusões da lupa vivem nos
+        widgets e apontam para filtros, mas a restrição de um filtro a widgets
+        específicos aponta de volta para o id daqui.
+        """
+        painel = self.ler(id_)
+        atual = painel.widget(widget_id)
+        if atual is None:
+            raise PainelInexistente(widget_id)
+        novo.id = atual.id
+        novo.x, novo.y = atual.x, atual.y
+        novo.excluidos = list(atual.excluidos)
+        novo.criado_em = atual.criado_em
+        # O tamanho fica, a menos que o formato mude: um indicador ocupando o
+        # espaço de um gráfico de linha é um número perdido no meio do branco.
+        if novo.formato == atual.formato:
+            novo.largura, novo.altura = atual.largura, atual.altura
+        novo.exibicao = dict(atual.exibicao or {})
+        painel.widgets = [novo if w.id == widget_id else w for w in painel.widgets]
+        return self.salvar(painel)
+
+    def substituir_filtro(self, id_: str, filtro_id: str, novo: Filtro) -> Painel:
+        """Troca o conteúdo de um filtro, mantendo o id e a posição na lista.
+
+        O id sobrevive porque as exclusões por widget o referenciam: recriar o
+        filtro com id novo faria todo widget que o dispensava voltar a obedecê-lo
+        em silêncio.
+        """
+        painel = self.ler(id_)
+        atual = painel.filtro(filtro_id)
+        if atual is None:
+            raise PainelInexistente(filtro_id)
+        novo.id = atual.id
+        painel.filtros = [novo if f.id == filtro_id else f for f in painel.filtros]
+        return self.salvar(painel)
+
+    def exibir(self, id_: str, widget_id: str, exibicao: dict) -> Painel:
+        """Como o widget se mostra: compacto, tamanho do número."""
+        painel = self.ler(id_)
+        w = painel.widget(widget_id)
+        if w is None:
+            raise PainelInexistente(widget_id)
+        w.exibicao = exibicao_de(exibicao)
         return self.salvar(painel)
 
     def remover(self, id_: str, widget_id: str) -> Painel:

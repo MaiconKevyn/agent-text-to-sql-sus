@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { AnalysisPlan, ChartSpec, Dashboard, PanelCatalog, PanelStep, PlanItem, WidgetData, WidgetDraft, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
+import type { AnalysisPlan, ChartSpec, Dashboard, PanelCatalog, PanelStep, PlanItem, WidgetData, WidgetDisplay, WidgetDraft, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -466,6 +466,40 @@ export const createFilterManual = (id: string, field: string, kind: string, labe
     `/api/dashboards/${id}/filters/manual`,
     { method: "POST", body: JSON.stringify({ field, kind, label }) },
   );
+
+/**
+ * Refaz um widget a partir de novas escolhas, NO MESMO LUGAR.
+ *
+ * Não é apagar e criar: o widget novo nasceria no fim da grade e o painel se
+ * reorganizaria porque alguém trocou "internações" por "óbitos". O id, a
+ * posição e as exclusões da lupa sobrevivem.
+ */
+export const updateWidgetManual = (id: string, widgetId: string, draft: WidgetDraft) =>
+  json<{ refused: string; dashboard?: Dashboard }>(
+    `/api/dashboards/${id}/widgets/${widgetId}/manual`,
+    { method: "PUT", body: JSON.stringify(draft) },
+  );
+
+/** Compacto e tamanho do número. Não toca em SQL nem em gráfico. */
+export const updateWidgetDisplay = (id: string, widgetId: string, display: WidgetDisplay) =>
+  json<{ refused: string; dashboard?: Dashboard }>(
+    `/api/dashboards/${id}/widgets/${widgetId}/display`,
+    { method: "PATCH", body: JSON.stringify(display) },
+  );
+
+/**
+ * Troca coluna, controle ou nome de um filtro existente. O id sobrevive porque
+ * as exclusões por widget o referenciam.
+ */
+export const updateFilter = (
+  id: string,
+  filterId: string,
+  patch: { field?: string; kind?: string; label?: string },
+) =>
+  json<{ refused: string; dashboard?: Dashboard }>(`/api/dashboards/${id}/filters/${filterId}`, {
+    method: "PUT",
+    body: JSON.stringify(patch),
+  });
 
 export const createWidgetManual = (id: string, draft: WidgetDraft) =>
   json<{ refused: string; dashboard?: Dashboard; widgetId?: string }>(

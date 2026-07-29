@@ -3,8 +3,16 @@ import { useState } from "react";
 import { ResultChart } from "@/components/result/ResultChart";
 import { SqlBlock } from "@/components/result/SqlBlock";
 import { cn } from "@/lib/utils";
-import type { CatalogForm, ChartSpec, DashboardWidget, PanelFilter, WidgetData } from "@/lib/types";
-import { AjusteDoGrafico } from "./AjusteDoGrafico";
+import type {
+  ChartSpec,
+  DashboardWidget,
+  PanelCatalog,
+  PanelFilter,
+  WidgetData,
+  WidgetDisplay,
+  WidgetDraft,
+} from "@/lib/types";
+import { EditorDeWidget } from "./EditorDeWidget";
 import { LupaDeFiltros } from "./LupaDeFiltros";
 import type { Celula } from "@/theme/grade";
 import type { Gesto } from "@/theme/usePainel";
@@ -23,9 +31,11 @@ interface Props {
   gesto: Gesto | null;
   comecar: (id: string, tipo: Gesto, e: React.PointerEvent) => void;
   porTeclado: (id: string, d: Partial<Celula>) => void;
-  formas: CatalogForm[];
-  /** Devolve a recusa, ou string vazia. Só aparência — o SQL não é tocado. */
-  onAjustar: (patch: Partial<ChartSpec>) => Promise<string>;
+  catalogo: PanelCatalog | null;
+  /** Cada uma devolve a recusa, ou string vazia. */
+  onRefazer: (draft: WidgetDraft) => Promise<string>;
+  onAparencia: (patch: Partial<ChartSpec>) => Promise<string>;
+  onExibicao: (d: WidgetDisplay) => Promise<string>;
 }
 
 /**
@@ -49,13 +59,21 @@ export function WidgetPainel({
   gesto,
   comecar,
   porTeclado,
-  formas,
-  onAjustar,
+  catalogo,
+  onRefazer,
+  onAparencia,
+  onExibicao,
 }: Props) {
   const [aberto, setAberto] = useState(false);
   const emMovimento = gesto === "mover";
   const emResize = gesto !== null && gesto !== "mover";
   const res = dados?.result;
+  // COMPACTO tira o rodapé e o rótulo da coluna: sobram título e número, que é
+  // o que se quer ler numa fila de quatro indicadores. Sem isso, cada um deles
+  // gasta duas linhas dizendo "total internacoes covid" logo abaixo do título
+  // que já dizia a mesma coisa.
+  const compacto = widget.format === "indicador" && widget.display?.compact;
+  const escala = widget.display?.scale ?? 1;
 
   return (
     <article
@@ -107,15 +125,17 @@ export function WidgetPainel({
         )}
 
         <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 focus-within:opacity-100 group-hover:opacity-100">
-          {/* Vale para qualquer gráfico, inclusive os que um modelo escreveu:
-              o ajuste reetiqueta qual coluna vai para qual eixo e não toca no
-              SQL, então nada varre o banco de novo para trocar uma cor. */}
-          {widget.chart && formas.length > 0 && (
-            <AjusteDoGrafico
-              spec={widget.chart}
+          {/* Vale para todo widget: a aparência reetiqueta qual coluna vai
+              para qual eixo sem tocar no SQL, e a aba de dados só aparece para
+              quem nasceu do menu e guardou as escolhas. */}
+          {!widget.legacy && (
+            <EditorDeWidget
+              widget={widget}
               resultado={res ?? null}
-              formas={formas}
-              onSalvar={onAjustar}
+              catalogo={catalogo}
+              onRefazer={onRefazer}
+              onAparencia={onAparencia}
+              onExibicao={onExibicao}
             />
           )}
           <button
@@ -146,7 +166,12 @@ export function WidgetPainel({
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3.5 pb-2">
+      <div
+        className={cn(
+          "flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3.5",
+          compacto ? "pb-2.5" : "pb-2",
+        )}
+      >
         {dados?.error ? (
           <p className="rounded-lg bg-critical-soft px-3 py-2 text-[11.5px] leading-snug text-ink">
             {dados.error}
@@ -156,15 +181,29 @@ export function WidgetPainel({
             <Loader2 aria-hidden className="h-4 w-4 animate-spin text-ink-subtle" />
           </div>
         ) : !res ? null : widget.format === "indicador" ? (
-          <div className={cn("flex flex-1 flex-col justify-center py-1", carregando && "opacity-50")}>
-            <span className="text-[30px] font-semibold leading-none tracking-tight text-ink [font-variant-numeric:tabular-nums]">
+          <div
+            className={cn(
+              "flex flex-1 flex-col justify-center",
+              compacto ? "py-0" : "py-1",
+              carregando && "opacity-50",
+            )}
+          >
+            <span
+              className="font-semibold leading-none tracking-tight text-ink [font-variant-numeric:tabular-nums]"
+              style={{ fontSize: `${escala * 30}px` }}
+            >
               {typeof res.rows[0]?.[0] === "number"
                 ? nf.format(res.rows[0][0] as number)
                 : String(res.rows[0]?.[0] ?? "—")}
             </span>
-            <span className="mt-1 text-[11px] text-ink-subtle">
-              {res.columns[0]?.replace(/_/g, " ")}
-            </span>
+            {/* O rótulo da coluna repete o título na maioria dos indicadores —
+                "total internacoes covid" sob "Total de internações por
+                COVID-19". No compacto ele sai. */}
+            {!compacto && (
+              <span className="mt-1 text-[11px] text-ink-subtle">
+                {res.columns[0]?.replace(/_/g, " ")}
+              </span>
+            )}
           </div>
         ) : widget.chart ? (
           <div className={cn("min-h-[170px] flex-1", carregando && "opacity-50")}>
@@ -180,7 +219,12 @@ export function WidgetPainel({
       <button
         onClick={() => setAberto((v) => !v)}
         aria-expanded={aberto}
-        className="flex shrink-0 items-center gap-1 px-3.5 pb-2 pt-0.5 text-[11px] text-ink-subtle transition-colors duration-150 hover:text-accent"
+        className={cn(
+          "flex shrink-0 items-center gap-1 px-3.5 pb-2 pt-0.5 text-[11px] text-ink-subtle transition-colors duration-150 hover:text-accent",
+          // No compacto o rodapé só aparece ao passar o ponteiro: ele é a
+          // terceira linha do cartão, e é justamente a que se quer devolver.
+          compacto && "absolute bottom-0 left-0 opacity-0 focus:opacity-100 group-hover:opacity-100",
+        )}
       >
         <ChevronDown
           aria-hidden

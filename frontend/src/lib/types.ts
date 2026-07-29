@@ -486,6 +486,8 @@ export interface PanelFilter {
   selection: (string | number)[];
   /** O que os valores significam nesta base. Nem sempre é adivinhável. */
   note: string;
+  /** O campo do catálogo, quando veio do menu. Vazio nos declarados por modelo. */
+  field: string;
   /** Se está de fato recortando. Seleção completa = inativo. */
   active: boolean;
 }
@@ -503,6 +505,14 @@ export interface DashboardWidget {
   legacy: boolean;
   /** Filtros do painel que ESTE widget dispensa. Vazio = obedece a todos. */
   excluded: string[];
+  /**
+   * As escolhas do menu que produziram este widget. Só existe em quem nasceu do
+   * menu — é o que permite reabrir a edição com tudo preenchido. Um widget
+   * escrito por modelo vem `null`, e reconstruir as escolhas a partir do SQL
+   * seria adivinhação que troca em silêncio o que o gráfico mede.
+   */
+  build: WidgetDraft | null;
+  display: WidgetDisplay;
   x: number;
   y: number;
   width: number;
@@ -573,6 +583,16 @@ export interface PanelCatalog {
   forms: CatalogForm[];
   orders: { id: string; label: string }[];
   filterKinds: { id: FilterKind; label: string }[];
+}
+
+/**
+ * Como o widget se mostra. Hoje só o indicador usa: `compact` tira o rodapé e
+ * aperta o espaçamento — título e número, nada mais —, e `scale` multiplica o
+ * tamanho do número sobre a base de 30px.
+ */
+export interface WidgetDisplay {
+  compact: boolean;
+  scale: number;
 }
 
 /** O que a tela envia para montar um gráfico. Ids do catálogo, nunca SQL. */

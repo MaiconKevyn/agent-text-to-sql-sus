@@ -148,6 +148,45 @@ class Definicao:
 
 
 @dataclass
+class Fio:
+    """Uma linha de investigação dentro do tema.
+
+    É a camada que faltava entre o tema e o achado. Um tema com dez achados é um
+    mosaico plano: não dá para saber quais deles respondem a mesma sub-pergunta,
+    e a ordem na tela é o arranjo, não o argumento.
+
+    Não tem "tipo" (monitoramento × inquérito, como nas referências): monitorar
+    não significa nada numa base fechada em 2023, e um campo que não significa
+    nada é pior que campo nenhum — ele convida a preencher.
+    """
+
+    id: str = field(default_factory=lambda: _id("fio"))
+    titulo: str = ""
+    resumo: str = ""
+    ordem: int = 0
+    criado_em: str = field(default_factory=_agora)
+
+    def para_json(self) -> dict:
+        return {
+            "id": self.id,
+            "title": self.titulo,
+            "summary": self.resumo,
+            "order": self.ordem,
+            "createdAt": self.criado_em,
+        }
+
+    @classmethod
+    def de_json(cls, d: dict) -> Fio:
+        return cls(
+            id=str(d.get("id") or _id("fio")),
+            titulo=str(d.get("title") or ""),
+            resumo=str(d.get("summary") or ""),
+            ordem=int(d.get("order") or 0),
+            criado_em=str(d.get("createdAt") or _agora()),
+        )
+
+
+@dataclass
 class Bloco:
     """Uma evidência fixada no tema, com tudo que ela precisa para ser relida.
 
@@ -179,6 +218,10 @@ class Bloco:
     papel: Papel = ""
     peso: Peso = "secundario"
     porque: str = ""
+    # A que linha de investigação este achado pertence. Vazio = solto no quadro,
+    # que é como todo achado já salvo vai nascer e como um tema pequeno fica
+    # para sempre, se ninguém precisar de fios.
+    fio_id: str = ""
     # De onde veio, quando a procedência não é o banco. `url` e `acessado_em`
     # são o que torna a citação conferível: sem eles, o trecho é só um texto que
     # alguém colou, indistinguível de uma lembrança.
@@ -213,6 +256,7 @@ class Bloco:
             "assumptions": self.suposicoes,
             "note": self.anotacao,
             "role": self.papel,
+            "thread": self.fio_id,
             "weight": self.peso,
             "why": self.porque,
             "sourceUrl": self.fonte_url,
@@ -244,6 +288,7 @@ class Bloco:
             # Achado salvo antes destes campos abre como "não classificado", que
             # é exatamente o que ele é. Nada de inferir papel a partir do texto.
             papel=d.get("role") if d.get("role") in PAPEIS else "",
+            fio_id=str(d.get("thread") or ""),
             peso=d.get("weight") if d.get("weight") in PESOS else "secundario",
             porque=str(d.get("why") or ""),
             fonte_url=str(d.get("sourceUrl") or ""),
@@ -305,6 +350,7 @@ class Tema:
     # aparência faz parte de como a investigação foi montada.
     paleta: str = ""
     definicoes: list[Definicao] = field(default_factory=list)
+    fios: list[Fio] = field(default_factory=list)
     blocos: list[Bloco] = field(default_factory=list)
 
     def toca(self) -> None:
@@ -327,6 +373,7 @@ class Tema:
             "updatedAt": self.atualizado_em,
             "palette": self.paleta,
             "definitions": [d.para_json() for d in self.definicoes],
+            "threads": [f.para_json() for f in sorted(self.fios, key=lambda f: f.ordem)],
             "blockCount": len(self.blocos),
             # As duas contagens que a lista de temas mostra. Vão no payload SEM
             # blocos de propósito: é justamente a lista que precisa delas, e ela
@@ -353,5 +400,6 @@ class Tema:
             atualizado_em=str(d.get("updatedAt") or _agora()),
             paleta=str(d.get("palette") or ""),
             definicoes=[Definicao.de_json(x) for x in (d.get("definitions") or [])],
+            fios=[Fio.de_json(x) for x in (d.get("threads") or [])],
             blocos=blocos,
         )

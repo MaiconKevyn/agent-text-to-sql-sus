@@ -251,12 +251,28 @@ export const unpinBlock = (id: string, blocoId: string) =>
 export const classifyBlock = (
   id: string,
   blockId: string,
-  patch: { role?: BlockRole; weight?: BlockWeight; why?: string },
+  patch: { role?: BlockRole; weight?: BlockWeight; why?: string; thread?: string },
 ) =>
   json<Theme>(`/api/themes/${id}/blocks/${blockId}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
   });
+
+export const createThread = (id: string, title: string, summary = "") =>
+  json<Theme>(`/api/themes/${id}/threads`, {
+    method: "POST",
+    body: JSON.stringify({ title, summary }),
+  });
+
+export const renameThread = (id: string, threadId: string, title: string) =>
+  json<Theme>(`/api/themes/${id}/threads/${threadId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+
+/** Apaga o fio e SOLTA os achados dele — nenhum achado é perdido. */
+export const deleteThread = (id: string, threadId: string) =>
+  json<Theme>(`/api/themes/${id}/threads/${threadId}`, { method: "DELETE" });
 
 export const noteBlock = (id: string, blocoId: string, note: string) =>
   json<Theme>(`/api/themes/${id}/blocks/${blocoId}/note`, {

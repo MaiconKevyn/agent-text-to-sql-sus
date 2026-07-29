@@ -424,6 +424,33 @@ def anotar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONRe
         return JSONResponse({"error": "Não encontrado."}, status_code=404)
 
 
+@app.post("/api/themes/{tema_id}/threads")
+def criar_fio(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Uma linha de investigação dentro do tema."""
+    try:
+        tema = armazem().criar_fio(tema_id, str(corpo.get("title") or ""), str(corpo.get("summary") or ""))
+        return JSONResponse(tema.para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
+@app.patch("/api/themes/{tema_id}/threads/{fio_id}")
+def editar_fio(tema_id: str, fio_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    try:
+        return JSONResponse(armazem().editar_fio(tema_id, fio_id, corpo).para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
+@app.delete("/api/themes/{tema_id}/threads/{fio_id}")
+def apagar_fio(tema_id: str, fio_id: str) -> JSONResponse:
+    """Apaga o fio e solta os achados dele — nunca os apaga junto."""
+    try:
+        return JSONResponse(armazem().apagar_fio(tema_id, fio_id).para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
 @app.patch("/api/themes/{tema_id}/blocks/{bloco_id}")
 def classificar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONResponse:
     """O papel do achado no argumento: sustenta, contradiz ou contextualiza.

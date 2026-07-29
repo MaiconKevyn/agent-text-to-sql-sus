@@ -13,10 +13,12 @@ import {
 import { PaletaEscopo } from "@/hooks/usePaleta";
 import { useIsDark } from "@/hooks/useTheme";
 import { aplicarPaleta, limparPaleta } from "@/lib/paletas";
+import { cn } from "@/lib/utils";
 import { LINHA_PX, VAO_PX, type Theme, type ThemeBlock } from "@/lib/types";
 import { ThemeChat } from "./ThemeChat";
 import { AddSource } from "@/components/theme/AddSource";
 import { BlocoPainel } from "./BlocoPainel";
+import { VisaoPorFio } from "./VisaoPorFio";
 import { usePainel } from "./usePainel";
 
 const nf = new Intl.NumberFormat("pt-BR");
@@ -272,6 +274,11 @@ function ListaDeTemas({ temas, onNovo }: { temas: Theme[]; onNovo: () => void })
 function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) {
   const blocos = tema.blocks ?? [];
   const painel = usePainel(blocos, (l) => setGrid(tema.id, l), onMudou);
+  // As duas visões servem a momentos diferentes: o QUADRO é para explorar —
+  // tamanho, posição e gráfico grande —, e POR FIO é para ler se o argumento
+  // fecha. Não é a mesma tela reorganizada, e por isso alternar não move nada:
+  // o arranjo do quadro sobrevive intacto a qualquer volta.
+  const [visao, setVisao] = useState<"quadro" | "fio">("quadro");
 
   // Duas colunas no desktop: o material à esquerda, o chat que o enxerga à
   // direita. Em tela estreita eles empilham, com o chat primeiro — de nada
@@ -307,6 +314,34 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
         </section>
       )}
 
+      {/* O alternador só aparece quando há o que alternar: num tema sem fios e
+          com três achados, oferecer duas visões é oferecer uma decisão que não
+          existe. */}
+      {blocos.length > 0 && (tema.threads.length > 0 || visao === "fio") && (
+        <div className="mb-3 flex items-center gap-1.5">
+          {(["quadro", "fio"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => setVisao(v)}
+              aria-pressed={visao === v}
+              className={cn(
+                "rounded-lg border px-2.5 py-1 text-[11.5px] transition-colors duration-150",
+                visao === v
+                  ? "border-accent bg-accent-soft text-accent"
+                  : "border-line text-ink-muted hover:text-ink",
+              )}
+            >
+              {v === "quadro" ? "Quadro" : "Por fio"}
+            </button>
+          ))}
+          <span className="text-[11px] text-ink-subtle">
+            {visao === "quadro"
+              ? "arranjo livre — arraste e redimensione"
+              : "a ordem do argumento, não a da tela"}
+          </span>
+        </div>
+      )}
+
       {blocos.length === 0 ? (
         <div className="py-16 text-center">
           <FileText aria-hidden className="mx-auto mb-3 h-7 w-7 text-ink-subtle" />
@@ -316,7 +351,23 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
           </p>
         </div>
       ) : (
-        <Palco painel={painel} blocos={blocos} temaId={tema.id} onMudou={onMudou} />
+        <>
+          {visao === "quadro" ? (
+            <Palco painel={painel} blocos={blocos} temaId={tema.id} onMudou={onMudou} />
+          ) : (
+            <VisaoPorFio tema={tema} onMudou={onMudou} />
+          )}
+          {/* O caminho de entrada para os fios num tema que ainda não tem
+              nenhum: sem isto, "Por fio" seria inalcançável. */}
+          {tema.threads.length === 0 && visao === "quadro" && (
+            <button
+              onClick={() => setVisao("fio")}
+              className="mt-3 text-[11.5px] text-ink-subtle underline decoration-dotted underline-offset-2 transition-colors duration-150 hover:text-accent"
+            >
+              organizar em fios de investigação
+            </button>
+          )}
+        </>
       )}
 
       <div className="mt-3">

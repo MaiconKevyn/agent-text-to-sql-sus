@@ -391,6 +391,8 @@ export interface ThemeBlock {
   weight: BlockWeight;
   /** A relevância dita numa frase — separada da anotação, que é rascunho. */
   why: string;
+  /** A que fio pertence. Vazio = solto no quadro. */
+  thread: string;
   /** De onde veio, quando não é do banco. É o que torna a citação conferível. */
   sourceUrl: string;
   sourceTitle: string;
@@ -409,6 +411,15 @@ export interface ThemeBlock {
 }
 
 /** Um termo resolvido, válido para o tema inteiro. */
+/** Uma linha de investigação dentro do tema — a camada entre tema e achado. */
+export interface ThemeThread {
+  id: string;
+  title: string;
+  summary: string;
+  order: number;
+  createdAt: string;
+}
+
 export interface ThemeDefinition {
   term: string;
   clause: string;
@@ -431,6 +442,7 @@ export interface Theme {
   contradictions: number;
   /** Achados que ninguém classificou: coletados, mas fora do argumento. */
   unclassified: number;
+  threads: ThemeThread[];
   /** Ausente na listagem, que não carrega as tabelas de cada bloco. */
   blocks?: ThemeBlock[];
 }

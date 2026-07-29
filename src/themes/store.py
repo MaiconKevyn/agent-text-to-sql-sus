@@ -28,6 +28,7 @@ from .models import (
     Bloco,
     COLUNAS,
     Definicao,
+    Fio,
     LARGURA_MIN,
     PAPEIS,
     PESOS,
@@ -111,6 +112,52 @@ class Armazem:
             b.peso = mudanca["weight"]
         if "why" in mudanca:
             b.porque = str(mudanca["why"] or "")[:400]
+        # O fio entra pelo mesmo PATCH: mudar de fio é classificar, e separar
+        # em duas rotas obrigaria a tela a fazer duas chamadas para o gesto de
+        # "este achado sustenta a tendência" — que é uma coisa só.
+        if "thread" in mudanca:
+            alvo = str(mudanca["thread"] or "")
+            b.fio_id = alvo if any(f.id == alvo for f in tema.fios) else ""
+        return self.salvar(tema)
+
+    def criar_fio(self, id_: str, titulo: str, resumo: str = "") -> Tema:
+        tema = self.ler(id_)
+        ordem = max((f.ordem for f in tema.fios), default=-1) + 1
+        tema.fios.append(Fio(titulo=titulo.strip()[:80] or "Sem título", resumo=resumo.strip()[:200], ordem=ordem))
+        return self.salvar(tema)
+
+    def editar_fio(self, id_: str, fio_id: str, mudanca: dict) -> Tema:
+        tema = self.ler(id_)
+        f = next((x for x in tema.fios if x.id == fio_id), None)
+        if f is None:
+            raise TemaInexistente(fio_id)
+        if "title" in mudanca:
+            f.titulo = str(mudanca["title"] or "").strip()[:80] or f.titulo
+        if "summary" in mudanca:
+            f.resumo = str(mudanca["summary"] or "").strip()[:200]
+        return self.salvar(tema)
+
+    def apagar_fio(self, id_: str, fio_id: str) -> Tema:
+        """Apaga o fio e SOLTA os achados dele — nunca os apaga junto.
+
+        Um achado custou uma consulta ao banco e carrega a evidência congelada;
+        um fio é só um agrupamento. Levar os dez achados junto porque alguém
+        desfez a organização seria destruir o caro para desfazer o barato.
+        """
+        tema = self.ler(id_)
+        tema.fios = [f for f in tema.fios if f.id != fio_id]
+        for b in tema.blocos:
+            if b.fio_id == fio_id:
+                b.fio_id = ""
+        return self.salvar(tema)
+
+    def mover_para_fio(self, id_: str, bloco_id: str, fio_id: str) -> Tema:
+        """Põe o achado num fio. Fio vazio ou inexistente devolve ao quadro solto."""
+        tema = self.ler(id_)
+        b = tema.bloco(bloco_id)
+        if b is None:
+            raise TemaInexistente(bloco_id)
+        b.fio_id = fio_id if any(f.id == fio_id for f in tema.fios) else ""
         return self.salvar(tema)
 
     def anotar(self, id_: str, bloco_id: str, anotacao: str) -> Tema:

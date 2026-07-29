@@ -22,7 +22,17 @@ from urllib.parse import urlparse
 
 from ..config import settings
 from ..storage import DocumentoInexistente, Documentos
-from .models import ALTURA_MAX, ALTURA_MIN, Bloco, COLUNAS, Definicao, LARGURA_MIN, Tema
+from .models import (
+    ALTURA_MAX,
+    ALTURA_MIN,
+    Bloco,
+    COLUNAS,
+    Definicao,
+    LARGURA_MIN,
+    PAPEIS,
+    PESOS,
+    Tema,
+)
 
 
 class TemaInexistente(DocumentoInexistente):
@@ -82,6 +92,25 @@ class Armazem:
     def desafixar(self, id_: str, bloco_id: str) -> Tema:
         tema = self.ler(id_)
         tema.blocos = [b for b in tema.blocos if b.id != bloco_id]
+        return self.salvar(tema)
+
+    def classificar(self, id_: str, bloco_id: str, mudanca: dict) -> Tema:
+        """Papel, peso e "por que importa" de um achado.
+
+        Só os três: quem edita a classificação não deveria conseguir, pelo mesmo
+        caminho, mexer no SQL ou no resultado — eles são congelados, e é essa
+        garantia que faz um número citado continuar citável.
+        """
+        tema = self.ler(id_)
+        b = tema.bloco(bloco_id)
+        if b is None:
+            raise TemaInexistente(bloco_id)
+        if "role" in mudanca and mudanca["role"] in PAPEIS:
+            b.papel = mudanca["role"]
+        if "weight" in mudanca and mudanca["weight"] in PESOS:
+            b.peso = mudanca["weight"]
+        if "why" in mudanca:
+            b.porque = str(mudanca["why"] or "")[:400]
         return self.salvar(tema)
 
     def anotar(self, id_: str, bloco_id: str, anotacao: str) -> Tema:

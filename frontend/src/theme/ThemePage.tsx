@@ -240,9 +240,27 @@ function ListaDeTemas({ temas, onNovo }: { temas: Theme[]; onNovo: () => void })
                   </span>
                 )}
               </span>
-              <Badge tone="neutral">
-                {t.blockCount} bloco{t.blockCount === 1 ? "" : "s"}
-              </Badge>
+              <span className="flex shrink-0 items-center gap-1.5">
+                {/* A contradição vem primeiro e some quando é zero: uma lista
+                    que carimba "0 contradições" em tudo ensina a ignorar o
+                    selo justamente onde ele importa. */}
+                {t.contradictions > 0 && (
+                  <Badge tone="caution">
+                    {t.contradictions} contradi{t.contradictions === 1 ? "ção" : "ções"}
+                  </Badge>
+                )}
+                {t.unclassified > 0 && (
+                  <span
+                    className="rounded border border-dashed border-line px-1.5 py-px text-[10.5px] text-ink-subtle"
+                    title="Achados coletados que ainda não dizem o que provam"
+                  >
+                    {t.unclassified} sem papel
+                  </span>
+                )}
+                <Badge tone="neutral">
+                  {t.blockCount} achado{t.blockCount === 1 ? "" : "s"}
+                </Badge>
+              </span>
             </a>
           </li>
         ))}

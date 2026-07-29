@@ -5,7 +5,7 @@
  * Não há tradução de formato: o backend emite exatamente `StreamEvent`, então
  * o contrato vive em `lib/types.ts` e vale dos dois lados.
  */
-import type { AnalysisPlan, ChartSpec, Dashboard, PanelCatalog, PanelStep, PlanItem, WidgetData, WidgetDisplay, WidgetDraft, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
+import type { AnalysisPlan, BlockRole, BlockWeight, ChartSpec, Dashboard, PanelCatalog, PanelStep, PlanItem, WidgetData, WidgetDisplay, WidgetDraft, DatabaseSchema, StreamEvent, Turn, InvestigationEvent, Concept, ConceptCandidate, Theme, ThemeBlock, ThemeDefinition, SavedChat, ChatTurn, SearchResult } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -241,6 +241,22 @@ export const pinBlock = (id: string, bloco: Partial<ThemeBlock>) =>
 
 export const unpinBlock = (id: string, blocoId: string) =>
   json<Theme>(`/api/themes/${id}/blocks/${blocoId}`, { method: "DELETE" });
+
+/**
+ * Papel, peso e "por que importa" de um achado.
+ *
+ * Não toca em SQL nem em resultado — eles são congelados, e é essa garantia que
+ * faz um número citado continuar citável daqui a um mês.
+ */
+export const classifyBlock = (
+  id: string,
+  blockId: string,
+  patch: { role?: BlockRole; weight?: BlockWeight; why?: string },
+) =>
+  json<Theme>(`/api/themes/${id}/blocks/${blockId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 
 export const noteBlock = (id: string, blocoId: string, note: string) =>
   json<Theme>(`/api/themes/${id}/blocks/${blocoId}/note`, {

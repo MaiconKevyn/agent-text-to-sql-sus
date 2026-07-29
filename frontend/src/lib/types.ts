@@ -360,6 +360,18 @@ export {
   VAO_PX,
 } from "@/theme/grade";
 
+/**
+ * O que o achado FAZ no argumento do tema.
+ *
+ * `""` é "ainda não classificado", e é o padrão — um achado nasce no gesto de
+ * fixar uma resposta, e obrigar a classificar naquele momento transformaria um
+ * clique numa decisão. A tela mostra que falta; não impede que exista.
+ */
+export type BlockRole = "" | "sustenta" | "contradiz" | "contextualiza";
+
+/** Se o achado é carga ou acabamento. Só o material entra na conta de apoio. */
+export type BlockWeight = "material" | "secundario";
+
 export interface ThemeBlock {
   id: string;
   kind: BlockKind;
@@ -374,6 +386,11 @@ export interface ThemeBlock {
   assumptions: string[];
   /** Anotação de quem investiga — o porquê de o bloco estar aqui. */
   note: string;
+  /** O papel no argumento. Vazio = ninguém classificou ainda. */
+  role: BlockRole;
+  weight: BlockWeight;
+  /** A relevância dita numa frase — separada da anotação, que é rascunho. */
+  why: string;
   /** De onde veio, quando não é do banco. É o que torna a citação conferível. */
   sourceUrl: string;
   sourceTitle: string;
@@ -410,6 +427,10 @@ export interface Theme {
   updatedAt: string;
   definitions: ThemeDefinition[];
   blockCount: number;
+  /** Achados marcados como contradição — é o que a lista de temas conta. */
+  contradictions: number;
+  /** Achados que ninguém classificou: coletados, mas fora do argumento. */
+  unclassified: number;
   /** Ausente na listagem, que não carrega as tabelas de cada bloco. */
   blocks?: ThemeBlock[];
 }

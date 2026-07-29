@@ -3,8 +3,9 @@ import { useState } from "react";
 import { ResultChart } from "@/components/result/ResultChart";
 import { ResultTable } from "@/components/result/ResultTable";
 import { SqlBlock } from "@/components/result/SqlBlock";
+import { PapelDoAchado, SeloDePapel } from "@/components/theme/PapelDoAchado";
 import { SourceBadge } from "@/components/theme/SourceBadge";
-import { layoutBlock, noteBlock, unpinBlock } from "@/lib/api";
+import { classifyBlock, layoutBlock, noteBlock, unpinBlock } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { BlockFormat, ThemeBlock } from "@/lib/types";
 import type { Celula } from "./grade";
@@ -93,6 +94,12 @@ export function BlocoPainel({ bloco, temaId, onMudou, celula, gesto, comecar, po
         "group relative flex h-full w-full min-h-0 min-w-0 flex-col overflow-hidden rounded-xl border bg-surface",
         "transition-[box-shadow,border-color,opacity] duration-150",
         bloco.provenance === "banco" ? "border-line" : "border-caution/25 bg-caution-soft",
+        // A contradição muda a borda do card. Num mosaico de dez, ela é o
+        // único achado que ninguém pode deixar de ver — e antes disto ela
+        // tinha exatamente o mesmo peso visual do número que confirmava o que
+        // já se pensava.
+        bloco.role === "contradiz" && "border-caution ring-1 ring-caution/25",
+        bloco.role === "sustenta" && "border-positive/40",
         emResize && "border-accent/50 shadow-lg",
         // Levantado do painel: sombra forte e leve inclinação de escala dizem
         // "isto está na mão", que é o que falta quando o bloco só desliza.
@@ -116,6 +123,7 @@ export function BlocoPainel({ bloco, temaId, onMudou, celula, gesto, comecar, po
           </h3>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <SourceBadge provenance={bloco.provenance} />
+            <SeloDePapel papel={bloco.role} peso={bloco.weight} compacto />
             {bloco.result && formato !== "indicador" && (
               <span className="text-[10.5px] text-ink-subtle">
                 {nf.format(bloco.result.nRows)} linhas
@@ -173,6 +181,14 @@ export function BlocoPainel({ bloco, temaId, onMudou, celula, gesto, comecar, po
       {/* O corpo rola dentro do bloco: a altura é da grade, e o conteúdo se
           acomoda nela em vez de esticá-la. */}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-3.5 pb-2">
+        {/* Fica FORA do detalhe, de propósito: é a única linha do card que diz
+            o que a evidência prova, e escondê-la atrás de um clique devolveria
+            o mosaico ao estado em que dez cards se parecem. */}
+        {bloco.why && (
+          <p className="rounded-r border-l-2 border-accent bg-accent-soft/50 py-1 pl-2 pr-1.5 text-[11px] leading-snug text-ink">
+            {bloco.why}
+          </p>
+        )}
         {formato === "indicador" && valorUnico(bloco) && (
           <div className="flex flex-1 flex-col justify-center py-1">
             <span className="text-[30px] font-semibold leading-none tracking-tight text-ink [font-variant-numeric:tabular-nums]">
@@ -255,6 +271,15 @@ export function BlocoPainel({ bloco, temaId, onMudou, celula, gesto, comecar, po
             )}
             {bloco.sql && <SqlBlock sql={bloco.sql} />}
             {bloco.result && formato !== "tabela" && <ResultTable result={bloco.result} />}
+            <PapelDoAchado
+              papel={bloco.role}
+              peso={bloco.weight}
+              porque={bloco.why}
+              onMudar={async (patch) => {
+                await classifyBlock(temaId, bloco.id, patch);
+                onMudou();
+              }}
+            />
             <textarea
               value={anotacao}
               onChange={(e) => setAnotacao(e.target.value)}
@@ -265,7 +290,7 @@ export function BlocoPainel({ bloco, temaId, onMudou, celula, gesto, comecar, po
                 }
               }}
               rows={2}
-              placeholder="Por que este bloco importa para a investigação?"
+              placeholder="Anotação de trabalho — rascunho, dúvida, o que conferir depois"
               className="block w-full resize-y rounded-lg border border-line bg-canvas px-3 py-2 text-[12px] leading-relaxed text-ink outline-none transition-colors duration-150 placeholder:text-ink-subtle focus:border-accent"
             />
           </div>

@@ -424,6 +424,21 @@ def anotar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONRe
         return JSONResponse({"error": "Não encontrado."}, status_code=404)
 
 
+@app.patch("/api/themes/{tema_id}/blocks/{bloco_id}")
+def classificar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """O papel do achado no argumento: sustenta, contradiz ou contextualiza.
+
+    Separado de `/layout` porque são coisas de naturezas diferentes: layout é
+    apresentação e pode ser mexido sem consequência, classificação é uma
+    afirmação sobre o que a evidência prova — e é ela que alimenta a contagem de
+    contradições e a conta de apoio de uma resposta.
+    """
+    try:
+        return JSONResponse(armazem().classificar(tema_id, bloco_id, corpo).para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
 @app.post("/api/themes/{tema_id}/blocks/{bloco_id}/layout")
 def ajustar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONResponse:
     """Formato e tamanho do bloco no painel."""

@@ -21,6 +21,25 @@ Procedencia = Literal["banco", "web", "arquivo", "usuario"]
 # `nota` é texto escrito por quem investiga.
 TipoBloco = Literal["consulta", "investigacao", "nota"]
 
+# O QUE O ACHADO FAZ no argumento do tema.
+#
+# String vazia é "ainda não classificado", e é o padrão — de propósito. Um
+# achado nasce no gesto de fixar uma resposta, e obrigar a classificar naquele
+# momento transformaria um gesto de um clique numa decisão. O que a tela faz é
+# mostrar que falta, não impedir que exista.
+#
+# Não há valor "neutro" fora do vazio: se alguém escolheu "contextualiza", isso
+# é uma afirmação sobre o papel do achado, diferente de nunca ter olhado.
+Papel = Literal["", "sustenta", "contradiz", "contextualiza"]
+
+# Se o achado é carga ou acabamento. Só o material entra na conta de apoio de
+# uma resposta — "esta conclusão se apoia em dois achados materiais" só
+# significa alguma coisa se secundário significar "se cair, nada muda".
+Peso = Literal["material", "secundario"]
+
+PAPEIS: tuple[str, ...] = ("", "sustenta", "contradiz", "contextualiza")
+PESOS: tuple[str, ...] = ("material", "secundario")
+
 # COMO o bloco se apresenta no painel. Separado de `tipo` porque são perguntas
 # diferentes: `tipo` é de onde veio, `formato` é o que o leitor vê. A mesma
 # consulta que devolve uma linha pode ser um número grande ou uma tabela.
@@ -151,6 +170,15 @@ class Bloco:
     # Anotação de quem investiga. É o que transforma uma coleção de consultas
     # numa investigação: o porquê daquele bloco estar ali.
     anotacao: str = ""
+    # O papel no argumento, o peso, e a relevância dita em uma frase.
+    #
+    # `porque` é separado de `anotacao` de propósito, e a diferença não é
+    # estilística: anotação é rascunho de quem investiga — pode ser "conferir
+    # isso depois" —, enquanto `porque` é a frase que explica por que o achado
+    # sustenta ou derruba alguma coisa, e é ela que vai para o relatório.
+    papel: Papel = ""
+    peso: Peso = "secundario"
+    porque: str = ""
     # De onde veio, quando a procedência não é o banco. `url` e `acessado_em`
     # são o que torna a citação conferível: sem eles, o trecho é só um texto que
     # alguém colou, indistinguível de uma lembrança.
@@ -184,6 +212,9 @@ class Bloco:
             "definition": self.definicao,
             "assumptions": self.suposicoes,
             "note": self.anotacao,
+            "role": self.papel,
+            "weight": self.peso,
+            "why": self.porque,
             "sourceUrl": self.fonte_url,
             "sourceTitle": self.fonte_titulo,
             "accessedAt": self.acessado_em,
@@ -210,6 +241,11 @@ class Bloco:
             definicao=str(d.get("definition") or ""),
             suposicoes=list(d.get("assumptions") or []),
             anotacao=str(d.get("note") or ""),
+            # Achado salvo antes destes campos abre como "não classificado", que
+            # é exatamente o que ele é. Nada de inferir papel a partir do texto.
+            papel=d.get("role") if d.get("role") in PAPEIS else "",
+            peso=d.get("weight") if d.get("weight") in PESOS else "secundario",
+            porque=str(d.get("why") or ""),
             fonte_url=str(d.get("sourceUrl") or ""),
             fonte_titulo=str(d.get("sourceTitle") or ""),
             acessado_em=str(d.get("accessedAt") or ""),
@@ -292,6 +328,12 @@ class Tema:
             "palette": self.paleta,
             "definitions": [d.para_json() for d in self.definicoes],
             "blockCount": len(self.blocos),
+            # As duas contagens que a lista de temas mostra. Vão no payload SEM
+            # blocos de propósito: é justamente a lista que precisa delas, e ela
+            # não carrega os blocos para não trazer resultado inteiro de vinte
+            # consultas só para desenhar vinte linhas.
+            "contradictions": sum(1 for b in self.blocos if b.papel == "contradiz"),
+            "unclassified": sum(1 for b in self.blocos if not b.papel),
         }
         if com_blocos:
             base["blocks"] = [b.para_json() for b in self.blocos]

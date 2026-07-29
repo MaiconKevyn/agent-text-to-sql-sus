@@ -116,7 +116,10 @@ export default function ThemePage() {
         }}
       />
       <div className="min-w-0 flex-1">
-      <header className="sticky top-0 z-10 border-b border-line bg-canvas/90 px-5 py-3 backdrop-blur-md">
+      {/* z-40 pelo mesmo motivo do painel: `sticky` com z-index cria
+            contexto de empilhamento, e com z-10 os blocos da grade (z-10 /
+            z-30) ganhavam do seletor de aparência que vive aqui dentro. */}
+      <header className="sticky top-0 z-40 border-b border-line bg-canvas/90 px-5 py-3 backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3">
           <a
             href={id ? "?" : "/"}

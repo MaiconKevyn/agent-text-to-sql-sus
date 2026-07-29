@@ -123,7 +123,16 @@ export default function DashboardPage() {
         }}
       />
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-10 border-b border-line bg-canvas/90 px-5 py-3 backdrop-blur-md">
+        {/* z-40, e não z-10: `sticky` COM z-index cria um contexto de
+            empilhamento, então tudo que mora dentro do cabeçalho — inclusive o
+            seletor de aparência, que pede z-50 — fica preso no nível do próprio
+            cabeçalho. Com z-10 ele empatava com os blocos da grade (z-10, z-30
+            no arrastado), e o desempate por ordem no DOM entregava a vitória
+            aos blocos: o painel de paletas abria ATRÁS dos cartões.
+
+            Isso não era só o menu: um bloco rolando para cima também passava
+            por cima da barra, que é translúcida e deveria cobri-lo. */}
+        <header className="sticky top-0 z-40 border-b border-line bg-canvas/90 px-5 py-3 backdrop-blur-md">
           <div className="mx-auto flex max-w-[1500px] items-center gap-3">
             <a
               href={id ? "?paineis" : "/"}

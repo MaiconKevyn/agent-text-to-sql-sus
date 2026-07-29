@@ -411,6 +411,28 @@ export interface ThemeBlock {
 }
 
 /** Um termo resolvido, válido para o tema inteiro. */
+/**
+ * Uma pergunta de trabalho, com a resposta e a procedência dela juntas.
+ *
+ * `stale` é o único "desatualizado" honesto numa base fechada em 2023: ele não
+ * afirma que o dado mudou — afirma que as DEFINIÇÕES do tema mudaram desde que
+ * a resposta saiu, e portanto que o recorte conferido não é mais o que vale.
+ */
+export interface ThemeQuestion {
+  id: string;
+  thread: string;
+  text: string;
+  answer: string;
+  cited: string[];
+  /** Os achados lidos e deixados de fora, com o motivo. */
+  discarded: { bloco: string; motivo: string }[];
+  answeredAt: string;
+  definitionsUsed: string;
+  stale: boolean;
+  order: number;
+  createdAt: string;
+}
+
 /** Uma linha de investigação dentro do tema — a camada entre tema e achado. */
 export interface ThemeThread {
   id: string;
@@ -443,6 +465,9 @@ export interface Theme {
   /** Achados que ninguém classificou: coletados, mas fora do argumento. */
   unclassified: number;
   threads: ThemeThread[];
+  questions: ThemeQuestion[];
+  /** Quantas respostas ficaram sob um recorte que não é mais o que vale. */
+  stale: number;
   /** Ausente na listagem, que não carrega as tabelas de cada bloco. */
   blocks?: ThemeBlock[];
 }

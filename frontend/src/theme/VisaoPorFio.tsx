@@ -2,8 +2,9 @@ import { Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { SeloDePapel } from "@/components/theme/PapelDoAchado";
 import { SourceBadge } from "@/components/theme/SourceBadge";
-import { classifyBlock, createThread, deleteThread } from "@/lib/api";
+import { classifyBlock, createQuestion, createThread, deleteThread } from "@/lib/api";
 import type { Theme, ThemeBlock } from "@/lib/types";
+import { PerguntaDoTema } from "./PerguntaDoTema";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -33,10 +34,23 @@ export function VisaoPorFio({ tema, onMudou }: Props) {
   // "Sem fio" vai por ÚLTIMO e só aparece quando tem alguém: num tema que
   // ninguém organizou, um cabeçalho "sem fio" acima de tudo seria uma acusação
   // no lugar onde deveria estar o conteúdo.
-  const grupos: { fio: { id: string; title: string; summary: string } | null; itens: ThemeBlock[] }[] = [
-    ...tema.threads.map((f) => ({ fio: f, itens: blocos.filter((b) => b.thread === f.id) })),
-    { fio: null, itens: blocos.filter((b) => !b.thread || !tema.threads.some((f) => f.id === b.thread)) },
-  ].filter((g) => g.fio !== null || g.itens.length > 0);
+  const doFio = (id: string) => tema.questions.filter((q) => q.thread === id);
+  const soltas = tema.questions.filter(
+    (q) => !q.thread || !tema.threads.some((f) => f.id === q.thread),
+  );
+
+  const grupos = [
+    ...tema.threads.map((f) => ({
+      fio: f,
+      itens: blocos.filter((b) => b.thread === f.id),
+      perguntas: doFio(f.id),
+    })),
+    {
+      fio: null,
+      itens: blocos.filter((b) => !b.thread || !tema.threads.some((f) => f.id === b.thread)),
+      perguntas: soltas,
+    },
+  ].filter((g) => g.fio !== null || g.itens.length > 0 || g.perguntas.length > 0);
 
   async function novoFio() {
     if (titulo.trim().length < 2) return;
@@ -48,7 +62,7 @@ export function VisaoPorFio({ tema, onMudou }: Props) {
 
   return (
     <div className="space-y-5">
-      {grupos.map(({ fio, itens }) => (
+      {grupos.map(({ fio, itens, perguntas }) => (
         <section key={fio?.id ?? "soltos"}>
           <div className="mb-1.5 flex items-baseline gap-2">
             <h3
@@ -81,6 +95,25 @@ export function VisaoPorFio({ tema, onMudou }: Props) {
               </button>
             )}
           </div>
+
+          {/* As perguntas vêm ANTES dos achados: o fio existe para responder
+              alguma coisa, e a evidência é o que sustenta a resposta — não o
+              contrário. Um fio que abre com dez cards e esconde a pergunta no
+              fim inverte a leitura. */}
+          {perguntas.length > 0 && (
+            <div className="mb-2 space-y-1.5">
+              {perguntas.map((q) => (
+                <PerguntaDoTema key={q.id} pergunta={q} tema={tema} onMudou={onMudou} />
+              ))}
+            </div>
+          )}
+          {fio && (
+            <NovaPergunta
+              temaId={tema.id}
+              fioId={fio.id}
+              onCriou={onMudou}
+            />
+          )}
 
           {itens.length === 0 ? (
             <p className="rounded-lg border border-dashed border-line px-3 py-2.5 text-[11.5px] text-ink-subtle">
@@ -165,6 +198,50 @@ export function VisaoPorFio({ tema, onMudou }: Props) {
         >
           <Plus aria-hidden className="h-3.5 w-3.5" />
           Novo fio
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** A caixa de nova pergunta, dentro do fio. */
+function NovaPergunta({
+  temaId,
+  fioId,
+  onCriou,
+}: {
+  temaId: string;
+  fioId: string;
+  onCriou: () => void;
+}) {
+  const [texto, setTexto] = useState("");
+  const [ocupado, setOcupado] = useState(false);
+
+  async function criar() {
+    if (texto.trim().length < 5) return;
+    setOcupado(true);
+    await createQuestion(temaId, texto.trim(), fioId);
+    setTexto("");
+    setOcupado(false);
+    onCriou();
+  }
+
+  return (
+    <div className="mb-2 flex gap-1.5">
+      <input
+        value={texto}
+        onChange={(e) => setTexto(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && void criar()}
+        placeholder="O que este fio precisa responder?"
+        className="min-w-0 flex-1 rounded-lg border border-dashed border-line bg-canvas px-2.5 py-1.5 text-[11.5px] text-ink outline-none transition-colors duration-150 focus:border-accent focus:border-solid placeholder:text-ink-subtle"
+      />
+      {texto.trim().length >= 5 && (
+        <button
+          onClick={criar}
+          disabled={ocupado}
+          className="shrink-0 rounded-lg bg-accent px-2.5 py-1 text-[11.5px] font-medium text-white disabled:opacity-40"
+        >
+          Adicionar
         </button>
       )}
     </div>

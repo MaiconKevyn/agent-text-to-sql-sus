@@ -35,7 +35,7 @@ from .models import Bloco
 ESQUEMA = {
     "type": "object",
     "additionalProperties": False,
-    "required": ["respondeu", "resposta", "blocos_citados", "motivo"],
+    "required": ["respondeu", "resposta", "blocos_citados", "descartados", "motivo"],
     "properties": {
         "respondeu": {
             "type": "boolean",
@@ -57,6 +57,30 @@ ESQUEMA = {
             "type": "array",
             "items": {"type": "string"},
             "description": "Os ids efetivamente usados, na ordem em que aparecem.",
+        },
+        "descartados": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["bloco", "motivo"],
+                "properties": {
+                    "bloco": {"type": "string", "description": "O id do bloco que você NÃO usou."},
+                    "motivo": {
+                        "type": "string",
+                        "description": (
+                            "Meia frase dizendo por que ele não serve para ESTA pergunta — "
+                            "'recorte por UF não responde por idade', 'fora da janela'."
+                        ),
+                    },
+                },
+            },
+            "description": (
+                "Os blocos que você leu e deixou de fora, com o motivo. Só os que "
+                "alguém razoavelmente esperaria ver citados: um bloco sobre outro "
+                "assunto não precisa de justificativa. Vazio é resposta válida."
+            ),
         },
         "motivo": {
             "type": "string",
@@ -127,6 +151,11 @@ class Resposta:
     respondeu: bool
     texto: str = ""
     citados: list[str] = field(default_factory=list)
+    # Os blocos lidos e deixados de fora, com o motivo. É a peça que responde à
+    # pergunta que ninguém consegue fazer a uma síntese: "por que você não usou
+    # aquele outro?". Sem ela, a escolha do modelo é invisível — e uma escolha
+    # invisível não pode ser contestada.
+    descartados: list[dict] = field(default_factory=list)
     motivo: str = ""
 
     def para_json(self) -> dict:
@@ -134,6 +163,7 @@ class Resposta:
             "answered": self.respondeu,
             "text": self.texto,
             "cited": self.citados,
+            "discarded": self.descartados,
             "reason": self.motivo,
         }
 
@@ -184,10 +214,19 @@ def responder(
     citados = [c for c in (bruto.get("blocos_citados") or []) if c in validos]
     texto = str(bruto.get("resposta") or "").strip()
 
+    # Descartado só vale se o bloco existe E não foi citado: um id inventado
+    # viraria uma justificativa sobre nada, e um bloco que a resposta usou
+    # aparecendo como "não usei" é contradição pura.
+    descartados = [
+        {"bloco": d["bloco"], "motivo": str(d.get("motivo") or "")[:200]}
+        for d in (bruto.get("descartados") or [])
+        if isinstance(d, dict) and d.get("bloco") in validos and d.get("bloco") not in citados
+    ]
+
     # Respondeu sem citar ninguém é o modo de falha que mais importa pegar: é
     # uma resposta com aparência de apurada e sem origem.
     if bool(bruto.get("respondeu")) and texto and citados:
-        return Resposta(respondeu=True, texto=texto, citados=citados)
+        return Resposta(respondeu=True, texto=texto, citados=citados, descartados=descartados)
 
     return Resposta(
         respondeu=False,

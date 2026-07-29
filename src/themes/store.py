@@ -20,6 +20,8 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlparse
 
+from datetime import datetime, timezone
+
 from ..config import settings
 from ..storage import DocumentoInexistente, Documentos
 from .models import (
@@ -30,6 +32,7 @@ from .models import (
     Definicao,
     Fio,
     LARGURA_MIN,
+    Pergunta,
     PAPEIS,
     PESOS,
     Tema,
@@ -160,6 +163,52 @@ class Armazem:
         b.fio_id = fio_id if any(f.id == fio_id for f in tema.fios) else ""
         return self.salvar(tema)
 
+    def criar_pergunta(self, id_: str, texto: str, fio_id: str = "") -> tuple[Tema, Pergunta]:
+        tema = self.ler(id_)
+        ordem = max((p.ordem for p in tema.perguntas), default=-1) + 1
+        p = Pergunta(
+            texto=texto.strip()[:300],
+            fio_id=fio_id if any(f.id == fio_id for f in tema.fios) else "",
+            ordem=ordem,
+        )
+        tema.perguntas.append(p)
+        return self.salvar(tema), p
+
+    def gravar_resposta(
+        self, id_: str, pergunta_id: str, *, texto: str, citados: list[str], descartados: list[dict]
+    ) -> Tema:
+        """Guarda a resposta E o recorte que estava em vigor quando ela saiu.
+
+        `definicoes_usadas` é o que torna possível dizer, depois, que a resposta
+        envelheceu: numa base fechada o número não muda, mas a definição de
+        "câncer" muda — e com ela o número muda por 3,6x sem nada na tela avisar.
+        """
+        tema = self.ler(id_)
+        p = next((x for x in tema.perguntas if x.id == pergunta_id), None)
+        if p is None:
+            raise TemaInexistente(pergunta_id)
+        validos = {b.id for b in tema.blocos}
+        p.resposta = texto
+        p.citados = [c for c in citados if c in validos]
+        p.descartados = [d for d in descartados if d.get("bloco") in validos]
+        p.respondida_em = _agora_iso()
+        p.definicoes_usadas = tema.clausulas
+        return self.salvar(tema)
+
+    def apagar_pergunta(self, id_: str, pergunta_id: str) -> Tema:
+        """Apaga a pergunta. Os achados que ela citava ficam — eles são do tema."""
+        tema = self.ler(id_)
+        tema.perguntas = [p for p in tema.perguntas if p.id != pergunta_id]
+        return self.salvar(tema)
+
+    def mover_pergunta(self, id_: str, pergunta_id: str, fio_id: str) -> Tema:
+        tema = self.ler(id_)
+        p = next((x for x in tema.perguntas if x.id == pergunta_id), None)
+        if p is None:
+            raise TemaInexistente(pergunta_id)
+        p.fio_id = fio_id if any(f.id == fio_id for f in tema.fios) else ""
+        return self.salvar(tema)
+
     def anotar(self, id_: str, bloco_id: str, anotacao: str) -> Tema:
         tema = self.ler(id_)
         bloco = tema.bloco(bloco_id)
@@ -286,3 +335,7 @@ def _sanear_fonte(bloco: Bloco) -> None:
     if not url and bloco.procedencia == "web":
         bloco.procedencia = "usuario"
     bloco.acessado_em = bloco.acessado_em or date.today().isoformat()
+
+
+def _agora_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")

@@ -424,6 +424,65 @@ def anotar_bloco(tema_id: str, bloco_id: str, corpo: dict = Body(...)) -> JSONRe
         return JSONResponse({"error": "Não encontrado."}, status_code=404)
 
 
+@app.post("/api/themes/{tema_id}/questions")
+def criar_pergunta(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    """Uma pergunta de trabalho do tema — objeto, não turno de conversa."""
+    texto = str(corpo.get("text") or "").strip()
+    if len(texto) < 5:
+        return JSONResponse({"error": "Pergunta muito curta."}, status_code=400)
+    try:
+        tema, p = armazem().criar_pergunta(tema_id, texto, str(corpo.get("thread") or ""))
+        return JSONResponse({"theme": tema.para_json(), "questionId": p.id})
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+
+
+@app.post("/api/themes/{tema_id}/questions/{pergunta_id}/answer")
+def responder_pergunta(tema_id: str, pergunta_id: str) -> JSONResponse:
+    """Responde a partir dos achados do tema e guarda tudo junto.
+
+    Guarda a resposta, os achados citados, os DESCARTADOS com o motivo, e as
+    definições em vigor no momento. As três últimas são o que a tela não tinha
+    como mostrar antes: de onde a conclusão veio, o que ela deixou de fora, e
+    sob qual recorte ela vale.
+    """
+    try:
+        tema = armazem().ler(tema_id)
+    except TemaInexistente:
+        return JSONResponse({"error": "Tema não encontrado."}, status_code=404)
+    p = next((x for x in tema.perguntas if x.id == pergunta_id), None)
+    if p is None:
+        return JSONResponse({"error": "Pergunta não encontrada."}, status_code=404)
+    if not tema.blocos:
+        return JSONResponse({"refused": "O tema ainda não tem achados para responder."})
+
+    r = resposta_tema.responder(p.texto, tema.blocos, assunto=tema.titulo)
+    if not r.respondeu:
+        return JSONResponse({"refused": r.motivo or "Os achados do tema não respondem a isso."})
+    tema = armazem().gravar_resposta(
+        tema_id, pergunta_id, texto=r.texto, citados=r.citados, descartados=r.descartados
+    )
+    return JSONResponse({"refused": "", "theme": tema.para_json()})
+
+
+@app.delete("/api/themes/{tema_id}/questions/{pergunta_id}")
+def apagar_pergunta(tema_id: str, pergunta_id: str) -> JSONResponse:
+    """Apaga a pergunta. Os achados que ela citava ficam — eles são do tema."""
+    try:
+        return JSONResponse(armazem().apagar_pergunta(tema_id, pergunta_id).para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
+@app.patch("/api/themes/{tema_id}/questions/{pergunta_id}")
+def mover_pergunta(tema_id: str, pergunta_id: str, corpo: dict = Body(...)) -> JSONResponse:
+    try:
+        tema = armazem().mover_pergunta(tema_id, pergunta_id, str(corpo.get("thread") or ""))
+        return JSONResponse(tema.para_json())
+    except TemaInexistente:
+        return JSONResponse({"error": "Não encontrado."}, status_code=404)
+
+
 @app.post("/api/themes/{tema_id}/threads")
 def criar_fio(tema_id: str, corpo: dict = Body(...)) -> JSONResponse:
     """Uma linha de investigação dentro do tema."""

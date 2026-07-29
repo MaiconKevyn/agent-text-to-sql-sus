@@ -258,6 +258,31 @@ export const classifyBlock = (
     body: JSON.stringify(patch),
   });
 
+export const createQuestion = (id: string, text: string, thread = "") =>
+  json<{ theme: Theme; questionId: string }>(`/api/themes/${id}/questions`, {
+    method: "POST",
+    body: JSON.stringify({ text, thread }),
+  });
+
+/**
+ * Responde a partir dos achados do tema e guarda tudo junto: a resposta, os
+ * citados, os DESCARTADOS com motivo, e as definições em vigor.
+ */
+export const answerQuestion = (id: string, questionId: string) =>
+  json<{ refused: string; theme?: Theme }>(
+    `/api/themes/${id}/questions/${questionId}/answer`,
+    { method: "POST" },
+  );
+
+export const deleteQuestion = (id: string, questionId: string) =>
+  json<Theme>(`/api/themes/${id}/questions/${questionId}`, { method: "DELETE" });
+
+export const moveQuestion = (id: string, questionId: string, thread: string) =>
+  json<Theme>(`/api/themes/${id}/questions/${questionId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ thread }),
+  });
+
 export const createThread = (id: string, title: string, summary = "") =>
   json<Theme>(`/api/themes/${id}/threads`, {
     method: "POST",

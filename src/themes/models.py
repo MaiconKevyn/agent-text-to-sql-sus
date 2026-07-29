@@ -187,6 +187,69 @@ class Fio:
 
 
 @dataclass
+class Pergunta:
+    """Uma pergunta de trabalho do tema, com a resposta que ela produziu.
+
+    Existe porque no chat a pergunta morre: só a resposta fixada sobrevive, e
+    ela sobrevive sem a pergunta que a motivou e sem saber quais achados a
+    sustentam. Aqui as três coisas ficam juntas.
+
+    `definicoes_usadas` é o campo que faz o alerta de refazer funcionar. Ele
+    guarda as cláusulas do tema no momento em que a resposta saiu; comparar com
+    as atuais é uma igualdade de strings. Diferente significa que o RECORTE
+    conferido mudou — e essa é a única forma honesta de "desatualizado" numa
+    base fechada em 2023, onde reexecutar o SQL devolve sempre o mesmo número.
+    """
+
+    id: str = field(default_factory=lambda: _id("prg"))
+    fio_id: str = ""
+    texto: str = ""
+    resposta: str = ""
+    citados: list[str] = field(default_factory=list)
+    # [{bloco, motivo}] — os achados lidos e deixados de fora. É o que responde
+    # a "por que você não usou aquele outro?".
+    descartados: list[dict] = field(default_factory=list)
+    respondida_em: str = ""
+    definicoes_usadas: str = ""
+    ordem: int = 0
+    criada_em: str = field(default_factory=_agora)
+
+    def desatualizada(self, clausulas: str) -> bool:
+        """Se as definições mudaram desde que esta resposta foi produzida."""
+        return bool(self.respondida_em) and self.definicoes_usadas != clausulas
+
+    def para_json(self, clausulas: str = "") -> dict:
+        return {
+            "id": self.id,
+            "thread": self.fio_id,
+            "text": self.texto,
+            "answer": self.resposta,
+            "cited": self.citados,
+            "discarded": self.descartados,
+            "answeredAt": self.respondida_em,
+            "definitionsUsed": self.definicoes_usadas,
+            "stale": self.desatualizada(clausulas),
+            "order": self.ordem,
+            "createdAt": self.criada_em,
+        }
+
+    @classmethod
+    def de_json(cls, d: dict) -> Pergunta:
+        return cls(
+            id=str(d.get("id") or _id("prg")),
+            fio_id=str(d.get("thread") or ""),
+            texto=str(d.get("text") or ""),
+            resposta=str(d.get("answer") or ""),
+            citados=[str(x) for x in (d.get("cited") or [])],
+            descartados=[x for x in (d.get("discarded") or []) if isinstance(x, dict)],
+            respondida_em=str(d.get("answeredAt") or ""),
+            definicoes_usadas=str(d.get("definitionsUsed") or ""),
+            ordem=int(d.get("order") or 0),
+            criada_em=str(d.get("createdAt") or _agora()),
+        )
+
+
+@dataclass
 class Bloco:
     """Uma evidência fixada no tema, com tudo que ela precisa para ser relida.
 
@@ -351,6 +414,7 @@ class Tema:
     paleta: str = ""
     definicoes: list[Definicao] = field(default_factory=list)
     fios: list[Fio] = field(default_factory=list)
+    perguntas: list[Pergunta] = field(default_factory=list)
     blocos: list[Bloco] = field(default_factory=list)
 
     def toca(self) -> None:
@@ -374,6 +438,14 @@ class Tema:
             "palette": self.paleta,
             "definitions": [d.para_json() for d in self.definicoes],
             "threads": [f.para_json() for f in sorted(self.fios, key=lambda f: f.ordem)],
+            # A pergunta precisa das cláusulas ATUAIS para saber se está
+            # desatualizada — por isso o cálculo mora aqui, no único lugar que
+            # enxerga o tema inteiro.
+            "questions": [
+                p.para_json(self.clausulas)
+                for p in sorted(self.perguntas, key=lambda p: p.ordem)
+            ],
+            "stale": sum(1 for p in self.perguntas if p.desatualizada(self.clausulas)),
             "blockCount": len(self.blocos),
             # As duas contagens que a lista de temas mostra. Vão no payload SEM
             # blocos de propósito: é justamente a lista que precisa delas, e ela
@@ -401,5 +473,6 @@ class Tema:
             paleta=str(d.get("palette") or ""),
             definicoes=[Definicao.de_json(x) for x in (d.get("definitions") or [])],
             fios=[Fio.de_json(x) for x in (d.get("threads") or [])],
+            perguntas=[Pergunta.de_json(x) for x in (d.get("questions") or [])],
             blocos=blocos,
         )

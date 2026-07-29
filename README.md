@@ -683,7 +683,7 @@ src/
     runner.py          orquestra e é o único dono do orçamento
 
   themes/              TEMAS — evidência congelada, com procedência
-    models.py          Tema, Bloco, Definicao; a grade em células
+    models.py          Tema, Fio, Pergunta, Bloco, Definicao; a grade em células
     contexto.py        o que o tema oferece à geração de SQL
     indice.py          catálogo dos blocos (sem dados) e detalhe (com)
     resposta.py        responder A PARTIR dos blocos, citando qual

@@ -18,6 +18,7 @@ import { LINHA_PX, VAO_PX, type Theme, type ThemeBlock } from "@/lib/types";
 import { ThemeChat } from "./ThemeChat";
 import { AddSource } from "@/components/theme/AddSource";
 import { BlocoPainel } from "./BlocoPainel";
+import { SituacaoERevisao } from "./SituacaoERevisao";
 import { VisaoPorFio } from "./VisaoPorFio";
 import { usePainel } from "./usePainel";
 
@@ -278,7 +279,10 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
   // tamanho, posição e gráfico grande —, e POR FIO é para ler se o argumento
   // fecha. Não é a mesma tela reorganizada, e por isso alternar não move nada:
   // o arranjo do quadro sobrevive intacto a qualquer volta.
-  const [visao, setVisao] = useState<"quadro" | "fio">("quadro");
+  const [visao, setVisao] = useState<"quadro" | "fio" | "situacao">("quadro");
+  // A pendência que muda um número já escrito na tela — resposta sob recorte
+  // vencido — vira selo no alternador. As outras esperam alguém abrir.
+  const pendencias = tema.stale + tema.contradictions;
 
   // Duas colunas no desktop: o material à esquerda, o chat que o enxerga à
   // direita. Em tela estreita eles empilham, com o chat primeiro — de nada
@@ -317,9 +321,9 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
       {/* O alternador só aparece quando há o que alternar: num tema sem fios e
           com três achados, oferecer duas visões é oferecer uma decisão que não
           existe. */}
-      {blocos.length > 0 && (tema.threads.length > 0 || visao === "fio") && (
+      {blocos.length > 0 && (tema.threads.length > 0 || visao !== "quadro") && (
         <div className="mb-3 flex items-center gap-1.5">
-          {(["quadro", "fio"] as const).map((v) => (
+          {(["quadro", "fio", "situacao"] as const).map((v) => (
             <button
               key={v}
               onClick={() => setVisao(v)}
@@ -331,13 +335,20 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
                   : "border-line text-ink-muted hover:text-ink",
               )}
             >
-              {v === "quadro" ? "Quadro" : "Por fio"}
+              {v === "quadro" ? "Quadro" : v === "fio" ? "Por fio" : "Situação"}
+              {v === "situacao" && pendencias > 0 && (
+                <span className="ml-1 rounded bg-caution px-1 text-[9.5px] font-semibold text-white">
+                  {pendencias}
+                </span>
+              )}
             </button>
           ))}
           <span className="text-[11px] text-ink-subtle">
             {visao === "quadro"
               ? "arranjo livre — arraste e redimensione"
-              : "a ordem do argumento, não a da tela"}
+              : visao === "fio"
+                ? "a ordem do argumento, não a da tela"
+                : "o que mudou, e o que espera por você"}
           </span>
         </div>
       )}
@@ -354,8 +365,10 @@ function DetalheDoTema({ tema, onMudou }: { tema: Theme; onMudou: () => void }) 
         <>
           {visao === "quadro" ? (
             <Palco painel={painel} blocos={blocos} temaId={tema.id} onMudou={onMudou} />
-          ) : (
+          ) : visao === "fio" ? (
             <VisaoPorFio tema={tema} onMudou={onMudou} />
+          ) : (
+            <SituacaoERevisao tema={tema} />
           )}
           {/* O caminho de entrada para os fios num tema que ainda não tem
               nenhum: sem isto, "Por fio" seria inalcançável. */}

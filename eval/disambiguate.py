@@ -26,11 +26,14 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from eval import resultados  # noqa: E402
 from eval.run_eval import results_match  # noqa: E402
 from src.db import Database  # noqa: E402
 
 GT = Path(__file__).resolve().parent / "ground_truth.yaml"
-REPORT = Path(__file__).resolve().parent / "eval_report.json"
+# A execução mais recente de eval/results/ — resolvido na hora do uso, e não
+# na importação, para o módulo não travar num caminho que ainda não existe.
+REPORT = resultados.ultimo_relatorio()
 
 TOP_N = 10  # N padrão adotado para ranking aberto
 LIMITES_TIPICOS = {5, 10, 15, 20, 25, 50, 100}

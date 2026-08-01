@@ -791,6 +791,26 @@ O ponto fraco é nítido e não é ambiguidade de enunciado: **`agregacao_comple
 janela, percentil, média móvel ou comparação entre dois recortes na mesma
 consulta. É aí que vale trabalhar.
 
+### Onde ficam os resultados
+
+Cada execução vira uma pasta numerada, e o índice põe todas em uma tabela:
+
+```
+eval/results/
+  indice.md          uma linha por execução — geral, execução, recusa, nota
+  eval_001/
+    resumo.md        o resultado em uma tela, com as falhas nomeadas
+    relatorio.json   o detalhe caso a caso (não versionado: 400 KB por rodada)
+```
+
+```bash
+.venv/bin/python -m eval.run_eval --nota "depois de reescrever a regra de sexo"
+```
+
+A `--nota` é o que faz duas linhas do índice serem comparáveis um mês depois. E
+**a acurácia varia uns 4 pontos entre execuções idênticas** — uma diferença
+menor que isso entre duas linhas é ruído, não sinal.
+
 ### Outros testes
 
 ```bash

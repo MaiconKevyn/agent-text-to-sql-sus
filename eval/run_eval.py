@@ -26,6 +26,7 @@ import argparse
 import json
 import math
 import re
+import shlex
 import sys
 import time
 import unicodedata
@@ -43,7 +44,9 @@ from src.agent import TextToSQLAgent  # noqa: E402
 from src.config import settings  # noqa: E402
 from src.db import Database  # noqa: E402
 
-REPORT = Path(__file__).resolve().parent / "eval_report.json"
+# Importado pelo pacote e não por caminho relativo: assim `python -m
+# eval.run_eval` e `python eval/run_eval.py` funcionam os dois.
+from eval import resultados  # noqa: E402
 
 # Tolerância numérica. Dois efeitos distintos precisam ser absorvidos, e nenhum
 # deles é erro de SQL:
@@ -355,7 +358,21 @@ def main() -> int:
         "--workers", type=int, default=8,
         help="casos avaliados em paralelo. O gargalo é a API, não o DuckDB.",
     )
+    ap.add_argument(
+        "--nota", default="",
+        help=(
+            "uma frase dizendo o que esta execução testa — 'depois de reescrever "
+            "a regra de sexo'. Vai para o índice, e é o que faz duas linhas da "
+            "tabela serem comparáveis daqui a um mês."
+        ),
+    )
     args = ap.parse_args()
+    # O comando é gravado junto do resultado: `--limit 20` e a rodada completa
+    # produzem acurácias que não se comparam, e três semanas depois ninguém
+    # lembra qual número veio de qual recorte.
+    # `shlex.join` e não `" ".join`: sem as aspas, `--nota "duas palavras"`
+    # é gravado como algo que, colado de volta no terminal, faz outra coisa.
+    comando = "python -m eval.run_eval " + shlex.join(sys.argv[1:])
 
     if args.model:
         object.__setattr__(settings, "sql_model", args.model)
@@ -503,24 +520,33 @@ def main() -> int:
 
     print(f"\nTempo total: {time.time()-t0:.0f}s")
 
-    REPORT.write_text(
-        json.dumps(
-            {
-                "model": settings.sql_model,
-                "timestamp": datetime.now().isoformat(timespec="seconds"),
-                "n_cases": n,
-                "accuracy": round(n_ok / n, 4),
-                "execution_accuracy": round(exec_ok / len(answerable), 4) if answerable else None,
-                "refusal_accuracy": round(ref_ok / len(unanswerable), 4) if unanswerable else None,
-                "by_category": {k: [sum(v), len(v)] for k, v in by_cat.items()},
-                "results": results,
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
+    # Uma pasta por execução, numerada. A pasta é criada só AGORA, depois de os
+    # casos rodarem: uma execução interrompida na metade não deixa um número
+    # queimado nem uma pasta vazia no índice.
+    pasta, numero = resultados.abrir_execucao()
+    dados = {
+        "model": settings.sql_model,
+        "timestamp": datetime.now().isoformat(timespec="seconds"),
+        "run": numero,
+        "command": comando,
+        "note": args.nota,
+        "n_cases": n,
+        "accuracy": round(n_ok / n, 4),
+        "execution_accuracy": round(exec_ok / len(answerable), 4) if answerable else None,
+        "refusal_accuracy": round(ref_ok / len(unanswerable), 4) if unanswerable else None,
+        "by_category": {k: [sum(v), len(v)] for k, v in by_cat.items()},
+        "results": results,
+    }
+    (pasta / "relatorio.json").write_text(
+        json.dumps(dados, ensure_ascii=False, indent=2), encoding="utf-8"
     )
-    print(f"Relatório detalhado -> {REPORT.name}")
+    resultados.escrever_resumo(pasta, dados, comando, args.nota)
+    indice = resultados.reescrever_indice()
+
+    print(f"\nExecução {numero} -> {pasta.relative_to(Path.cwd()) if pasta.is_relative_to(Path.cwd()) else pasta}")
+    print(f"  resumo.md       o resultado em uma tela")
+    print(f"  relatorio.json  o detalhe caso a caso")
+    print(f"Histórico -> {indice.relative_to(Path.cwd()) if indice.is_relative_to(Path.cwd()) else indice}")
     return 0 if n_ok == n else 1
 
 

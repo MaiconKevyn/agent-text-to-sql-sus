@@ -1,10 +1,12 @@
-"""Reavalia um eval_report.json existente com o critério atual, sem chamar o LLM.
+"""Reavalia um relatório existente com o critério atual, sem chamar o LLM.
 
 Serve para separar mudança de SCORER de mudança de SISTEMA: as predições são as
 mesmas: só o julgamento muda. Reexecuta o SQL previsto e o gold no banco e
 compara com `results_match`.
 
-    python -m eval.rescore [caminho/para/eval_report.json]
+    python -m eval.rescore [caminho/para/relatorio.json]
+
+Sem argumento, usa a execução mais recente de eval/results/.
 """
 from __future__ import annotations
 
@@ -17,15 +19,17 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from eval import resultados  # noqa: E402
 from eval.run_eval import results_match  # noqa: E402
 from src.config import settings  # noqa: E402
 from src.db import Database  # noqa: E402
 
 
 def main() -> int:
-    report_path = Path(sys.argv[1]) if len(sys.argv) > 1 else (
-        Path(__file__).resolve().parent / "eval_report.json"
-    )
+    report_path = Path(sys.argv[1]) if len(sys.argv) > 1 else resultados.ultimo_relatorio()
+    if report_path is None:
+        print("Nenhuma execução em eval/results/. Rode `python -m eval.run_eval` antes.")
+        return 1
     report = json.loads(report_path.read_text(encoding="utf-8"))
     cases = {
         c["id"]: c

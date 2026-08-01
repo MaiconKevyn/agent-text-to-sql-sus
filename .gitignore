@@ -37,8 +37,13 @@ __pycache__/
 # `gold_snapshot.json` e `validation_228.json` FICAM versionados: são o
 # resultado conferido de cada gold e a auditoria da importação.
 # ---------------------------------------------------------------------------
-eval/eval_report.json
+# O detalhe caso a caso de cada execução: 400 KB por rodada, e regerável a
+# partir do ground truth. O `resumo.md` e o `indice.md`, que são a SÉRIE de
+# medições, ficam versionados — é neles que se vê se uma mudança ajudou.
+eval/results/*/relatorio.json
 eval/*.log
+eval/.DS_Store
+.DS_Store
 eval/ground_truth_*_backup.yaml
 eval/ground_truth_merged.yaml
 

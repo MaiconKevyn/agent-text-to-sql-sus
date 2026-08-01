@@ -106,30 +106,36 @@ def escrever_resumo(pasta: Path, dados: dict, comando: str, nota: str = "") -> P
     ]
     if nota:
         linhas.append(f"- **nota** {nota}")
-    # Uma execução parcial precisa dizer isso na primeira tela. O número dela é
-    # legítimo, mas não é o mesmo número de uma rodada completa, e quem só olha
-    # a acurácia não tem como perceber a diferença.
-    if (modo := dados.get("recusa", "inclui")) != "inclui":
-        linhas += [
-            "",
-            f"> **Execução parcial** (`--recusa {modo}`): "
-            + (
-                f"os {dados.get('skipped', 0)} casos irrespondíveis ficaram de fora. "
-                "Não mede recusa, e a acurácia geral aqui é a execution accuracy — "
-                "não compare com a de uma rodada completa."
-                if modo == "exclui"
-                else "só os casos irrespondíveis rodaram. Não mede execution accuracy."
-            ),
+    # Quando não há irrespondíveis na execução, "acurácia geral" e "execution
+    # accuracy" são o MESMO número calculado sobre o mesmo conjunto. Publicar os
+    # dois obriga quem lê a conferir se são iguais por acaso ou por construção,
+    # e a resposta é sempre "por construção". Então vira uma linha só, e o que se
+    # afirma é sobre os casos que rodaram — nada sobre os que não rodaram.
+    if recusaveis:
+        resultado = [
+            f"| Acurácia geral | {pct(sum(x['correct'] for x in r), len(r))} |",
+            f"| Execution accuracy | {pct(sum(x['correct'] for x in respondiveis), len(respondiveis))} |",
+            f"| Recusa correta | {pct(sum(x['correct'] for x in recusaveis), len(recusaveis))} |",
         ]
+    else:
+        resultado = [
+            f"| Casos avaliados | {len(r)} |",
+            f"| Acurácia | {pct(sum(x['correct'] for x in r), len(r))} |",
+        ]
+        if (fora := dados.get("skipped", 0)) and dados.get("recusa") == "exclui":
+            # Uma linha factual, não um alerta: a execução é legítima, só não
+            # é a mesma medição de uma rodada com os irrespondíveis dentro.
+            resultado.append(
+                f"| Fora desta execução | {fora} casos irrespondíveis (`--recusa exclui`) |"
+            )
+
     linhas += [
         "",
         "## Resultado",
         "",
         "| | |",
         "|---|---|",
-        f"| Acurácia geral | {pct(sum(x['correct'] for x in r), len(r))} |",
-        f"| Execution accuracy | {pct(sum(x['correct'] for x in respondiveis), len(respondiveis))} |",
-        f"| Recusa correta | {pct(sum(x['correct'] for x in recusaveis), len(recusaveis))} |",
+        *resultado,
         "",
         "## Por categoria",
         "",
@@ -171,8 +177,9 @@ uma está em `eval_NNN/resumo.md`.
 das falhas passam numa segunda tentativa sem nada mudar no código. Uma variação
 menor que isso entre duas linhas desta tabela não é sinal; é ruído.
 
-`ᵖ` marca execução parcial — rodou um recorte do conjunto, então a acurácia
-geral dela não se compara com a de uma linha sem a marca.
+Quando a coluna de recusa diz `excluída`, a execução rodou sem os casos
+irrespondíveis: a acurácia dela é sobre os respondíveis e só se compara com a
+coluna `execução` das outras linhas.
 
 | # | quando | modelo | casos | geral | execução | recusa | nota |
 |---|---|---|---|---|---|---|---|
@@ -198,13 +205,13 @@ def reescrever_indice() -> Path:
         p = lambda v: f"{100*v:.1f}%" if isinstance(v, (int, float)) else "—"  # noqa: E731
         # Um "—" na coluna de recusa é ambíguo: pode ser que a amostra não tinha
         # irrespondíveis, ou que alguém os excluiu de propósito. A segunda muda
-        # como se lê a linha inteira, então ela se nomeia.
+        # como se lê a linha inteira, então ela se nomeia — e é o ÚNICO lugar
+        # que a nomeia, para não haver dois sinais dizendo a mesma coisa.
         modo = d.get("recusa", "inclui")
         recusa = "excluída" if modo == "exclui" else p(d.get("refusal_accuracy"))
-        geral = p(d.get("accuracy")) + (" ᵖ" if modo != "inclui" else "")
         linhas.append(
             f"| {n} | {quando} | `{d.get('model','?')}` | {d.get('n_cases','?')} | "
-            f"{geral} | {p(d.get('execution_accuracy'))} | "
+            f"{p(d.get('accuracy'))} | {p(d.get('execution_accuracy'))} | "
             f"{recusa} | {d.get('note','') or ''} |"
         )
 

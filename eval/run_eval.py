@@ -425,11 +425,9 @@ def main() -> int:
     print(f"Avaliando {len(cases)} casos com modelo '{settings.sql_model}' "
           f"({args.workers} em paralelo)")
     if args.recusa == "exclui":
-        print(f"  --recusa exclui: {pulados} casos irrespondíveis fora. Esta "
-              f"execução NÃO mede recusa e não se compara com uma rodada completa.")
+        print(f"  {pulados} casos irrespondíveis fora desta execução")
     elif args.recusa == "apenas":
-        print(f"  --recusa apenas: só os {len(cases)} irrespondíveis. Esta "
-              f"execução NÃO mede execution accuracy.")
+        print(f"  só os casos irrespondíveis — esta execução não mede execution accuracy")
     print()
     print(f"{'id':<34} {'categoria':<20} {'status':<10} tempo")
     print("-" * 80)
@@ -535,12 +533,18 @@ def main() -> int:
     )
 
     print("\n" + "=" * 80)
-    print(f"ACURÁCIA GERAL              {n_ok}/{n}  ({100*n_ok/n:.1f}%)")
-    if answerable:
+    if unanswerable:
+        print(f"ACURÁCIA GERAL              {n_ok}/{n}  ({100*n_ok/n:.1f}%)")
         print(f"Execution accuracy          {exec_ok}/{len(answerable)}  ({100*exec_ok/len(answerable):.1f}%)")
         print(f"SQL executável              {valid_sql}/{len(answerable)}  ({100*valid_sql/len(answerable):.1f}%)")
-    if unanswerable:
         print(f"Recusa correta              {ref_ok}/{len(unanswerable)}  ({100*ref_ok/len(unanswerable):.1f}%)")
+    else:
+        # Sem irrespondíveis, "geral" e "execution accuracy" seriam o mesmo
+        # número sobre o mesmo conjunto. Uma linha só, e ela fala dos casos que
+        # rodaram — não há nada a afirmar sobre os que ficaram de fora.
+        print(f"CASOS AVALIADOS             {n}")
+        print(f"ACURÁCIA                    {n_ok}/{n}  ({100*n_ok/n:.1f}%)")
+        print(f"SQL executável              {valid_sql}/{n}  ({100*valid_sql/n:.1f}%)")
 
     print("\nPor categoria:")
     for cat, vals in sorted(by_cat.items(), key=lambda kv: (sum(kv[1]) / len(kv[1]))):

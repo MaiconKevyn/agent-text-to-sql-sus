@@ -881,6 +881,10 @@ ele foi quem descobriu que o tema **padrão** já reprovava, com `--ink-subtle` 
 
 ## Documentos
 
+- [`docs/FLUXO_DO_CHAT.md`](docs/FLUXO_DO_CHAT.md) — o caminho de uma pergunta do
+  chat, função por função: cada arquivo, cada linha, os dois momentos em que o
+  banco é tocado e as duas chamadas ao modelo.
+
 | | |
 |---|---|
 | [`docs/PROFILING.md`](docs/PROFILING.md) | o levantamento do banco que originou o dicionário |

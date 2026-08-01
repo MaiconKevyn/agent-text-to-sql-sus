@@ -19,6 +19,12 @@ Uso:
     python -m eval.run_eval --limit 10      # amostra rápida
     python -m eval.run_eval --category armadilha
     python -m eval.run_eval --ids demo_mulheres_2019,cid_pneumonia_categoria
+    python -m eval.run_eval --recusa exclui  # sem os irrespondíveis, ~10% mais barato
+
+`--recusa exclui` serve para ITERAR na geração de SQL sem pagar pelos 35 casos
+de recusa. Não use na execução que vai virar a medição registrada: a recusa é a
+única métrica que pega o agente respondendo uma pergunta VIZINHA em vez de
+recusar — o erro que não parece erro, porque o número sai com cara de certo.
 """
 from __future__ import annotations
 
@@ -359,6 +365,16 @@ def main() -> int:
         help="casos avaliados em paralelo. O gargalo é a API, não o DuckDB.",
     )
     ap.add_argument(
+        "--recusa", choices=("inclui", "exclui", "apenas"), default="inclui",
+        help=(
+            "o que fazer com os casos irrespondíveis. `exclui` pula os 35 casos "
+            "de recusa e economiza ~10%% da conta — útil para iterar na geração "
+            "de SQL. NÃO use na execução que você vai registrar como medição: a "
+            "recusa é a única métrica que pega o erro de responder uma pergunta "
+            "vizinha, que é o erro que não parece erro. `apenas` roda só eles."
+        ),
+    )
+    ap.add_argument(
         "--nota", default="",
         help=(
             "uma frase dizendo o que esta execução testa — 'depois de reescrever "
@@ -380,6 +396,17 @@ def main() -> int:
 
     with open(settings.ground_truth_file, encoding="utf-8") as fh:
         cases = yaml.safe_load(fh)["cases"]
+
+    # O recorte de recusa vem ANTES de `--limit`, senão `--limit 10 --recusa
+    # exclui` devolveria menos de 10 casos — cortaria os irrespondíveis de
+    # dentro dos 10 já escolhidos, em vez de escolher 10 respondíveis.
+    total_bruto = len(cases)
+    if args.recusa == "exclui":
+        cases = [c for c in cases if c.get("answerable", True)]
+    elif args.recusa == "apenas":
+        cases = [c for c in cases if not c.get("answerable", True)]
+    pulados = total_bruto - len(cases)
+
     if args.category:
         cases = [c for c in cases if c["category"] == args.category]
     if args.ids:
@@ -396,7 +423,14 @@ def main() -> int:
     t0 = time.time()
 
     print(f"Avaliando {len(cases)} casos com modelo '{settings.sql_model}' "
-          f"({args.workers} em paralelo)\n")
+          f"({args.workers} em paralelo)")
+    if args.recusa == "exclui":
+        print(f"  --recusa exclui: {pulados} casos irrespondíveis fora. Esta "
+              f"execução NÃO mede recusa e não se compara com uma rodada completa.")
+    elif args.recusa == "apenas":
+        print(f"  --recusa apenas: só os {len(cases)} irrespondíveis. Esta "
+              f"execução NÃO mede execution accuracy.")
+    print()
     print(f"{'id':<34} {'categoria':<20} {'status':<10} tempo")
     print("-" * 80)
 
@@ -530,6 +564,10 @@ def main() -> int:
         "run": numero,
         "command": comando,
         "note": args.nota,
+        # Qual recorte do conjunto rodou. Sem isso, uma execução parcial entra
+        # no índice com uma acurácia que parece comparável à de uma completa.
+        "recusa": args.recusa,
+        "skipped": pulados,
         "n_cases": n,
         "accuracy": round(n_ok / n, 4),
         "execution_accuracy": round(exec_ok / len(answerable), 4) if answerable else None,

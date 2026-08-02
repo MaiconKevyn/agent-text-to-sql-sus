@@ -474,7 +474,7 @@ Só entra rodada que tem SQL (`:210`). Produz `## CONVERSA ATÉ AQUI` com as
   perde um filtro recebe algo que parece certo e responde outra pergunta;
 - preencher `continuidade` com o que foi feito, **inclusive o descartado**.
 
-#### `complete` — `llm.py:57`
+#### `complete` — `llm.py:58`
 
 ```python
 kwargs = {"model": model, "messages": [{"role":"system","content":system}, *messages]}
@@ -493,7 +493,7 @@ return json.loads(_repara_escapes(content)) if schema is not None else content
 > `reasoning_effort="medium"`. Saída estruturada com `strict: True`: o provedor
 > garante a forma, não é parsing de texto.
 
-#### `_repara_escapes` — `llm.py:30`
+#### `_repara_escapes` — `llm.py:31`
 
 ```python
 _ESCAPE_QUEBRADO = re.compile(r"\\u0000([0-9a-fA-F]{2})")
@@ -504,7 +504,7 @@ chamadas com texto acentuado. O estrago é silencioso: `json.loads` aceita, e
 `"internações"` chega como `"interna\x00e7\x00f5es"` — num `WHERE 'São Paulo'`
 isso vira uma cláusula que não casa com nada. É no-op para resposta bem formada.
 
-#### O que `plan` traz — `SQL_SCHEMA`, `llm.py:158`
+#### O que `plan` traz — `SQL_SCHEMA`, `llm.py:157`
 
 | Campo | Uso |
 |---|---|
@@ -768,7 +768,7 @@ Corta em `settings.max_rows_to_llm` (**50**, `config.py:29`) e informa quantas
 ficaram de fora. O modelo redige sobre 50 linhas, a tabela da tela mostra até
 500, e a avaliação usa o conjunto inteiro.
 
-#### `synthesize_streaming` — `agent.py:603` → `complete_streaming` — `llm.py:135`
+#### `synthesize_streaming` — `agent.py:603` → `complete_streaming` — `llm.py:127`
 
 ```python
 for chunk in client().chat.completions.create(**kwargs):
@@ -931,7 +931,7 @@ uma chamada e nenhuma consulta.
 | texto do erro de conexão | `useChat.ts:185` | só o chat |
 | janela do histórico | `useChat.ts:15` (cliente) + `agent.py:145` (servidor) | chat e tema |
 | prompt de geração de SQL | `agent.py` `SQL_SYSTEM_PROMPT` | **os 4 usos + 272 casos do eval** |
-| esquema de saída | `llm.py:158` | **idem** |
+| esquema de saída | `llm.py:157` | **idem** |
 | regras do banco | `knowledge/schema.yaml` | **idem** |
 | limite, timeout, validação | `db.py` | **tudo** |
 | linkagem de valores | `value_linker.py` | chat e tema |
